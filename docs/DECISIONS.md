@@ -845,3 +845,91 @@ resampling, so the evaluation set stays the real distribution. Resampling the tr
 and then evaluating on a resampled set would report a success rate no drawer has.
 
 **Date.** 2026-09-02
+
+---
+
+### D041 — `T` becomes the second predicted parameter, and only `T`
+
+**Decision.** The adapted parameter is `p = [F_peak, T]`. The normalised force profile
+`φ(τ)`, `τ = t/T`, is unchanged — same `rise_fraction = 0.1`, same `fall_fraction = 0.35`,
+same smoothstep — so a longer `T` stretches one fixed curve rather than reshaping it. Nothing
+else moves: not `d_goal`, not the probe, not the hidden state, not the controller API, which
+already took `(peak_force, duration)`.
+
+**Reason.** Phase 11 measured that with `T` fixed the succeeding forces form a contiguous
+interval whose midpoint works for 104 of 105 solvable hidden states. In one dimension
+averaging two good answers is safe by construction, so a landscape model has no *structural*
+advantage over a single-output regressor and the paper's central claim cannot be tested. Two
+dimensions make the question askable.
+
+**Also.** That `φ(τ)` is genuinely `T`-independent is asserted rather than assumed, and the
+check earned its keep. Comparing a 0.8 s and a 2.0 s execution at matching normalised times
+showed a 0.475 N disagreement between what should be one curve; the cause was that
+`history.time[k]` is the time *after* step `k` while `commanded_force[k]` was computed from
+the time before it, so the recorded pairing is off by `step_dt/T` — 2.6 % of the profile at
+0.8 s against 0.8 % at 2.0 s. The test now checks each execution against the analytic `φ` at
+its own sample times, to 1e-4. The physics was never wrong.
+
+**Date.** 2026-09-03
+
+---
+
+### D042 — The operating region does not check joint limits, and that is now known
+
+**Decision.** `OperatingRegionCfg` is left as it is for now: mechanical margin, peak velocity,
+lateral drift, orientation drift, minimum displacement, safety abort. No joint-margin term is
+added in this phase.
+
+**Reason.** The goal-distance sweep found that an episode can pass every validity check while
+the arm sits **at** a joint stop. Measured over 5 632 episodes, the smallest fractional margin
+to a joint limit falls monotonically with drawer displacement — 0.122 at 0–37 mm, 0.085 at
+187–225 mm, and **0.000** beyond 300 mm — and the margin is a function of displacement rather
+than of the path, because the gripper holds the handle and the drawer's position therefore
+determines the arm's configuration.
+
+The consequence is concrete: 300 mm pulls report 34–50 % feasibility with the arm pinned at a
+joint limit, and the lateral drift that *does* eventually fail them (16–42 mm) is the symptom
+rather than the cause.
+
+**Why not fix it here.** Adding the term would change nothing for the 40 mm task — margins
+there are a comfortable 0.12 — but it would change what `valid` means for every dataset
+already generated, including the Phase 9–11 Oracles and Dataset v0. That is a deliberate
+decision with a re-audit attached, not a patch to slip into a phase whose variable under test
+is the parameter space.
+
+**Also.** It is not urgent precisely because the recommended goal distances (40–100 mm) sit in
+the region where the margin is 0.12–0.16 and no episode comes near a limit. It becomes urgent
+the moment a longer `d_goal` is adopted.
+
+**Date.** 2026-09-03
+
+---
+
+### D043 — No `min_probe_duration`, on measured grounds
+
+**Decision.** The probe keeps its four stop conditions unchanged. No minimum duration is
+imposed, despite Dataset v0 containing probes as short as 0.10 s (6 control steps).
+
+**Reason.** Three measurements, and the third reverses the second.
+
+Only **5 of 1 536** probes (0.3 %) fall below 0.20 s; the distribution is median 0.483 s with
+p1 at 0.267 s, so a very short probe is an outlier rather than a regime.
+
+Split into duration terciles, the leave-one-out `R²` of a readout of the required force climbs
+from 0.378 on the shortest third to 0.695 on the longest, which reads as short probes knowing
+less.
+
+The **RMSE** says otherwise: 0.332, 0.293, 0.330 N — flat. `R² = 1 − MSE/Var`, and the terciles
+have different target variance (the long tercile's required force has sd 0.60 N against the
+short tercile's 0.42 N), so the same absolute error scores a higher `R²` there. For dynamic
+friction the short probes are *better*: RMSE 0.165 against 0.302.
+
+**And a floor would destroy information.** Probe duration is itself the single strongest
+identifying feature — Spearman **+0.932** with static friction and **+0.852** with the
+required force. A drawer that breaks away immediately is a slippery drawer, and its shortness
+*is* the measurement. A 0.35 s floor would extend 13.5 % of probes and a 0.50 s floor 52 %,
+both selectively the low-friction drawers (median `µ_s` 0.72 against 1.91), flattening the most
+informative feature exactly where it carries the most signal and biasing the dataset while
+doing it.
+
+**Date.** 2026-09-03

@@ -49,6 +49,16 @@ parser.add_argument("--force-step", type=float, default=0.25)
 parser.add_argument("--duration-low", type=float, default=0.4)
 parser.add_argument("--duration-high", type=float, default=2.5)
 parser.add_argument("--duration-step", type=float, default=0.15)
+parser.add_argument(
+    "--fall-fraction",
+    type=float,
+    default=None,
+    help=(
+        "Ramp-down fraction. Defaults to the task's 0.35. Overridable because the terminal-"
+        "velocity condition, not the drawer or the arm, is what bounds mid-range goal "
+        "distances, and the ramp-down is what sets it."
+    ),
+)
 parser.add_argument("--seed", type=int, default=20260902)
 parser.add_argument("--output", type=str, default=None)
 AppLauncher.add_app_launcher_args(parser)
@@ -89,7 +99,11 @@ def build_system(num_envs: int) -> PullSystem:
     """The Phase 11 system, unchanged: no settle, so the probe's state survives."""
     execution = ExecutionControllerCfg(
         rise_fraction=RECOMMENDED_EXECUTION_CFG.rise_fraction,
-        fall_fraction=RECOMMENDED_EXECUTION_CFG.fall_fraction,
+        fall_fraction=(
+            args_cli.fall_fraction
+            if args_cli.fall_fraction is not None
+            else RECOMMENDED_EXECUTION_CFG.fall_fraction
+        ),
         shape=RECOMMENDED_EXECUTION_CFG.shape,
         settle_steps=0,
         zero_force_cleanup_steps=RECOMMENDED_EXECUTION_CFG.zero_force_cleanup_steps,
@@ -136,7 +150,8 @@ def main() -> None:
     print(f"[2d] grid points: {len(grid)} per hidden state -> {len(grid) * len(states)} episodes")
     print(f"[2d] task       : d_goal={MAIN_TASK.goal_displacement * 1000:g} mm "
           f"eps_d={MAIN_TASK.displacement_tolerance * 1000:g} mm eps_v={MAIN_TASK.velocity_tolerance:g} m/s")
-    print(f"[2d] profile    : fall_fraction={RECOMMENDED_EXECUTION_CFG.fall_fraction} fixed; only T scales phi(t/T)")
+    fall = args_cli.fall_fraction if args_cli.fall_fraction is not None else RECOMMENDED_EXECUTION_CFG.fall_fraction
+    print(f"[2d] profile    : fall_fraction={fall} fixed; only T scales phi(t/T)")
     print(f"[2d] simulated  : {sum(d for _, d in grid) * len(states):.0f} s of execution")
 
     dataset = SweepDataset(
@@ -146,7 +161,11 @@ def main() -> None:
             "stage": args_cli.stage,
             "forces": list(forces),
             "durations": list(durations),
-            "fall_fraction": RECOMMENDED_EXECUTION_CFG.fall_fraction,
+            "fall_fraction": (
+                args_cli.fall_fraction
+                if args_cli.fall_fraction is not None
+                else RECOMMENDED_EXECUTION_CFG.fall_fraction
+            ),
             "transition_steps": SEQUENTIAL_TRANSITION_STEPS,
             "num_hidden_states": len(states),
             "hidden_state_seed": args_cli.seed,
