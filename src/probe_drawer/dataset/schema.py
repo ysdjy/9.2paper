@@ -114,6 +114,11 @@ class TrainingSample:
             is state, not a command, and it is deployable -- a robot knows where it has
             already pulled the handle to.
         candidate_peak_force: :math:`F_\\text{peak}` this row asks about (N).
+        branch_index: Where in its probe's candidate sweep this execution ran. Recorded
+            because branching drifts slightly with sweep position, and the sweep order is
+            shuffled to keep that drift uncorrelated with force; storing the index is what
+            lets the audit verify the decorrelation instead of trusting it
+            (``docs/COUNTERFACTUAL_BRANCHING.md`` 5.2).
         duration: :math:`T_\\text{goal}` (s).
         goal_displacement: :math:`d_\\text{goal}` (m), measured from *before* the probe.
         final_total_displacement: :math:`d_\\text{total}(T)` (m).
@@ -135,6 +140,7 @@ class TrainingSample:
     probe_summary: dict
     post_probe_state: dict
     candidate_peak_force: float
+    branch_index: int
     duration: float
     goal_displacement: float
     final_total_displacement: float
@@ -164,6 +170,7 @@ class TrainingSample:
             "probe_summary": dict(self.probe_summary),
             "post_probe_state": dict(self.post_probe_state),
             "candidate_peak_force": self.candidate_peak_force,
+            "branch_index": self.branch_index,
             "duration": self.duration,
             "goal_displacement": self.goal_displacement,
             "final_total_displacement": self.final_total_displacement,

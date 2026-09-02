@@ -1,0 +1,30 @@
+{
+  "cfg": {
+    "level": "xi_id",
+    "train_fraction": 0.7,
+    "val_fraction": 0.15,
+    "salt": "phase11"
+  },
+  "groups": {
+    "2e824b8f4ee0": "train",
+    "1330578213b3": "train",
+    "3816783c26aa": "train",
+    "8461b506ceeb": "train",
+    "2a90a2c750a4": "train",
+    "53b032b4ca5b": "test",
+    "50b24374f7c5": "test",
+    "427972f1d064": "train"
+  },
+  "counts": {
+    "level": "xi_id",
+    "rows": {
+      "train": 72,
+      "val": 0,
+      "test": 24
+    },
+    "groups": {
+      "train": 6,
+      "test": 2
+    }
+  }
+}

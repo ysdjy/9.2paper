@@ -32,7 +32,15 @@ def make_xi(mass: float = 8.0, static: float = 1.25, dynamic: float = 0.8, dampi
     return {"mass": mass, "static_friction": static, "dynamic_friction": dynamic, "damping": damping}
 
 
-def make_sample(xi: dict, episode: int, force: float, *, success: bool = True, valid: bool = True) -> TrainingSample:
+def make_sample(
+    xi: dict,
+    episode: int,
+    force: float,
+    *,
+    success: bool = True,
+    valid: bool = True,
+    branch_index: int = 0,
+) -> TrainingSample:
     probe = probe_id(xi, episode, PROBE_TASK)
     return TrainingSample(
         candidate_id=candidate_id(probe, force, MAIN_TASK.duration, MAIN_TASK.goal_displacement),
@@ -43,6 +51,7 @@ def make_sample(xi: dict, episode: int, force: float, *, success: bool = True, v
         probe_summary={"duration": 0.5, "breakaway_force": 2.0},
         post_probe_state={"displacement": 0.0035, "velocity": 0.0002},
         candidate_peak_force=force,
+        branch_index=branch_index,
         duration=MAIN_TASK.duration,
         goal_displacement=MAIN_TASK.goal_displacement,
         final_total_displacement=0.04,
@@ -55,10 +64,10 @@ def make_sample(xi: dict, episode: int, force: float, *, success: bool = True, v
 def make_dataset(num_states: int = 24, probes_per_state: int = 2, forces=(1.0, 1.5, 2.0)) -> list[TrainingSample]:
     """A dataset with the structure the real one has: many candidates share one probe."""
     return [
-        make_sample(make_xi(mass=4.0 + index), episode, force)
+        make_sample(make_xi(mass=4.0 + index), episode, force, branch_index=position)
         for index in range(num_states)
         for episode in range(probes_per_state)
-        for force in forces
+        for position, force in enumerate(forces)
     ]
 
 
@@ -121,6 +130,16 @@ class TestSampleContract:
     def test_the_candidate_force_is_a_model_input(self) -> None:
         """The model is asked about a force, so it has to be able to see which one."""
         assert "candidate_peak_force" in model_input_fields()
+
+    def test_the_branch_index_is_not_a_model_input(self) -> None:
+        """It is generation bookkeeping. A model that read it would be reading an artefact of
+        how the labels were produced, which a deployed robot has no analogue of."""
+        assert "branch_index" not in model_input_fields()
+
+    def test_the_branch_index_is_recorded(self) -> None:
+        sample = make_sample(make_xi(), 0, 2.0, branch_index=17)
+        assert sample.as_dict()["branch_index"] == 17
+        assert TrainingSample.from_dict(sample.as_dict()).branch_index == 17
 
     def test_a_probe_history_of_deployable_channels_is_accepted(self) -> None:
         validate_probe_history({"drawer_position": [0.0], "commanded_force": [1.0]})

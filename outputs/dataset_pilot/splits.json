@@ -1,0 +1,55 @@
+{
+  "cfg": {
+    "level": "xi_id",
+    "train_fraction": 0.7,
+    "val_fraction": 0.15,
+    "salt": "phase11"
+  },
+  "groups": {
+    "2e824b8f4ee0": "train",
+    "1330578213b3": "train",
+    "3816783c26aa": "train",
+    "8461b506ceeb": "train",
+    "2a90a2c750a4": "train",
+    "53b032b4ca5b": "test",
+    "50b24374f7c5": "test",
+    "427972f1d064": "train",
+    "1ffca654cc5e": "train",
+    "4108bf56612c": "train",
+    "15b61ba6d0e8": "train",
+    "fdae17f66e05": "test",
+    "4bbdd203027b": "train",
+    "cbf032547c2c": "train",
+    "bd507c8d45e7": "train",
+    "12df51dd4340": "train",
+    "44ada1e8460a": "train",
+    "b7e9638e7c7d": "val",
+    "267875269f0a": "train",
+    "a3819804b986": "val",
+    "16393d23d3dd": "test",
+    "00ff4a4339f0": "train",
+    "f61acf4af6be": "train",
+    "f9fe692aace5": "test",
+    "d003e31fc5b6": "train",
+    "520fa1e35d5b": "train",
+    "18109c9d175d": "test",
+    "46be1efefb61": "test",
+    "fab5e66c953a": "train",
+    "294b89ed5aea": "test",
+    "df4121a3ffc1": "test",
+    "d395c0748e7f": "train"
+  },
+  "counts": {
+    "level": "xi_id",
+    "rows": {
+      "train": 1512,
+      "val": 144,
+      "test": 648
+    },
+    "groups": {
+      "train": 21,
+      "test": 9,
+      "val": 2
+    }
+  }
+}
