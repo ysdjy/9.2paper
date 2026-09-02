@@ -18,7 +18,7 @@ run (D035).
 
 **Branch order** is a deterministic shuffle of the candidates within one probe, because
 executing them in force order would correlate the measured branch drift with force -- the
-exact axis the model learns (D034).
+exact axis the model learns (D040).
 
 Nothing here imports Isaac Lab, and nothing here reads an outcome.
 """

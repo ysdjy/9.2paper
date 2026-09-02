@@ -691,7 +691,7 @@ and about `F_peak` at `T = 1.5 s`, but it is no longer the task's ground truth.
 
 ---
 
-### D034 — One probe supplies many candidate labels by snapshot-and-restore, with the branch order shuffled
+### D040 — One probe supplies many candidate labels by snapshot-and-restore, with the branch order shuffled
 
 **Decision.** Dataset v0 runs a probe once, captures the state with
 `protocols.simulation_snapshot`, and restores it before each of the 24 candidate executions.
@@ -732,5 +732,114 @@ assumed.
 
 Full evidence, including the criteria that were changed during the work and why:
 `docs/COUNTERFACTUAL_BRANCHING.md`.
+
+**Date.** 2026-09-02
+
+---
+
+### D035 — Candidate forces are sampled without reference to any label
+
+**Decision.** Each hidden state's candidate forces are a stratified sample over the whole
+task force range (0.15–4.5 N), jittered deterministically from that hidden state's own
+identifier. The sampler is given a `xi_id` and a config, and nothing else: it cannot read a
+success label, an Oracle band, or that drawer's best force.
+
+**Reason.** Concentrating candidates near each drawer's success band would spend the budget
+far better — most of the range is a foregone conclusion for any given drawer. It would also
+make the training distribution a function of the labels, and a model trained on it would be
+answering "given that someone already told you roughly where the answer is, refine it". That
+is a different and much easier experiment than the one the paper claims to run.
+
+**Also.** The jitter is per hidden state rather than global, so the drawers do not all share
+one force grid; between-stratum forces get sampled across the dataset even though no single
+drawer sees them. Zero jitter would put every sample at its stratum centre and lose that.
+
+**Date.** 2026-09-02
+
+---
+
+### D036 — Every repeat of a hidden state is asked the same candidate forces
+
+**Decision.** The three independent probe repeats of a drawer share one candidate force set.
+Labels stay binary on disk; the empirical success probability is computed in analysis and
+never written back.
+
+**Reason.** It makes `(xi, F)` a *repeated measurement*. The protocol's intrinsic episode
+noise is about 1 mm against `ε_d = 7.5 mm` (D028), so a single episode's label is right most
+of the time and not always. Three repeats of the same question turn that from an unmeasured
+worry into a number — and one that matters, because the bistable operating points found in
+D040 are exactly where it will be large.
+
+**Also.** Storing the average instead would destroy the information: a row records what
+happened in one episode, and `0.667` is not something that happened. The audit and the
+calibration analysis compute the probability when they need it.
+
+**Date.** 2026-09-02
+
+---
+
+### D037 — Probe histories are stored ragged, at the raw control rate
+
+**Decision.** Each probe's recording is written at its true length (16–46 steps in the pilot)
+in its own compressed `.npz`, referenced by its candidates. Padding happens in the
+DataLoader, per batch, to that batch's own longest sequence.
+
+**Reason.** A probe stops when the drawer has moved 3 mm, so its length *is* information
+about the drawer — resampling to a fixed grid would discard part of the signal, and padding
+on disk would bake one model's convenience irreversibly into the data. The encoder consumes
+the batch through `pack_padded_sequence`, so padding is never visited; the test suite asserts
+the batched output equals the one-sequence-at-a-time output, because a mask applied slightly
+wrongly degrades a model without failing anything.
+
+**Also.** Storage is normalised for the same reason it is ragged: one probe answers 32
+candidates, so writing the recording into each row would multiply the largest part of the
+dataset by 32 for no information, and would make it possible for a probe to disagree with
+itself.
+
+**Date.** 2026-09-02
+
+---
+
+### D038 — "No positive was observed" is not "no force exists"
+
+**Decision.** `oracle_feasible` is `None` for every hidden state in Dataset v0. The dataset
+records `observed_positive_count` implicitly (the rows are all there); it does not claim
+infeasibility.
+
+**Reason.** This was nearly got wrong. Two of 32 pilot hidden states had no succeeding
+candidate, and the first reading of their data — displacement jumping from 6.6 mm straight to
+140 mm — looked like proof that no force lands the drawer at 40 ± 7.5 mm. Looking properly at
+the force-sorted rows showed otherwise: one of them reached 40.1 mm at 2.61 N and failed only
+on terminal velocity (0.032 against `ε_v = 0.03`), with its neighbour at 2.42 N giving
+31.7 mm and a compliant 0.023 m/s. A force in the 0.19 N gap between them would have
+succeeded. The grid missed it; the physics did not forbid it.
+
+Only a dense sweep can establish infeasibility, and Dataset v0 has no dense sweep behind its
+Sobol draws. Labelling a drawer infeasible on 32 negatives would silently remove the hardest
+and most interesting cases from every metric.
+
+**Date.** 2026-09-02
+
+---
+
+### D039 — The student is trained on the task, not on the teacher's latent
+
+**Decision.** The student's loss is binary cross-entropy on success, optionally plus *logit*
+distillation from the teacher. `latent_weight` on `||z_ace - z_priv||^2` exists, defaults to
+0, and any run that raises it records that in its config.
+
+**Reason.** Latent matching would set the student a target it provably cannot see. Phase 10
+measured that the calibrated probe barely responds to damping — `b` from 2 to 11 N·s/m leaves
+the probe duration and the breakaway force essentially unchanged — so a teacher free to encode
+`b` in `z_priv` would demand the student reconstruct an unobservable quantity. The same phase
+also showed `b` barely affects the required force, so encoding it would not even help.
+
+The objective is *task-relevant context*, not system identification. Logit distillation asks
+the student to reproduce the teacher's success landscape, which is the thing that matters,
+without prescribing the coordinates it uses to get there.
+
+**Also.** Class imbalance (about 6 % positives) is handled with `pos_weight` rather than
+resampling, so the evaluation set stays the real distribution. Resampling the training set
+and then evaluating on a resampled set would report a success rate no drawer has.
 
 **Date.** 2026-09-02

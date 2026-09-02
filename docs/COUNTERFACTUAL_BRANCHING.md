@@ -5,7 +5,7 @@ the answer to be yes.
 
 Implementation: `src/probe_drawer/protocols/simulation_snapshot.py`.
 Validation: `scripts/validate_branching.py`, reports `outputs/logs/branching_*.json`.
-Decision: `docs/DECISIONS.md` D034.
+Decision: `docs/DECISIONS.md` D040.
 
 ---
 
