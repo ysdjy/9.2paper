@@ -258,6 +258,14 @@ class LandscapeMetrics:
         force_extent, duration_extent: ``(min, max)`` over succeeding points, in N and s.
         centroid: ``(F, T)`` mean of the succeeding points.
         components: Connected regions under 4-connectivity.
+        components_diagonal: Under 8-connectivity. The pair matters: a thin strip that shifts
+            by one column between adjacent rows is 4-disconnected and 8-connected, and is
+            physically one band. Reporting only the first would manufacture topology out of
+            grid resolution.
+        resolution: Whether the grid can resolve topology here at all -- how many columns and
+            rows the region spans, and whether every row and column is a single unbroken run
+            (orthogonal convexity). A region three columns wide cannot be shown to be
+            non-convex by a grid three columns wide.
         largest_component_fraction: Of the succeeding points.
         orientation_deg, elongation: Principal axis in the normalised box.
         midpoint: :func:`midpoint_failure_rate` output.
@@ -281,6 +289,8 @@ class LandscapeMetrics:
     duration_extent: tuple[float, float] | None
     centroid: tuple[float, float] | None
     components: int
+    components_diagonal: int
+    resolution: dict
     largest_component_fraction: float
     orientation_deg: float
     elongation: float
@@ -356,6 +366,7 @@ def analyse_landscape(dataset, xi_key: tuple[float, ...], criteria: SuccessCrite
 
     rows, columns = np.nonzero(success)
     labels, components = connected_components(success)
+    _, components_diagonal = connected_components(success, diagonal=True)
     sizes = [int((labels == label).sum()) for label in range(1, components + 1)]
 
     metrics = LandscapeMetrics(
@@ -369,6 +380,8 @@ def analyse_landscape(dataset, xi_key: tuple[float, ...], criteria: SuccessCrite
         duration_extent=(float(durations[rows].min()), float(durations[rows].max())) if len(rows) else None,
         centroid=(float(forces[columns].mean()), float(durations[rows].mean())) if len(rows) else None,
         components=components,
+        components_diagonal=components_diagonal,
+        resolution=_resolution(success),
         largest_component_fraction=float(max(sizes) / sum(sizes)) if sizes else float("nan"),
         midpoint=midpoint_failure_rate(success, swept),
         row_contiguity=_contiguity(success, axis=0),
@@ -410,6 +423,38 @@ def analyse_landscape(dataset, xi_key: tuple[float, ...], criteria: SuccessCrite
             "normalised_cost": float(cost[cheapest]),
         }
     return metrics
+
+
+def _resolution(mask: np.ndarray) -> dict:
+    """Can this grid say anything about this region's topology?
+
+    A success region only a few cells wide is a region whose shape the grid is guessing at.
+    Two things are reported. ``columns_spanned``/``rows_spanned`` say how much of the region
+    the grid actually samples -- below about four cells on an axis, any claim about convexity
+    or connectivity along that axis is a claim about the grid. ``orthogonally_convex`` says
+    whether every populated row *and* column is a single unbroken run; if it is, the region is
+    a monotone band and an apparent 4-disconnection is a staircase artefact rather than two
+    islands.
+    """
+    if not mask.any():
+        return {
+            "columns_spanned": 0,
+            "rows_spanned": 0,
+            "orthogonally_convex": False,
+            "sufficient_for_topology": False,
+        }
+    rows, columns = np.nonzero(mask)
+    columns_spanned = int(columns.max() - columns.min() + 1)
+    rows_spanned = int(rows.max() - rows.min() + 1)
+    orthogonal = _contiguity(mask, axis=0) == 1.0 and _contiguity(mask, axis=1) == 1.0
+    return {
+        "columns_spanned": columns_spanned,
+        "rows_spanned": rows_spanned,
+        "orthogonally_convex": bool(orthogonal),
+        # Four cells on both axes is the minimum at which a midpoint test has interior pairs
+        # to check and a staircase can be told from a gap.
+        "sufficient_for_topology": bool(columns_spanned >= 4 and rows_spanned >= 4),
+    }
 
 
 def _boundary_fraction(mask: np.ndarray, swept: np.ndarray) -> float:
