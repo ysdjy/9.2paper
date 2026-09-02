@@ -69,19 +69,11 @@ commands and observed values in `docs/VALIDATION.md`.
 **Commit.** `b85d069edb6ea6033181460b2dcc655da9dae44d` on `agent/phase0-8-bootstrap`; `main` points at the same commit; tagged
 `v0.1.0-phase8`.
 
-**Push status.** **Not pushed.** `git push origin main` fails with
-`could not read Username for 'https://github.com'` — no credential helper and no token are
-configured on this machine for `https://github.com/ysdjy/9.2paper.git`. The work is
-committed locally and the SHA is recorded above, per `CLAUDE.md` section 2. To push, whoever
-has access should configure a credential (e.g. `gh auth login`, or a PAT in
-`~/.git-credentials`) and then run:
-
-```bash
-cd /home/zbh/Downloads/IsaacLab/9.2paper
-git push -u origin main
-git push origin agent/phase0-8-bootstrap
-git push origin v0.1.0-phase8
-```
+**Push status.** Pushed. `main`, `agent/phase0-8-bootstrap` and the tag `v0.1.0-phase8`
+all resolve to `de31ea9011a2db6f99993cfc19218d5ee7953fae` on
+`https://github.com/ysdjy/9.2paper.git`, confirmed with `git ls-remote`. (The first attempt
+failed because no GitHub credential was configured on this machine; the user configured one
+and the push then succeeded.)
 
 **Remaining issues.** See "Known limitations" in `docs/VALIDATION.md`. The ones that would
 most affect the next phase:
