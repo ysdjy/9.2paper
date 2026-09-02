@@ -204,7 +204,7 @@ python scripts/plot_phase11.py --dataset outputs/dataset_v0 --run outputs/traini
 python scripts/visualize_response.py --all --profile-invariance
 
 # Tests
-python -m pytest tests/unit -q          # 233 tests, ~1 s, no Isaac Sim
+python -m pytest tests/unit -q          # 371 tests, ~5 s, no Isaac Sim
 python -m pytest tests/integration -q   # 69 tests, ~106 s, launches Isaac Sim once
 ```
 
@@ -311,7 +311,7 @@ All measured, never guessed. Authoritative in `probe_drawer.experiment_plan`, mi
 
 ## 8. Validation status
 
-All of Phases 0-10 pass. 245 unit tests and 69 integration tests pass. Highlights, with the
+All of Phases 0-10 pass. 371 unit tests pass; 84 integration tests are defined. Highlights, with the
 values actually measured (full table in [docs/VALIDATION.md](docs/VALIDATION.md)):
 
 * the official drawer opens to 308.7 mm; the drawer's travel direction measures exactly

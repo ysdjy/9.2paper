@@ -30,7 +30,8 @@ backups/**
 .idea/
 .DS_Store
 
-# Official third-party code, cloned not vendored (see docs/rma2_reproduction_report.md)
+# Official third-party code, cloned not vendored. Currently only
+# baseline/rma2_direct/third_party/; see that baseline's docs/RMA2_REPRODUCTION_REPORT.md.
 third_party/
 
 # Datasets and checkpoints are regenerable from the code plus the manifest, and too large

@@ -7,23 +7,32 @@ Sim.
 
 Usage::
 
-    python scripts/audit_adaptation_premise.py
-    python scripts/audit_adaptation_premise.py --sweep outputs/logs/sequential_oracle_fall030.json
+    python baseline/rma2_direct/scripts/audit_adaptation_premise.py
+    python baseline/rma2_direct/scripts/audit_adaptation_premise.py \
+        --sweep outputs/logs/sequential_oracle_fall030.json
+
+Paths are resolved against the **main project** root, not this baseline: the sweep it reads
+and the report it writes are project-level artefacts, and ``docs/TRAINING_V0.md`` already
+cites ``outputs/logs/adaptation_premise.json`` by that name.
 
 Reasoning and the interpretation of every number:
-``docs/RMA2_TO_DRAWER_MAPPING.md`` §19.
+``baseline/rma2_direct/docs/RMA2_TO_DRAWER_MAPPING.md`` §19.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
-from probe_drawer.analysis.adaptation_premise import audit
+# Importable without installing this baseline, so a reader can run it straight from a clone.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
 from probe_drawer.analysis.sweep import SweepDataset
 from probe_drawer.experiment_plan import MAIN_TASK
 from probe_drawer.utils import project_root
+from rma2_direct.adaptation_premise import audit
 
 
 def parse_args() -> argparse.Namespace:

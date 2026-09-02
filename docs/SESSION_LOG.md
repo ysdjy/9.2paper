@@ -12,15 +12,21 @@ No baseline code was written this round; that was deliberate (the commission's �
 
 **What was added.**
 
+Everything is under **`baseline/rma2_direct/`**, a self-contained folder that imports
+`probe_drawer` and never modifies it. Nothing outside it was added.
+
 * `docs/RMA2_REPRODUCTION_REPORT.md` — the official code, read line by line, and how far it
   ran here.
-* `docs/RMA2_TO_DRAWER_MAPPING.md` — what transfers, what does not, and the contract the
-  `methods/rma2_direct` implementation must satisfy.
-* `analysis/adaptation_premise.py` + `scripts/audit_adaptation_premise.py` +
-  `tests/unit/test_adaptation_premise.py` (12 tests) — whether the adaptation problem is well
+* `docs/RMA2_TO_DRAWER_MAPPING.md` — what transfers, what does not, and the design contract
+  the implementation must satisfy.
+* `src/rma2_direct/adaptation_premise.py` + `scripts/audit_adaptation_premise.py` +
+  `tests/test_adaptation_premise.py` (12 tests) — whether the adaptation problem is well
   posed, answered from the Oracle already on disk. Offline, no Isaac Sim.
 * `patches/rma4rma/` — the four fixes the official code needed, plus the install script.
 * `third_party/` (git-ignored) — the official `rma4rma` clone and its two forks.
+
+The audit's report keeps its project-level path, `outputs/logs/adaptation_premise.json`, so
+the citation in `docs/TRAINING_V0.md` is unaffected.
 
 **The official RMA² code does not run as published.** Four separate defects, each observed
 rather than inferred:
@@ -61,7 +67,8 @@ transfers to our probe **unchanged** if the window is the 1.5 s probe budget (90
 60 Hz); at the median probe length of 28 steps it is arithmetically invalid.
 
 **What was measured about our own task, before writing any model.**
-`scripts/audit_adaptation_premise.py` on `sequential_oracle_fall035.json` at `MAIN_TASK`:
+`baseline/rma2_direct/scripts/audit_adaptation_premise.py` on `sequential_oracle_fall035.json`
+at `MAIN_TASK`:
 
 * **Adaptation is necessary.** The best single fixed force (0.70 N) succeeds on 20/108 =
   **0.185** of hidden states. Required forces span 0.25–4.30 N.
@@ -92,7 +99,8 @@ carries `duration` as an axis), and it is the cheapest way to make the paper's c
 
 This blocks the next round on three things, in order: re-sweep the Oracle over a
 `(F_peak, T)` grid; re-select `MAIN_TASK` against it with the existing scored rule (D024);
-generalise `analysis/adaptation_premise.py` from bands to regions and re-run it. That last one
+generalise `baseline/rma2_direct/src/rma2_direct/adaptation_premise.py` from bands to regions
+and re-run it. That last one
 produces the number the paper actually needs — the count of hidden states whose success region
 is **disconnected**. If the 2-D regions turn out to be convex blobs, the framing has to change
 rather than the measurement.
@@ -117,12 +125,10 @@ throughout — `protocols/simulation_snapshot.py`, `scripts/validate_branching.p
 `protocols/__init__.py` — so creating a branch or a commit would have moved shared git state
 under a live session. This round's files are:
 
-* new: `docs/RMA2_REPRODUCTION_REPORT.md`, `docs/RMA2_TO_DRAWER_MAPPING.md`,
-  `src/probe_drawer/analysis/adaptation_premise.py`,
-  `scripts/audit_adaptation_premise.py`, `tests/unit/test_adaptation_premise.py`,
-  `patches/rma4rma/*`;
-* modified: `README.md` (§7 table, test counts), `docs/API.md` (new section), `.gitignore`
-  (`third_party/`).
+* new: everything under `baseline/rma2_direct/`;
+* modified: `README.md` (§7 table, test counts), `docs/API.md` (a pointer to `baseline/`),
+  `docs/DECISIONS.md` (D034), `.gitignore` (`third_party/`, later moved into the baseline's
+  own `.gitignore`).
 
 That concurrent work is building state capture and restore — exactly the "candidate rollouts
 from one shared post-probe state" capability this round listed as missing. The dataset-

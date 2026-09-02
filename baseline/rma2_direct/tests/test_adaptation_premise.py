@@ -12,7 +12,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from probe_drawer.analysis.adaptation_premise import (
+from rma2_direct.adaptation_premise import (
     audit,
     band_structure,
     collect_bands,

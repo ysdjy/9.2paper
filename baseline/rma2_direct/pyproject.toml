@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rma2-direct"
+version = "0.1.0"
+description = "RMA2-inspired Direct Adaptation baseline for single-probe drawer-pull parameter adaptation."
+requires-python = ">=3.11"
+# Deliberately empty. `probe_drawer`, `torch` and `numpy` are supplied by the conda
+# environment `env_isaaclab`; resolving them here would risk changing an environment that
+# the other methods and the other agents share. Install with --no-deps.
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+# This machine has ROS 2 Humble on PYTHONPATH and its pytest plugins break under Python 3.11
+# (same reason as the root pyproject.toml).
+addopts = "-p no:launch_testing -p no:launch_ros"
+testpaths = ["tests"]

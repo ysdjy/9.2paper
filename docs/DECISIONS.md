@@ -655,7 +655,8 @@ eps_v)` alone. The Oracle is re-swept over a `(F_peak, T)` grid and `MAIN_TASK` 
 against it by the existing scored rule (D024).
 
 **Reason.** Measured, not preferred. On the one-dimensional landscape
-(`outputs/logs/sequential_oracle_fall035.json`, `scripts/audit_adaptation_premise.py`) each
+(`outputs/logs/sequential_oracle_fall035.json`,
+`baseline/rma2_direct/scripts/audit_adaptation_premise.py`) each
 hidden state's succeeding forces form a contiguous interval: median band 0.20 N, median 3
 succeeding forces on a 0.05 N grid, only 5 of 105 bands contain any interior failure, and
 **the midpoint of the succeeding set succeeds for 104 of 105 hidden states**. In one dimension
@@ -679,7 +680,8 @@ new control code at all**: `ExecutionPullController.run` already takes `(peak_fo
 and `SweepRecord` already carries `duration` as a first-class axis.
 
 **Consequences.** `MainTask.duration` becomes a range rather than a constant.
-`analysis/adaptation_premise.py` generalises from bands to regions, and gains a connected-
+`baseline/rma2_direct/src/rma2_direct/adaptation_premise.py` generalises from bands to
+regions, and gains a connected-
 component count per hidden state -- the direct measurement of multi-modality. The oracle
 regression target becomes the point of the success region furthest from its boundary, and
 hidden states whose region is disconnected have more than one such point; those must be

@@ -3,7 +3,8 @@
 What the official RMA² implementation actually does, read from its source rather than from
 the paper, and how far it was possible to run it on this machine.
 
-The official code is **cloned, not vendored**: `third_party/` is git-ignored, so this
+The official code is **cloned, not vendored**: `baseline/rma2_direct/third_party/` is
+git-ignored, so this
 document plus the recorded commit hashes are what makes the reproduction repeatable. Nothing
 in `src/probe_drawer/` depends on it.
 
@@ -20,7 +21,7 @@ Status legend: ✅ done · ⚠️ partial · ❌ not done.
 | repository | `https://github.com/yichao-liang/rma4rma` |
 | commit | `2f938f6518709ac8cbda05c294b7765c6d16630d` (2026-04-19, `main`) |
 | paper | Liang, Ellis, Henriques, *Rapid Motor Adaptation for Robotic Manipulator Arms*, arXiv:2312.04670 |
-| local path | `third_party/rma4rma` (git-ignored) |
+| local path | `baseline/rma2_direct/third_party/rma4rma` (git-ignored) |
 | size | 4 745 lines of Python across 18 files |
 | submodule `ManiSkill2` | `https://github.com/yichao-liang/ManiSkill2`, branch `rma2`, commit `49c3093` (2024-03-16) |
 | submodule `stable-baselines3` | `https://github.com/yichao-liang/stable-baselines3`, branch `rma2`, commit `6f0069a` (2024-03-16) |
@@ -92,13 +93,13 @@ conda create -n rma2 python=3.11 -y
 PY=~/anaconda3/envs/rma2/bin/python
 $PY -m pip install --upgrade pip setuptools wheel
 $PY -m pip install torch --index-url https://download.pytorch.org/whl/cu128
-$PY -m pip install third_party/rma4rma/ManiSkill2
-$PY -m pip install third_party/rma4rma/stable-baselines3
-$PY -m pip install -e third_party/rma4rma
+$PY -m pip install baseline/rma2_direct/third_party/rma4rma/ManiSkill2
+$PY -m pip install baseline/rma2_direct/third_party/rma4rma/stable-baselines3
+$PY -m pip install -e baseline/rma2_direct/third_party/rma4rma
 ```
 
 Committed, with the patches applied in the right order, as
-`patches/rma4rma/install_rma2.sh`.
+`baseline/rma2_direct/patches/rma4rma/install_rma2.sh`.
 
 **Result: ✅**, with two version deviations that the official `environment.yml` does not pin
 and that this host forces.
@@ -621,7 +622,8 @@ Results append to `logs/eval_results_finegrained.csv` (`train.py:215-240`).
 ## 21. Fixes applied
 
 Four fixes were needed to get from `git clone` to a running two-stage pipeline. Every one is
-in `patches/rma4rma/`, which is committed even though `third_party/` is not, so the
+in `baseline/rma2_direct/patches/rma4rma/`, which is committed even though `third_party/` is
+not, so the
 reproduction is repeatable.
 
 | # | Problem | Fix | Patch |

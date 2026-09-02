@@ -1,6 +1,6 @@
 # RMA² → Drawer: what transfers, what does not, and what the baseline becomes
 
-How the official RMA² method (`third_party/rma4rma`, commit `2f938f6`) maps onto this
+How the official RMA² method (`baseline/rma2_direct/third_party/rma4rma`, commit `2f938f6`) maps onto this
 project's Franka + drawer + one-probe + parameterised-pull setting, and what the
 **RMA²-inspired Direct Adaptation** baseline is defined to be.
 
@@ -11,7 +11,7 @@ Nothing in this document has been implemented. It is the design contract the nex
 satisfy. §3 records the one decision that is **not ours to make** — the dimensionality of the
 skill parameter — and §19 records the risks, every one of them measured from the Oracle
 already on disk rather than assumed
-(`python scripts/audit_adaptation_premise.py`).
+(`python baseline/rma2_direct/scripts/audit_adaptation_premise.py`).
 
 ---
 
@@ -112,7 +112,7 @@ things do:
    `analysis/oracle.py` that selected the current one (D024). `T` stops being a task constant
    and becomes a chosen parameter, so `MainTask.duration` becomes a *range* and the task
    definition is `(d_goal, ε_d, ε_v)` alone.
-3. **`analysis/adaptation_premise.py` must be generalised from bands to regions** and re-run.
+3. **`rma2_direct/adaptation_premise.py` must be generalised from bands to regions** and re-run.
    Its 1-D vocabulary — `success_forces`, `low`/`high`, `centre`, `interior_failures` — becomes
    a set of grid cells, a centroid, and a connected-component count. The connected-component
    count is the number the paper actually wants: it is the direct measurement of whether the
@@ -371,37 +371,45 @@ which the schema's §6 leaves open:
 
 Next round, in this order. Nothing here is written yet.
 
+Everything below is **inside `baseline/rma2_direct/`** unless marked otherwise. This baseline
+owns its own code; it imports `probe_drawer` and never edits it (§14).
+
 ```
-scripts/sweep_task_space_2d.py             Isaac Sim; re-sweep the Oracle over (F_peak, T)   [§3.1 item 1]
-scripts/generate_probe_dataset.py          Isaac Sim; sequential protocol; emits TrainingSample rows
-scripts/audit_probe_identifiability.py     §42 of the commission, before any training
-src/probe_drawer/methods/__init__.py
-src/probe_drawer/methods/common/
+src/rma2_direct/
     parameter_space.py                     P_safe, normalisation, the squash — one definition
-    oracle_target.py                       band centre; shared with direct_regression
+    oracle_target.py                       max-margin point of the success region
     dataset.py                             TrainingSample -> tensors; validate_model_input at the boundary
     metrics.py                             §48 metrics, computed once
-src/probe_drawer/methods/rma2_direct/
     privileged_encoder.py                  §7
     adaptation_encoder.py                  §8
     parameter_head.py                      §9
     trainer.py                             Stage A, Stage B, optional Stage C
-    config.py                              dataclass, mirrored into configs/ per D011
-src/probe_drawer/methods/direct_regression/
-    model.py                               same encoder + head, no teacher
-    trainer.py
+    config.py                              dataclass, snapshotted into configs/ per D011
+    adaptation_premise.py                  exists; needs the band -> region generalisation
+configs/rma2_direct.yaml                   config snapshot, drift-tested
 scripts/train_rma2_privileged.py           Stage A
 scripts/train_rma2_adapter.py              Stage B
 scripts/eval_rma2_direct.py                deployment + §48 metrics
-configs/rma2_direct.yaml                   snapshot, tested by test_config_snapshots.py
-tests/unit/test_rma2_no_privileged_leak.py the student cannot read xi
-tests/unit/test_rma2_shapes.py             90x8 -> 96 -> d_z, on CPU, no Isaac Sim
+tests/test_rma2_no_privileged_leak.py      the student cannot read xi
+tests/test_rma2_shapes.py                  90x8 -> 96 -> d_z, on CPU, no Isaac Sim
 ```
+
+Three things are **not** this baseline's to write, because every method needs them and they
+must be identical across all of them (§14). They belong to the main project:
+
+```
+scripts/sweep_task_space_2d.py             Isaac Sim; re-sweep the Oracle over (F_peak, T)   [§3.1 item 1]
+scripts/generate_probe_dataset.py          Isaac Sim; sequential protocol; emits TrainingSample rows
+src/probe_drawer/experiment_plan.py        MainTask.duration becomes a range                 [§3.1 item 2]
+```
+
+If this baseline ends up needing a fourth such thing, it goes to the project too — a shared
+component living inside one method's folder is how an unfair comparison starts.
 
 Also to be extended, not written fresh:
 
 ```
-src/probe_drawer/analysis/adaptation_premise.py   bands -> regions; connected components  [§3.1 item 3]
+src/rma2_direct/adaptation_premise.py             bands -> regions; connected components  [§3.1 item 3]
 src/probe_drawer/experiment_plan.py               MainTask.duration becomes a range       [§3.1 item 2]
 ```
 
@@ -412,8 +420,9 @@ small-scale eval (100–500 `ξ`).
 
 ## 19. Risks, measured where possible
 
-Every number below is produced by `python scripts/audit_adaptation_premise.py`
-(module: `analysis/adaptation_premise.py`, report: `outputs/logs/adaptation_premise.json`),
+Every number below is produced by `python baseline/rma2_direct/scripts/audit_adaptation_premise.py`
+(module: `src/rma2_direct/adaptation_premise.py`, report: the *project's*
+`outputs/logs/adaptation_premise.json`),
 run against `outputs/logs/sequential_oracle_fall035.json` at `MAIN_TASK`. All model estimates
 are leave-one-out over the 105 solvable hidden states.
 
