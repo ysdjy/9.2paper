@@ -175,3 +175,93 @@ The sweep gives no reason to make `T` a task condition: both usable durations pr
 accepted tasks with almost the same discrimination, so varying `T` would add a dimension
 without adding a phenomenon. Adding it later needs no API change -- `run(peak_force,
 duration)` already takes it.
+
+---
+
+## 6. Phase 10 — the parameters re-selected against the sequential Oracle
+
+Everything in §4 was selected against the reset Oracle. It is kept for the comparison in
+`docs/SEQUENTIAL_PROTOCOL.md` §5 and is **not** the paper's parameter set. The values below
+are, and they come from `scripts/refine_task_space.py` scoring
+`outputs/logs/sequential_oracle_fall{020,030,035}.json` (report
+`outputs/logs/task_refinement.json`, 300 candidates over 3 datasets).
+
+### The selection rule, in priority order
+
+The user's priority order, encoded in `_select`:
+
+1. the task can truly stop (`ε_v` satisfiable at all)
+2. position precision (`ε_d` as small as possible)
+3. coverage (fraction of hidden states with a succeeding force)
+4. the force differences between hidden states are real
+5. the success band is wide enough to aim at
+6. **only then** discrimination
+
+Discrimination is the last tie-breaker, not the objective. A task every drawer solves at the
+same force would be well-behaved and worthless; a task no regression can hit is worse.
+
+### Selected
+
+| Parameter | Value | Phase 9 value |
+|---|---|---|
+| `T_goal` | 1.5 s | 1.5 s (unchanged) |
+| `d_goal` | **40 mm** | 50 mm |
+| `ε_d` | **7.5 mm** | 15 mm |
+| `ε_v` | **0.03 m/s** | 0.08 m/s |
+| `fall_fraction` | **0.35** | 0.20 |
+| inference gap | **8 steps** (133 ms) | n/a (reset) |
+| `F_peak` envelope | 0.15 – 4.50 N | 1.0 – 5.0 N |
+
+Position tolerance halved and terminal-velocity tolerance cut by 2.7×, at a *higher* coverage
+than Phase 9 achieved with the looser task.
+
+### Measured at this operating point (108-point grid)
+
+| Quantity | Value |
+|---|---|
+| coverage | **0.972** (105/108) |
+| required force, closest to goal | 0.20 – 4.30 N, median 1.50 N — a **21.5×** range |
+| required force, band centre | 0.25 – 4.30 N, median 1.50 N — a 17.2× range |
+| median success band | 0.20 N (0.14 of the required force) |
+| bands contiguous | 100 of 105 (0.952) |
+| grid step | 0.05 N, resolves the band |
+| max travel used | 0.119 of the drawer's range |
+| discrimination | 2.70 |
+| valid rows | 97.2 % of 5616 |
+
+Hidden states with no succeeding force: `[4.0, 2.0, 0.6, 2.0]`, `[4.0, 3.0, 0.9, 2.0]`,
+`[4.0, 3.0, 0.9, 6.0]` — light, high-friction drawers, which overshoot as soon as they break
+away at all.
+
+### Why not `ε_d = 5 mm`
+
+Coverage is *higher* at 5 mm (0.981), so coverage is not the constraint. The band is: it
+collapses to 0.10 N — one grid step, about 7 % of the required force — which fails the
+project's own `min_relative_width = 0.10` floor. 7.5 mm is also about 7× the protocol's
+intrinsic `d_total(T)` noise of roughly 1 mm, against 4.5× at 5 mm (D033, D028).
+
+### Why `fall_fraction = 0.35` and not 0.20
+
+Re-compared over 0.20 / 0.30 / 0.35 as instructed. At the selected goal (figure D), coverage
+against `ε_d` at 7.5 mm is 0.71 at fall = 0.20 and 0.98 at both 0.30 and 0.35; against `ε_v`
+at 0.03 m/s it is 0.53 against 0.95–0.96. The mechanism is the terminal-velocity condition: a
+short ramp-down leaves a low-resistance drawer no time to decelerate before `T`.
+
+Between 0.30 and 0.35 the curves nearly coincide; jointly scored at the selected point,
+coverage is 0.972 at 0.35 against 0.954 at 0.30, so 0.35 was taken. 0.20 was **not** taken
+despite its marginally higher discrimination in the Phase 9 sweep, per the priority order
+above.
+
+### The coverage ceiling, and how it was raised
+
+The first sequential pass reached coverage 0.93 and stalled. The cause was the force grid, not
+the physics: 10 of the 13 failing hidden states already **overshot** at the grid's lowest
+force of 1.0 N. Supplementing 0.4–0.9 N and 0.15–0.35 N and merging on exact force equality
+raised coverage to 0.972. This is what `analysis.sweep.force_grid` exists for — a grid built
+by repeated addition drifts and the passes would not merge.
+
+### What still bounds the friction range
+
+Unchanged from Phase 9: only about 40–80 % of a commanded force reaches the drawer, so a
+static friction much above 3 N cannot be broken away inside the task's force range. The
+training range's upper friction bound is set by the operating point, not by the simulator.

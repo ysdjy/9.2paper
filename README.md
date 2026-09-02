@@ -36,6 +36,11 @@ Probe——用已知的递增力输入去"试探"抽屉，并记录完整的力�
 [x] Phase 9J Oracle success landscape
 [x] Phase 9K Main-task parameter selection
 [x] Phase 9L Probe re-calibration
+[x] Phase 10A Task precision refined: eps_d 15 -> 7.5 mm, eps_v 0.08 -> 0.03 m/s
+[x] Phase 10B Sequential protocol: probe -> inference gap -> execution, no reset
+[x] Phase 10C Sequential Oracle (5616 rows, 97.2 % valid) -- the authoritative ground truth
+[x] Phase 10D Reset vs sequential comparison: required force x0.80 median, ranking preserved
+[x] Phase 10E Formal dataset schema with leak-free grouped splits
 [ ]          Training-data generation
 [ ]          ACE
 [ ]          PSP
@@ -46,6 +51,17 @@ Probe——用已知的递增力输入去"试探"抽屉，并记录完整的力�
 peak forces spanning **1.00-4.50 N -- a 4.5x range** -- with success bands only 0.50 N wide.
 One force cannot serve every drawer, and a standardised probe's response correlates with the
 force each drawer needs at **|rho| = 0.97**. Details: [docs/ORACLE_LANDSCAPE.md](docs/ORACLE_LANDSCAPE.md).
+
+Phase 10 replaced that reset with the real thing — probe, a fixed inference gap, then the
+execution, with nothing reset or written in between — and re-selected the task against it. The
+position tolerance halved to **7.5 mm** and the terminal-velocity tolerance fell to
+**0.03 m/s**, at a *higher* coverage (**0.972**, 105 of 108 hidden states) than the looser
+Phase 9 task achieved. Across those hidden states the required force spans **0.20-4.30 N**, a
+**21.5x** range. The reset turned out to matter: it overstates the required force by a median
+factor of **1.25** (per-state ratios 0.32-1.02), though it preserves the *ranking* of hidden
+states (**+0.95**). A single scalar probe feature still tracks the answer at **|rho| = 0.91**,
+but not tightly enough to replace a model. Details:
+[docs/SEQUENTIAL_PROTOCOL.md](docs/SEQUENTIAL_PROTOCOL.md).
 
 Detailed, dated results with observed values: [docs/VALIDATION.md](docs/VALIDATION.md).
 
@@ -135,12 +151,29 @@ python scripts/calibrate_probe.py --headless
 python scripts/plot_experiment_space.py                       # no Isaac Sim
 python scripts/plot_probe_identifiability.py --headless
 
+# Phase 10B -- validate the sequential protocol and re-derive the inference gap length
+python scripts/validate_sequential_protocol.py --headless --transition-steps 0 2 4 8 12 --repeats 6
+
+# Phase 10C -- the authoritative Oracle: probe -> gap -> execution, no reset (~2.5 h)
+python scripts/build_sequential_oracle.py --headless
+python scripts/build_sequential_oracle.py --headless --fall-fraction 0.30 \
+    --output outputs/logs/sequential_oracle_fall030.json
+
+# Phase 10A -- re-select the task against the sequential Oracle (no Isaac Sim)
+python scripts/refine_task_space.py
+
+# Phase 10D -- what the reset was hiding, and probe features vs the sequential answer
+python scripts/compare_reset_vs_sequential.py                 # no Isaac Sim
+
+# Phase 10 figures A-G (no Isaac Sim)
+python scripts/plot_phase10.py
+
 # Plots (no Isaac Sim needed)
 python scripts/visualize_response.py --all --profile-invariance
 
 # Tests
-python -m pytest tests/unit -q          # 196 tests, ~1 s, no Isaac Sim
-python -m pytest tests/integration -q   # 52 tests, ~75 s, launches Isaac Sim once
+python -m pytest tests/unit -q          # 233 tests, ~1 s, no Isaac Sim
+python -m pytest tests/integration -q   # 69 tests, ~106 s, launches Isaac Sim once
 ```
 
 Add `--video` to `run_official_drawer.py`, `test_probe_pull.py` or `test_execution_pull.py`
@@ -215,6 +248,8 @@ except through its public packages. Isaac Lab itself is never edited.
 | [docs/FORCE_CHANNEL_AUDIT.md](docs/FORCE_CHANNEL_AUDIT.md) | what each "pull force" actually measures |
 | [docs/EXPERIMENT_SPACE.md](docs/EXPERIMENT_SPACE.md) | the valid operating region and the selected parameters |
 | [docs/ORACLE_LANDSCAPE.md](docs/ORACLE_LANDSCAPE.md) | the Oracle success landscape and how the task was chosen |
+| [docs/SEQUENTIAL_PROTOCOL.md](docs/SEQUENTIAL_PROTOCOL.md) | the protocol the paper runs: probe, gap, execution, no reset |
+| [docs/DATASET_SCHEMA.md](docs/DATASET_SCHEMA.md) | one training sample, and how to split without leaking |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | design decisions that are settled, and why |
 | [docs/SESSION_LOG.md](docs/SESSION_LOG.md) | what each work session changed |
 | [docs/CHANGELOG.md](docs/CHANGELOG.md) | released state |

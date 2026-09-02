@@ -32,6 +32,7 @@ from probe_drawer.evaluation.task_evaluator import SuccessCriteria
 __all__ = [
     "SweepDataset",
     "SweepRecord",
+    "force_grid",
     "success_interval",
     "xi_grid",
 ]
@@ -55,6 +56,21 @@ class SweepRecord:
         termination_reason: The controller's own reason string.
         valid: Whether the operating point is usable as Oracle evidence.
         invalid_reasons: Why not, if not.
+        protocol: ``"reset"`` for a Phase 9 row (execution only, drawer starting closed) or
+            ``"sequential"`` for a Phase 10 row (probe, gap, then execution with no reset).
+        pre_execution_displacement: For a sequential row, how far the drawer had already
+            travelled from the task's start when the execution began (m) -- the probe plus the
+            coast during the inference gap. Zero for a reset row.
+        probe_displacement: What the probe alone moved the drawer (m).
+        probe_duration: How long the probe ran (s).
+        probe_features: The probe's summary features, from
+            :func:`~probe_drawer.analysis.probe_features.extract_features`.
+
+    Note on ``final_displacement``: it is always the quantity the task is judged on, i.e.
+    measured from the *task's* start. For a reset row that is the execution's own
+    displacement; for a sequential row it is ``pre_execution_displacement`` plus the
+    execution's (``docs/DECISIONS.md`` D027). Keeping one meaning for the field is what lets
+    the same Oracle analysis read both protocols.
     """
 
     xi: dict
@@ -70,6 +86,16 @@ class SweepRecord:
     termination_reason: str
     valid: bool
     invalid_reasons: list[str] = field(default_factory=list)
+    protocol: str = "reset"
+    pre_execution_displacement: float = 0.0
+    probe_displacement: float = 0.0
+    probe_duration: float = 0.0
+    probe_features: dict = field(default_factory=dict)
+
+    @property
+    def execution_displacement(self) -> float:
+        """What the execution segment contributed on its own (m)."""
+        return self.final_displacement - self.pre_execution_displacement
 
     @property
     def xi_vector(self) -> tuple[float, ...]:
@@ -104,11 +130,55 @@ class SweepRecord:
             "termination_reason": self.termination_reason,
             "valid": self.valid,
             "invalid_reasons": self.invalid_reasons,
+            "protocol": self.protocol,
+            "pre_execution_displacement": self.pre_execution_displacement,
+            "probe_displacement": self.probe_displacement,
+            "probe_duration": self.probe_duration,
+            "probe_features": self.probe_features,
         }
 
     @classmethod
     def from_dict(cls, payload: dict) -> SweepRecord:
         return cls(**payload)
+
+    @classmethod
+    def from_sequential_episode(
+        cls,
+        parameters: DynamicsParameters,
+        duration: float,
+        episode,
+        validity: ValidityReport,
+        env_index: int,
+        probe_features: dict | None = None,
+    ) -> SweepRecord:
+        """Extract one environment's row from a sequential probe-then-execute episode.
+
+        ``final_displacement`` is the *total* displacement from the task's start, which is
+        what the success definition compares against the goal.
+        """
+        verdict = validity.verdicts[env_index]
+        result = episode.execution
+        total = float(episode.total_displacement[env_index])
+        return cls(
+            xi=parameters.as_dict(),
+            peak_force=float(episode.peak_force[env_index]),
+            duration=float(duration),
+            final_displacement=total,
+            final_velocity=float(result.final_velocity[env_index]),
+            peak_velocity=float(result.peak_velocity[env_index]),
+            peak_measured_force=float(result.peak_measured_force[env_index]),
+            travel_fraction=total / DRAWER_TRAVEL_LIMIT,
+            peak_lateral_drift=float(verdict.metrics["peak_lateral_drift"]),
+            peak_orientation_drift_deg=float(verdict.metrics["peak_orientation_drift_deg"]),
+            termination_reason=result.termination_reason[env_index].value,
+            valid=bool(verdict.valid),
+            invalid_reasons=[reason.value for reason in verdict.reasons],
+            protocol="sequential",
+            pre_execution_displacement=float(episode.pre_execution_displacement[env_index]),
+            probe_displacement=float(episode.probe_displacement[env_index]),
+            probe_duration=float(episode.probe.duration[env_index]),
+            probe_features=probe_features or {},
+        )
 
     @classmethod
     def from_execution(
@@ -254,6 +324,30 @@ class SweepDataset:
             records=[SweepRecord.from_dict(row) for row in payload["records"]],
             metadata=payload.get("metadata", {}),
         )
+
+
+def force_grid(low: float, high: float, step: float) -> tuple[float, ...]:
+    """Inclusive peak-force grid, rounded so the values are exact on the requested spacing.
+
+    The rounding matters: a grid built by repeated addition drifts, and then two sweeps that
+    asked for the same forces produce keys that do not match and cannot be merged. The
+    supplementary low-force passes of Phase 10 are merged into the main dataset by exactly
+    this equality, so the values have to be reproducible rather than merely close.
+
+    Args:
+        low: First force (N).
+        high: Last force (N), included when it lands on the grid.
+        step: Spacing (N). Must be > 0.
+
+    Raises:
+        ValueError: If ``step <= 0`` or ``high < low``.
+    """
+    if step <= 0.0:
+        raise ValueError(f"step must be > 0 N, not {step}")
+    if high < low:
+        raise ValueError(f"high ({high} N) must be >= low ({low} N)")
+    count = int(round((high - low) / step)) + 1
+    return tuple(round(low + index * step, 6) for index in range(count))
 
 
 def xi_grid(

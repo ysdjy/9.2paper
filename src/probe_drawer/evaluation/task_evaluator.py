@@ -21,10 +21,24 @@ somewhere else or against its end stop. Requiring ``|v(T)|`` to be small is what
 
 Validity is delegated to :mod:`probe_drawer.evaluation.operating_region`, which also
 subsumes the safety check: a safety-aborted episode is never a valid operating point.
+
+Where ``d(T)`` is measured from
+------------------------------
+``d_goal`` is defined relative to the drawer's position at the **start of the task, before
+the probe** (``docs/DECISIONS.md`` D027). In the sequential protocol the probe itself moves
+the drawer, so the quantity the task is judged on is
+
+.. math:: d_\text{total}(T) = d_\text{probe} + d_\text{execution}(T),
+
+not the execution segment alone. A probe that travelled 3 mm followed by an execution that
+travelled 47 mm has reached the 50 mm goal. Pass the probe's contribution as
+``pre_execution_displacement``; omitting it measures the execution segment alone, which is
+the reset protocol Phase 9 used.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -80,7 +94,12 @@ class ExecutionVerdict:
         displacement_ok: :math:`|d(T) - d_\\text{goal}| \\le \\epsilon_d`.
         velocity_ok: :math:`|v(T)| \\le \\epsilon_v`.
         valid: The operating point is usable (which includes not having safety-aborted).
-        displacement_error: Signed :math:`d(T) - d_\\text{goal}` (m); positive means overshoot.
+        displacement_error: Signed :math:`d_\\text{total}(T) - d_\\text{goal}` (m); positive
+            means overshoot.
+        total_displacement: :math:`d_\\text{total}(T)`, measured from the task's start (m).
+        execution_displacement: What this execution segment contributed on its own (m).
+        pre_execution_displacement: What happened before it -- the probe, in the sequential
+            protocol (m).
         terminal_velocity: :math:`v(T)` (m/s).
         invalid_reasons: Why the operating point was rejected, if it was.
     """
@@ -90,6 +109,9 @@ class ExecutionVerdict:
     velocity_ok: bool
     valid: bool
     displacement_error: float
+    total_displacement: float
+    execution_displacement: float
+    pre_execution_displacement: float
     terminal_velocity: float
     invalid_reasons: list[InvalidReason] = field(default_factory=list)
 
@@ -105,6 +127,9 @@ class ExecutionVerdict:
             "velocity_ok": self.velocity_ok,
             "valid": self.valid,
             "displacement_error": self.displacement_error,
+            "total_displacement": self.total_displacement,
+            "execution_displacement": self.execution_displacement,
+            "pre_execution_displacement": self.pre_execution_displacement,
             "terminal_velocity": self.terminal_velocity,
             "invalid_reasons": [reason.value for reason in self.invalid_reasons],
         }
@@ -135,6 +160,7 @@ def evaluate_execution(
     result: ExecutionResult,
     criteria: SuccessCriteria,
     operating_region: OperatingRegionCfg | None = None,
+    pre_execution_displacement: np.ndarray | Sequence[float] | None = None,
 ) -> EvaluationReport:
     """Label one execution, per environment.
 
@@ -142,16 +168,21 @@ def evaluate_execution(
         result: What the execution controller returned.
         criteria: The task definition to judge against.
         operating_region: Validity thresholds. Project defaults when omitted.
+        pre_execution_displacement: Drawer displacement between the task's start and the
+            start of this execution (m), per environment -- the probe's contribution in the
+            sequential protocol. Omitting it judges the execution segment alone.
 
     Returns:
         An :class:`EvaluationReport`. Nothing in it is written back to the controller or
         the environment.
     """
-    validity = assess_validity(result, operating_region)
+    validity = assess_validity(result, operating_region, pre_execution_displacement)
     verdicts: list[ExecutionVerdict] = []
 
     for index in range(result.num_envs):
-        displacement_error = float(result.final_displacement[index]) - criteria.goal_displacement
+        metrics = validity.verdicts[index].metrics
+        total_displacement = metrics["final_displacement"]
+        displacement_error = total_displacement - criteria.goal_displacement
         terminal_velocity = float(result.final_velocity[index])
 
         displacement_ok = abs(displacement_error) <= criteria.displacement_tolerance
@@ -165,6 +196,9 @@ def evaluate_execution(
                 velocity_ok=velocity_ok,
                 valid=verdict.valid,
                 displacement_error=displacement_error,
+                total_displacement=total_displacement,
+                execution_displacement=metrics["execution_displacement"],
+                pre_execution_displacement=metrics["pre_execution_displacement"],
                 terminal_velocity=terminal_velocity,
                 invalid_reasons=list(verdict.reasons),
             )

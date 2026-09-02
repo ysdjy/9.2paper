@@ -532,3 +532,141 @@ weakened; recorded here because the fixes are load-bearing:
 
 11. **PhysX's own drawer `joint_vel` is unusable at this control rate** and is only logged for
    transparency. See D009.
+
+---
+
+## Phase 10 — the sequential protocol
+
+All numbers below are observed values from the runs named, not targets. Reports:
+`outputs/logs/sequential_protocol_validation.json`, `sequential_oracle_fall035.json`,
+`task_refinement.json`, `reset_vs_sequential.json`.
+
+### Seq Test 1 — nothing is reset after the probe
+
+`scripts/validate_sequential_protocol.py --headless --transition-steps 0 2 4 8 12 --repeats 6`,
+preset `medium` (m = 8 kg, µ_s = µ_d = 3.0, b = 6 N·s/m), F_peak = 2.5 N, T = 1.5 s, 8 envs.
+
+| gap (steps) | probe `d` (mm) | coast in gap (mm) | `v` at execution start (m/s) | `d_total` (mm) |
+|---|---|---|---|---|
+| 0 | 3.454 | +0.000 | +0.01150 | 7.12 |
+| 2 | 3.728 | +0.190 | +0.00571 | 6.59 |
+| 4 | 3.668 | +0.099 | +0.00001 | 6.06 |
+| **8** | 3.331 | +0.413 | +0.00000 | 5.99 |
+| 12 | 3.352 | +0.531 | +0.00000 | 5.54 |
+
+At every gap: `position kept = True`, `probe left it moving = True`,
+`velocity decayed not erased = True`, `total = parts = True`. **Pass.**
+
+### Seq Test 2 — the velocity decays, it is not written
+
+Velocity retained across the gap, as a fraction of the probe-end value: **1.000** at 0 steps,
+**0.539** at 2, **0.001** at 4, **0.000** at 8, **0.000** at 12. A smooth decay with a
+physical time constant, which is what a coast under friction and damping looks like. An
+erasure would show as a step to zero at whatever step the write happened. **Pass.**
+
+### Seq Test 3 — the gap length, by measurement
+
+Repeatability at the operating point, F = 4.25 N, six identical episodes per gap:
+
+| gap | mean `d_total` (mm) | `d_total` spread (mm) | post-probe `v` spread (mm/s) | `v(T)` spread |
+|---|---|---|---|---|
+| 0 | 51.235 | 3.584 | 4.793 | 0.00249 |
+| 2 | 48.669 | 2.614 | 9.879 | 0.00197 |
+| 4 | 48.091 | 3.285 | 7.362 | 0.00298 |
+| **8** | 47.304 | **0.898** | 0.128 | 0.00107 |
+| 12 | 47.796 | 1.402 | 0.010 | 0.00245 |
+
+An earlier run over gaps 4, 8 and 12 only gave spreads of 1.656, **1.143** and 1.402 mm. The
+absolute values move by a few tenths of a millimetre between runs — six episodes is a small
+sample — but 8 steps is the minimum in both. Recorded floor: **0.9–1.1 mm**, which is the
+lower bound on any position tolerance. **Pass.**
+
+### Seq Test 4 — candidate fairness
+
+Post-probe spread across environments sharing one hidden state and one probe:
+
+| gap | displacement spread (µm) | velocity spread (mm/s) | probe duration spread (s) |
+|---|---|---|---|
+| 0 | 420.9 | 10.690 | 0.0500 |
+| 2 | 279.9 | 6.614 | 0.0333 |
+| 4 | 323.6 | 7.676 | 0.0500 |
+| **8** | **244.8** | 0.109 | 0.0167 |
+| 12 | 175.5 | 0.060 | 0.0333 |
+
+`fair = True` at every gap. Within a *single* environment, repeating the same probe gives
+264–464 µm of spread — the same magnitude — so the variability is intrinsic to the probe's
+displacement stopping rule (which can be crossed a step early or late), not an artefact of
+parallel environments. 244.8 µm is 3 % of `ε_d = 7.5 mm`. **Pass.**
+
+### Seq Test 5 — the task counts the probe
+
+`tests/integration/test_sequential_protocol.py`, 17 tests, all passing. The load-bearing one
+is `test_ignoring_the_probe_would_change_the_label`: with the probe's displacement counted the
+episode passes, without it the same episode fails. Also asserted: `total = pre_execution +
+execution` to 1e-12; the probe history ends at the probe's own duration and the execution
+history at exactly `T`, so the gap is in neither; a settling execution raises `ValueError`;
+`ExecutionPullController.run`'s signature is still exactly `(peak_force, duration)`.
+
+### Seq Test 6 — the Oracle
+
+`scripts/build_sequential_oracle.py --headless`, plus low-force supplements merged on exact
+force equality.
+
+| | fall = 0.20 | fall = 0.30 | fall = 0.35 |
+|---|---|---|---|
+| rows | 4428 | 5616 | 5616 |
+| valid | 94.6 % | 96.7 % | **97.2 %** |
+| forces | 1.00–5.00 N (41) | 0.15–5.00 N (52) | 0.15–5.00 N (52) |
+| coverage at the selected task | 0.71 | 0.954 | **0.972** |
+
+Selected: `T = 1.5 s`, `d_goal = 40 mm`, `ε_d = 7.5 mm`, `ε_v = 0.03 m/s`, `fall = 0.35`.
+Measured at that point: coverage **0.972** (105/108), required force **0.20–4.30 N** (median
+1.50 N, a 21.5× range), median band 0.20 N (0.14 relative), 100 of 105 bands contiguous, grid
+step 0.05 N resolving the band, max travel 0.119 of the drawer's range, discrimination 2.70.
+
+Three hidden states have no succeeding force: `[4.0, 2.0, 0.6, 2.0]`, `[4.0, 3.0, 0.9, 2.0]`,
+`[4.0, 3.0, 0.9, 6.0]`.
+
+### Seq Test 7 — what the reset was hiding
+
+`scripts/compare_reset_vs_sequential.py`, on the Phase 9 task (both force grids express it),
+108 hidden states:
+
+| | reset | sequential |
+|---|---|---|
+| coverage | 1.000 | 1.000 |
+| median success band | 0.50 N | 0.60 N |
+
+Required force under the sequential protocol, relative to the reset: median ratio **0.800**
+(median shift **−0.45 N**), per-state ratios **0.32 to 1.02**, largest single shift **1.40 N**.
+Rank correlation of the required force between protocols: **+0.9522**. The ratio distribution
+is bimodal (clusters near 0.55–0.65 and near 0.95–1.00), so the difference is not a rescaling.
+
+### Seq Test 8 — probe features against the sequential answer
+
+105 hidden states with a succeeding force. Strongest: `displacement_per_newton`, Spearman
+**−0.9097**, Pearson −0.8413. Then `final_commanded_force` and `duration` at +0.9017/+0.8985,
+`breakaway_time` and `breakaway_force` at +0.8799/+0.8615, `mean_speed_after_breakaway` at
+−0.7709, `final_velocity` −0.6751, `final_displacement` −0.4928, `peak_acceleration` −0.4061.
+
+Down from 0.969 against the reset Oracle, still strong. **Not sufficient**: at a given
+`displacement_per_newton` the residual spread in required force reaches roughly ±0.3 N in the
+mid-range, wider than the 0.20 N success band (figure G).
+
+### Seq Test 9 — test suite
+
+`python -m pytest tests/unit -q` → **233 passed**.
+`python -m pytest tests/integration -q` → **69 passed** (launches Isaac Sim, 106 s).
+
+### A bug this phase found in its own analysis
+
+`scripts/refine_task_space.py` globbed `sequential_oracle_fall*.json` and excluded supplements
+with `stem.endswith("_low")`, which does not match `..._vlow`. The two `_vlow` supplements were
+therefore loaded as full datasets, and because the tolerance curves were keyed by
+`f"fall={fall_fraction:g}"`, the curves for fall = 0.30 and 0.35 ended up computed from a
+540-row supplement spanning only 0.15–0.35 N — reporting coverage 0.06 where the selection
+said 0.972.
+
+The **selection was not affected** (candidates are scored per dataset, and the merged file won
+on coverage), but figure D was wrong and contradicted the selection, which is how it was
+caught. Fixed with an exact-match regex; re-running left the selection identical.

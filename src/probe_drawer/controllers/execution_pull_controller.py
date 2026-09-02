@@ -116,11 +116,15 @@ class ExecutionPullController(BasePullController):
         super().__init__(env, osc, reader, safety)
         self.cfg = cfg or ExecutionControllerCfg()
 
-    def run(self, peak_force: float, duration: float) -> ExecutionResult:
+    def run(self, peak_force: float | Sequence[float], duration: float) -> ExecutionResult:
         """Execute the full force profile.
 
         Args:
-            peak_force: Plateau pull-axis force (N).
+            peak_force: Plateau pull-axis force (N). A single value is applied to every
+                environment; a sequence of length ``num_envs`` gives each environment its own
+                amplitude. The normalised shape ``phi(t/T)`` is identical either way, so a
+                per-environment sequence compares force candidates from one starting state
+                without changing anything else (``docs/DECISIONS.md`` D027).
             duration: Total execution time (s). The controller runs for this long, then the
                 force is back at zero.
 
@@ -132,13 +136,14 @@ class ExecutionPullController(BasePullController):
             ValueError: On non-physical arguments, or if the profile would exceed the
                 absolute force safety limit.
         """
-        if peak_force <= 0.0:
-            raise ValueError(f"peak_force must be > 0 N, got {peak_force}.")
+        peaks = self._resolve_peak_forces(peak_force)
         if duration <= 0.0:
             raise ValueError(f"duration must be > 0 s, got {duration}.")
 
+        # A unit-amplitude profile scaled per environment, so every environment follows the
+        # same normalised curve and only the amplitude differs.
         profile = TrapezoidForceProfile(
-            peak_force=peak_force,
+            peak_force=1.0,
             duration=duration,
             rise_fraction=self.cfg.rise_fraction,
             fall_fraction=self.cfg.fall_fraction,
@@ -149,6 +154,7 @@ class ExecutionPullController(BasePullController):
             max_steps=self.steps_for(duration),
             timeout_reason=TerminationReason.DURATION_COMPLETED,
             settle_steps=self.cfg.settle_steps,
+            force_scale=peaks,
         )
         # `outcome` is already a set of numpy snapshots taken at t = T, so nothing below can
         # alter what this call returns.
@@ -169,7 +175,7 @@ class ExecutionPullController(BasePullController):
             history=outcome.history,
             parameters={
                 "controller": "ExecutionPullController",
-                "peak_force": peak_force,
+                "peak_force": peaks.tolist() if peaks.numel() > 1 else float(peaks[0]),
                 "duration": duration,
                 "profile": profile.describe(),
                 "config": self.cfg.as_dict(),
@@ -182,6 +188,22 @@ class ExecutionPullController(BasePullController):
                 "initial_tcp_pull_velocity": np.asarray(outcome.initial_tcp_pull_velocity).tolist(),
             },
         )
+
+    def _resolve_peak_forces(self, peak_force: float | Sequence[float]) -> torch.Tensor:
+        """Normalise the ``peak_force`` argument to a per-environment tensor.
+
+        Raises:
+            ValueError: If any value is non-positive, or a sequence has the wrong length.
+        """
+        if isinstance(peak_force, (int, float)):
+            values = [float(peak_force)] * self.num_envs
+        else:
+            values = [float(value) for value in peak_force]
+            if len(values) != self.num_envs:
+                raise ValueError(f"peak_force must have 1 or {self.num_envs} values, got {len(values)}.")
+        if any(value <= 0.0 for value in values):
+            raise ValueError(f"peak_force must be > 0 N everywhere, got {values}.")
+        return torch.tensor(values, device=self._device)
 
     def _release_pull_force(self) -> int:
         """Command zero pull force after ``T``, so no residual command is left standing.

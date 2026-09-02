@@ -1,13 +1,19 @@
-r"""The experiment parameters Phase 9 selected, and where each number came from.
+r"""The experiment parameters, and where each number came from.
 
 Every value here is the output of a sweep, not a preference. The provenance is recorded
 alongside it so the next phase can cite it and a reviewer can re-derive it:
 
-* the execution operating point and the success tolerances come from
-  ``scripts/build_oracle_landscape.py`` (report: ``outputs/logs/oracle_landscape.json``);
+* the task and the execution profile come from ``scripts/refine_task_space.py`` scoring the
+  **sequential** Oracle (report: ``outputs/logs/task_refinement.json``);
+* the inference gap comes from ``scripts/validate_sequential_protocol.py``
+  (report: ``outputs/logs/sequential_protocol_validation.json``);
 * the probe parameters come from ``scripts/calibrate_probe.py``
   (report: ``outputs/logs/probe_calibration.json``);
-* the hidden-state ranges come from the sweeps in ``outputs/logs/sweep_fine_fall*.json``.
+* the hidden-state ranges come from the sweeps in ``outputs/logs/sequential_oracle_fall*.json``.
+
+The Phase 9 figures these superseded are kept in ``docs/EXPERIMENT_SPACE.md`` as
+``PHASE9_RESET_TASK`` below, because the comparison between the two protocols is itself a
+result (``docs/DECISIONS.md`` D026).
 
 Nothing in this module is loaded by the controllers. They keep taking their parameters as
 arguments; this is the *experiment* definition, which is a separate thing (and the reason
@@ -30,6 +36,8 @@ from probe_drawer.evaluation.task_evaluator import SuccessCriteria
 __all__ = [
     "MAIN_TASK",
     "OOD_XI_RANGES",
+    "PHASE9_RESET_TASK",
+    "SEQUENTIAL_TRANSITION_STEPS",
     "RECOMMENDED_EXECUTION_CFG",
     "RECOMMENDED_PROBE_CFG",
     "RECOMMENDED_PROBE_TASK",
@@ -49,8 +57,9 @@ class MainTask:
         goal_displacement: :math:`d_\\text{goal}` (m).
         displacement_tolerance: :math:`\\epsilon_d` (m).
         velocity_tolerance: :math:`\\epsilon_v` (m/s).
-        peak_force_range: The span of :math:`F_\\text{peak}` the training hidden states
-            require (N). A predictor's output should be clipped to this.
+        peak_force_range: Envelope of every hidden state's success band (N) -- the union of
+            all bands, not the range of best forces. A predictor's output should be clipped
+            to this.
     """
 
     duration: float
@@ -129,14 +138,34 @@ class XiRanges:
         }
 
 
-#: The main experiment's task.
+#: The main experiment's task, selected against the **sequential** Oracle.
 #:
-#: Selected as the accepted candidate with the greatest spread of required force across the
-#: 108-point hidden-state grid. Measured at this operating point: 106 of 108 hidden states
-#: have a succeeding force, the required force spans 1.00-4.50 N (a 4.5x range), the median
-#: success band is 0.50 N wide (0.16 relative), 99 % of bands are contiguous, and no
-#: succeeding episode exceeds 16 % of the drawer's travel.
+#: ``d_goal`` is measured from the drawer's position at the start of the task, *before* the
+#: probe, so the quantity judged is ``d_probe + d_execution`` (``docs/DECISIONS.md`` D027).
+#:
+#: Chosen by the priority order in ``scripts/refine_task_space.py`` -- coverage, then
+#: position precision, then terminal-velocity precision, then the remaining acceptance
+#: conditions, and only then the spread of required force. Measured at this operating point
+#: over the 108-point hidden-state grid: **105 of 108** hidden states have a succeeding
+#: force, the best force per hidden state spans **0.20-4.30 N, a 21.5x range** (median
+#: 1.50 N), the median success band is 0.20 N wide (0.14 relative), 100 of 105 bands are
+#: contiguous, and no succeeding episode exceeds 12 % of the drawer's travel.
+#:
+#: ``eps_d`` is 7.5 mm rather than 5 mm for a reason that is not coverage: at 5 mm the
+#: coverage is actually higher (0.981), but the success band collapses to 0.10 N -- one force
+#: grid step, and 7 % of the required force. That is a knife edge no regression could be
+#: expected to hit, so it fails the project's own learnability floor.
 MAIN_TASK = MainTask(
+    duration=1.5,
+    goal_displacement=0.04,
+    displacement_tolerance=0.0075,
+    velocity_tolerance=0.03,
+    peak_force_range=(0.15, 4.5),
+)
+
+#: The Phase 9 task, selected against the reset Oracle. Kept for the protocol comparison in
+#: ``docs/ORACLE_LANDSCAPE.md``; **not** the paper's task.
+PHASE9_RESET_TASK = MainTask(
     duration=1.5,
     goal_displacement=0.05,
     displacement_tolerance=0.015,
@@ -146,19 +175,27 @@ MAIN_TASK = MainTask(
 
 #: The execution profile the task was selected with.
 #:
-#: ``fall_fraction`` is 0.20, not the earlier 0.10. With a 10 % ramp-down a drawer that
-#: travels 50 mm in 1.5 s is still moving at roughly 0.16 m/s when the force reaches zero,
-#: so "reach the goal *and* come to rest" was unreachable for most hidden states: the
-#: largest displacement achievable with ``|v(T)| <= 0.05 m/s`` was 49 mm at ``fall = 0.10``
-#: against 79 mm at ``fall = 0.35``. 0.20 was the best-scoring value in the 0.15-0.30 band.
-RECOMMENDED_EXECUTION_CFG = ExecutionControllerCfg(fall_fraction=0.20)
+#: ``fall_fraction`` is 0.35, up from Phase 9's 0.20 and the original 0.10. The terminal
+#: velocity requirement is what drives it: a drawer still moving when the force reaches zero
+#: has not been placed at the goal, and a short ramp-down leaves a low-resistance drawer no
+#: time to decelerate. Measured over the grid, the largest ``d(T)`` reachable with
+#: ``|v(T)| <= 0.05 m/s`` at ``T = 1.5 s`` grew from 49 mm at ``fall = 0.10`` to 83 mm at 0.35,
+#: and the selected task's coverage at ``eps_v = 0.03`` is 0.972 at 0.35 against 0.954 at 0.30
+#: (``docs/DECISIONS.md`` D023, revised).
+RECOMMENDED_EXECUTION_CFG = ExecutionControllerCfg(fall_fraction=0.35, settle_steps=0)
 
 #: The standardised probe's task parameters.
 #:
 #: Selected as the least intrusive of seven candidates whose best feature correlated with
-#: the required force within 0.02 of the ceiling (|rho| = 0.978). Measured: every one of the
-#: 108 hidden states breaks away, every probe terminates on displacement, the median probe
-#: lasts 0.467 s, and the probe travels 3.5 mm -- 6.9 % of the 50 mm goal.
+#: the required force within 0.02 of the ceiling (|rho| = 0.978, against the reset Oracle;
+#: |rho| = 0.910 against the sequential one). Measured: every one of the 108 hidden states
+#: breaks away, every probe terminates on displacement, the median probe lasts 0.467 s, and
+#: the probe travels 3.3-3.7 mm -- 8-9 % of the 40 mm goal, which now counts towards it
+#: (``docs/DECISIONS.md`` D027).
+#:
+#: Unchanged from Phase 9 on purpose, so that the protocol is the only thing that differs
+#: between the two Oracles. It does not identify damping; that is recorded as a limitation
+#: rather than fixed with a second probe segment (D032).
 RECOMMENDED_PROBE_TASK = ProbeTask(
     initial_force=1.0,
     max_force=6.0,
@@ -169,6 +206,23 @@ RECOMMENDED_PROBE_TASK = ProbeTask(
 #: The probe's fixed character, unchanged from Phase 8 except that it is now confirmed
 #: rather than assumed: a 1 s linear ramp inside a 1.5 s budget.
 RECOMMENDED_PROBE_CFG = ProbeControllerCfg(ramp_duration=1.0, max_probe_duration=1.5)
+
+#: Control steps of zero pull force between the probe ending and the execution starting.
+#:
+#: A deployed system needs wall-clock time to run its adaptation model, and the gap is
+#: reserved explicitly and identically in every episode. Eight steps is 133 ms at 60 Hz.
+#:
+#: Chosen on repeatability, not on being short. Measured over six identical episodes at the
+#: task's operating point (F = 4.25 N), the spread of ``d_total(T)`` was 3.58 mm with no gap,
+#: 2.61 mm at 2 steps, 3.29 mm at 4, **0.90 mm at 8** and 1.40 mm at 12 -- a clear minimum.
+#: A second run over 4, 8 and 12 steps gave 1.66, 1.14 and 1.40 mm, so the floor at 8 steps is
+#: about 0.9-1.1 mm and the ordering is reproducible. The mechanism is
+#: that ``dd/dF`` reaches about 40 mm/N just above breakaway, so the residual velocity the
+#: probe leaves is amplified into the finished task; letting the drawer coast to a near-stop
+#: under its own friction removes that amplification. Nothing is written to the simulation --
+#: the velocity decays by physics, retaining under 0.2 % of its probe-end value at 8 steps
+#: (``docs/DECISIONS.md`` D028).
+SEQUENTIAL_TRANSITION_STEPS = 8
 
 #: Training distribution for the hidden state.
 #:

@@ -201,13 +201,25 @@ class TestExperimentPlan:
     """The selected parameters must be internally consistent with each other."""
 
     def test_the_probe_barely_disturbs_the_task(self) -> None:
+        """The probe's own travel counts towards ``d_total``, so it has to stay small (D027)."""
         ratio = RECOMMENDED_PROBE_TASK.target_displacement / MAIN_TASK.goal_displacement
         assert ratio < 0.15, f"the probe travels {ratio:.0%} of the goal; it should measure, not act"
 
-    def test_the_probe_ramp_brackets_the_task_force_range(self) -> None:
-        low, high = MAIN_TASK.peak_force_range
-        assert RECOMMENDED_PROBE_TASK.initial_force <= low
+    def test_the_probe_ramp_reaches_past_the_stiffest_drawer(self) -> None:
+        """The probe must be able to break away every drawer the task covers.
+
+        Only the *upper* end is asserted. The probe's ramp deliberately starts above the
+        weakest task force (1.0 N against a 0.15 N band floor): a probe is not a scaled-down
+        execution, and what matters is that its ramp passes through every drawer's breakaway
+        force, which the calibration measured for all 108 hidden states.
+        """
+        _, high = MAIN_TASK.peak_force_range
         assert RECOMMENDED_PROBE_TASK.max_force >= high
+
+    def test_the_probe_ramp_starts_below_the_median_required_force(self) -> None:
+        """So the ramp has room to separate drawers rather than starting past most of them."""
+        low, high = MAIN_TASK.peak_force_range
+        assert RECOMMENDED_PROBE_TASK.initial_force < 0.5 * (low + high)
 
     def test_the_probe_ramp_fits_inside_its_budget(self) -> None:
         assert RECOMMENDED_PROBE_CFG.ramp_duration < RECOMMENDED_PROBE_CFG.max_probe_duration
@@ -221,8 +233,15 @@ class TestExperimentPlan:
         assert criteria.displacement_tolerance / criteria.goal_displacement <= 0.30
 
     def test_the_execution_ramp_down_is_the_selected_one(self) -> None:
-        """0.20, not the earlier 0.10: a 10 % ramp-down cannot bring the drawer to rest."""
-        assert RECOMMENDED_EXECUTION_CFG.fall_fraction == pytest.approx(0.20)
+        """0.35: a short ramp-down leaves a low-resistance drawer no time to decelerate."""
+        assert RECOMMENDED_EXECUTION_CFG.fall_fraction == pytest.approx(0.35)
+
+    def test_the_execution_does_not_settle(self) -> None:
+        """A settle would brake the pull axis and erase what the probe left (D029)."""
+        assert RECOMMENDED_EXECUTION_CFG.settle_steps == 0
+
+    def test_the_execution_releases_the_force_after_T(self) -> None:
+        assert RECOMMENDED_EXECUTION_CFG.zero_force_cleanup_steps > 0
 
     def test_ood_ranges_strictly_contain_the_training_ranges(self) -> None:
         for name in ("mass", "static_friction", "dynamic_friction_ratio", "damping"):

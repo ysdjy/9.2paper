@@ -310,3 +310,104 @@ by the controllers: this is the *experiment* definition, which is a separate thi
 
 If a public signature changes, this file changes in the same commit. A stale `API.md` is
 treated as a defect.
+
+---
+
+## SequentialPullProtocol
+
+`probe_drawer.protocols.SequentialPullProtocol` — the protocol the paper runs. It sequences
+the two existing controllers and contains no physics of its own. Full account:
+`docs/SEQUENTIAL_PROTOCOL.md`.
+
+```python
+from probe_drawer.protocols import InferenceTransitionCfg, SequentialProtocolCfg, SequentialPullProtocol
+from probe_drawer.experiment_plan import MAIN_TASK, RECOMMENDED_PROBE_TASK, SEQUENTIAL_TRANSITION_STEPS
+
+protocol = SequentialPullProtocol(
+    system,
+    SequentialProtocolCfg(
+        probe_task=RECOMMENDED_PROBE_TASK,
+        duration=MAIN_TASK.duration,
+        transition=InferenceTransitionCfg(steps=SEQUENTIAL_TRANSITION_STEPS),
+    ),
+)
+episode = protocol.run(peak_force=2.0, criteria=MAIN_TASK.criteria)
+```
+
+### `run(peak_force, criteria=None)`
+
+| Argument | Type | Meaning |
+|---|---|---|
+| `peak_force` | `float` or `Sequence[float]` | One force for every environment, or one shared. Must be `> 0 N`. |
+| `criteria` | `SuccessCriteria` or `None` | If given, the episode is evaluated; otherwise `evaluation` is `None`. |
+
+One `system.reset()` happens at the start and **never again**. The stages are
+`INITIAL → PROBE → PROBE_END → transition → EXECUTION → EVALUATE`.
+
+### `SequentialEpisode`
+
+| Attribute | Meaning |
+|---|---|
+| `probe` | The `ProbeResult`. The model's input. |
+| `transition` | The `InferenceTransition`: `steps`, `duration`, `velocity_before`, `velocity_after`, `displacement_after`. |
+| `execution` | The `ExecutionResult`. |
+| `evaluation` | The `TaskEvaluation`, or `None`. |
+| `peak_force` | The per-environment amplitudes actually applied. |
+| `probe_displacement` | What the probe alone moved the drawer (m). |
+| `pre_execution_displacement` | Probe plus coast, from `x_initial` (m). |
+| `total_displacement` | `pre_execution_displacement + execution.final_displacement` (m) — the quantity the task is judged on (D027). |
+
+### It refuses a settling execution
+
+`__init__` raises `ValueError` if `execution.cfg.settle_steps != 0`. A settle brakes the pull
+axis and would erase the post-probe velocity the protocol exists to preserve (D029).
+
+---
+
+## HybridPullOSC.coast
+
+```python
+osc.coast(steps)
+```
+
+Holds the five motion axes and commands **zero** pull force for `steps` control steps. It
+does not brake: the drawer decelerates under its own friction and damping, and nothing is
+written to the simulation. This is what implements the inference gap; contrast `settle()`,
+which actively brakes the pull axis at 200 N·s/m up to 15 N.
+
+Raises `RuntimeError` if `capture_pose_reference()` has not been called.
+
+---
+
+## The dataset schema
+
+`probe_drawer.dataset` — the boundary between the simulator and a model. No Isaac Lab import,
+so it runs wherever the data is. Field reference: `docs/DATASET_SCHEMA.md`.
+
+```python
+from probe_drawer.dataset import SplitCfg, assert_no_leakage, split_samples
+
+split = split_samples(samples, SplitCfg(level="xi_id"))   # groups, not rows
+assert_no_leakage(split)
+print(split.counts())
+```
+
+| Symbol | Purpose |
+|---|---|
+| `TrainingSample` | One row. Refuses `protocol != "sequential"`. |
+| `xi_id`, `probe_id`, `candidate_id` | Content-addressed group identifiers, nesting in that order. |
+| `model_input_fields()` | The fields a model may read. `xi` is not among them. |
+| `validate_probe_history(history)` | Applies the observation registry's deployability rule at the dataset boundary. |
+| `SPLIT_LEVELS` | `("xi_id", "probe_id")`. A per-row split is not offered (D031). |
+| `split_samples`, `assert_no_leakage` | Stable hashed grouped splitting, and the check that it holds. |
+
+---
+
+## `analysis.sweep.force_grid`
+
+```python
+force_grid(low, high, step) -> tuple[float, ...]
+```
+
+Inclusive force grid with exact spacing, so two sweeps that asked for the same forces produce
+values that compare equal and can be merged. Raises on `step <= 0` or `high < low`.

@@ -3,6 +3,68 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project is research software; versions mark validated states, not releases.
 
+## [0.3.0] — 2026-09-02
+
+Phase 10: the probe and the execution become one continuous episode, the task is tightened
+against the resulting landscape, and the training dataset gets a schema that cannot leak.
+
+### Added
+
+* `probe_drawer.protocols` — `SequentialPullProtocol` runs
+  `INITIAL -> PROBE -> PROBE_END -> inference gap -> EXECUTION -> EVALUATE` with exactly one
+  reset, at the start. It sequences the existing controllers and contains no physics. It
+  refuses to run with a settling execution, because a settle would erase the post-probe
+  velocity silently.
+* `HybridPullOSC.coast(steps)` — hold the five motion axes, command zero pull force, do not
+  brake. This is the inference gap; contrast `settle()`, which brakes at 200 N·s/m.
+* `probe_drawer.dataset` — the formal training-sample schema, the three nested content-addressed
+  identifiers (`xi_id`, `probe_id`, `candidate_id`), and grouped splitting with
+  `assert_no_leakage()`. A per-row split is not offered.
+* `analysis.sweep.force_grid(low, high, step)` — exact, mergeable force grids. The Phase 10
+  dataset is three sweeps joined on exact force equality, which a drifting grid would break.
+* `SweepRecord.from_sequential_episode`, and the `protocol` / `pre_execution_displacement` /
+  `probe_displacement` / `probe_duration` / `probe_features` fields that make one Oracle
+  analysis able to read both protocols.
+* Scripts: `build_sequential_oracle.py`, `validate_sequential_protocol.py`,
+  `refine_task_space.py`, `compare_reset_vs_sequential.py`, `plot_phase10.py` (figures A-G).
+* Docs: `SEQUENTIAL_PROTOCOL.md`, `DATASET_SCHEMA.md`, decisions D026-D033.
+* Tests: `tests/integration/test_sequential_protocol.py` (17) and
+  `tests/unit/test_dataset_schema.py` (34). Suite is now 233 unit + 69 integration.
+
+### Changed
+
+* **The task.** `d_goal` 50 -> **40 mm**, `eps_d` 15 -> **7.5 mm**, `eps_v` 0.08 ->
+  **0.03 m/s**, `fall_fraction` 0.20 -> **0.35**. `T` stays at 1.5 s. Coverage rose to 0.972
+  despite the tighter tolerances, because the sequential protocol and the finer force grid
+  (0.05 N against 0.25 N) resolve bands the Phase 9 grid could not express.
+* **`d_goal` is measured from before the probe** (D027), so `d_total(T) = d_probe +
+  d_coast + d_execution(T)`. `SweepRecord.final_displacement` carries that quantity for both
+  protocols.
+* `ExecutionPullController.run` takes a per-environment `peak_force` by scaling one shared
+  unit-amplitude profile, so candidates in one episode differ only in amplitude.
+* `assess_validity` and `evaluate_execution` take `pre_execution_displacement`.
+* The ground truth is now `outputs/logs/sequential_oracle_fall035.json`. The Phase 9 reset
+  datasets are kept, not superseded, and are used for the protocol comparison (D026).
+
+### Fixed
+
+* `refine_task_space.py` excluded supplementary datasets with `stem.endswith("_low")`, which
+  does not match `..._vlow`. Two 540-row supplements were loaded as full datasets and, because
+  the tolerance curves were keyed by fall fraction, the curves for 0.30 and 0.35 were computed
+  from a 0.15-0.35 N supplement. The selection was unaffected; figure D was wrong, which is how
+  it was found.
+* `refine_task_space.py` printed the success band's *centre* under the label "required force",
+  which disagreed with the `best_force` quoted everywhere else. Both are now printed, labelled.
+
+### Known limitations
+
+* The probe does not identify damping (D032). Recorded, not fixed; no second probe was added.
+* Three of 108 hidden states have no succeeding force at the selected task.
+* Intrinsic `d_total(T)` episode noise is about 1 mm, which is the floor under any position
+  tolerance.
+
+---
+
 ## [0.2.0] — 2026-09-02
 
 Phase 9: the hidden state is fixed, the observations are classified, the force channels are

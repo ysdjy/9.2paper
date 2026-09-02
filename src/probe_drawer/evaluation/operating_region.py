@@ -17,6 +17,7 @@ diverging, validity decides whether an episode is good enough to build an Oracle
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -155,7 +156,11 @@ class ValidityReport:
         }
 
 
-def assess_validity(result: ExecutionResult, cfg: OperatingRegionCfg | None = None) -> ValidityReport:
+def assess_validity(
+    result: ExecutionResult,
+    cfg: OperatingRegionCfg | None = None,
+    pre_execution_displacement: np.ndarray | Sequence[float] | None = None,
+) -> ValidityReport:
     """Decide, per environment, whether an execution is usable as Oracle evidence.
 
     Deterministic: the same :class:`~probe_drawer.controllers.types.ExecutionResult` always
@@ -164,14 +169,22 @@ def assess_validity(result: ExecutionResult, cfg: OperatingRegionCfg | None = No
     Args:
         result: The execution to assess.
         cfg: Validity thresholds. Project defaults when omitted.
+        pre_execution_displacement: Drawer displacement already accumulated between the
+            task's start and the start of this execution (m), one value per environment.
+            In the sequential protocol this is what the probe moved the drawer. It matters
+            here because the mechanical limit and "did it move at all" are properties of the
+            *task*, not of the execution segment: a probe that already travelled 3 mm has
+            used 3 mm of the drawer's travel. Defaults to zeros, which is the reset protocol.
     """
     cfg = cfg or OperatingRegionCfg()
     history = result.history
+    offsets = _resolve_offsets(pre_execution_displacement, result.num_envs)
     verdicts: list[ValidityVerdict] = []
 
     for index in range(result.num_envs):
         driven = history.active_steps(index)
-        displacement = float(result.final_displacement[index])
+        execution_displacement = float(result.final_displacement[index])
+        displacement = execution_displacement + float(offsets[index])
         peak_velocity = float(np.abs(history.drawer_velocity[driven, index]).max())
         lateral_drift = float(history.tcp_lateral_error[driven, index].max())
         orientation_drift = float(np.degrees(history.tcp_orientation_error[driven, index].max()))
@@ -204,6 +217,8 @@ def assess_validity(result: ExecutionResult, cfg: OperatingRegionCfg | None = No
                 reasons=reasons,
                 metrics={
                     "final_displacement": displacement,
+                    "execution_displacement": execution_displacement,
+                    "pre_execution_displacement": float(offsets[index]),
                     "peak_velocity": peak_velocity,
                     "peak_lateral_drift": lateral_drift,
                     "peak_orientation_drift_deg": orientation_drift,
@@ -213,3 +228,21 @@ def assess_validity(result: ExecutionResult, cfg: OperatingRegionCfg | None = No
         )
 
     return ValidityReport(verdicts=verdicts, cfg=cfg)
+
+
+def _resolve_offsets(
+    pre_execution_displacement: np.ndarray | Sequence[float] | None, num_envs: int
+) -> np.ndarray:
+    """Normalise the pre-execution displacement to a per-environment array.
+
+    Raises:
+        ValueError: If a sequence of the wrong length is given.
+    """
+    if pre_execution_displacement is None:
+        return np.zeros(num_envs)
+    offsets = np.asarray(pre_execution_displacement, dtype=float).reshape(-1)
+    if offsets.shape != (num_envs,):
+        raise ValueError(
+            f"pre_execution_displacement must have {num_envs} values, got {offsets.shape[0]}."
+        )
+    return offsets

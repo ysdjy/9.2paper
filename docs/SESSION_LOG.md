@@ -4,6 +4,59 @@ One entry per work session. Newest first.
 
 ---
 
+## 2026-09-02 — `agent/phase10-sequential-refinement` — Phase 10
+
+**Agent / task.** Claude Opus 5 — replace `probe -> reset -> execution` with a genuinely
+sequential episode, tighten the task against the resulting landscape, and write the formal
+dataset schema.
+
+**What changed.**
+
+* `protocols/sequential_pull_protocol.py`: one reset at the start and none after. Probe, a
+  fixed 8-step zero-force gap, then the execution. Refuses a settling execution outright,
+  because a settle would brake the pull axis and erase the post-probe velocity without saying
+  so.
+* `HybridPullOSC.coast()`: the gap. Zero pull force, five axes held, no braking, nothing
+  written to the simulation.
+* `dataset/`: one training sample, three nested content-addressed identifiers, hashed grouped
+  splits, and `assert_no_leakage`. `SplitCfg(level="candidate_id")` raises.
+* The task moved to `d_goal = 40 mm`, `eps_d = 7.5 mm`, `eps_v = 0.03 m/s`, `fall = 0.35`,
+  `T = 1.5 s` unchanged.
+
+**What was measured.**
+
+* Sequential Oracle: 5616 rows at `fall = 0.35`, 97.2 % valid, 108 hidden states x 52 forces.
+  Coverage **0.972**, required force **0.20-4.30 N** (21.5x), median band 0.20 N.
+* Inference gap: 8 steps gives the most repeatable finished task (`d_total(T)` spread 0.90 mm,
+  against 3.58 at 0 steps and 1.40 at 12). Velocity retained across the gap decays 1.000 ->
+  0.539 -> 0.001 -> 0.000 over 0/2/4/8 steps, by physics.
+* Reset vs sequential on the Phase 9 task: coverage 1.000 both ways, ranking preserved
+  (**+0.95**), required force lower under the sequential protocol by a median factor of
+  **0.80** — but bimodally, 0.32 to 1.02. The reset was a biased estimator, not a rescaled one.
+* Probe feature vs sequential required force: `displacement_per_newton` at Spearman
+  **-0.910** (Pearson -0.841), down from 0.969 against the reset Oracle. Strong, and *not*
+  sufficient — residual spread reaches +/-0.3 N against a 0.20 N band.
+* Figure F: required force is driven almost entirely by **dynamic friction**; mass and damping
+  barely move the median. This is why the damping identifiability gap costs less than it looks.
+
+**Two mistakes worth recording.**
+
+* The `_vlow` supplement files were globbed as full datasets by `refine_task_space.py`, and
+  since the tolerance curves were keyed by fall fraction, the last one loaded won. Figure D
+  then showed coverage 0.06 where the selection said 0.972. Caught because the figure
+  contradicted the selection, which is the argument for plotting things you have already
+  computed. Selection itself was unaffected.
+* Docs initially quoted gap-study numbers (0 and 2 steps) that were not in the report on disk —
+  they were from an earlier run. Rather than soften the claim, the validation was re-run over
+  all five gap lengths and every quoted number replaced with the observed one.
+
+**Tests.** 233 unit (~1 s) + 69 integration (~106 s), all passing.
+
+**Not done, deliberately.** No second probe for damping (D032). No networks trained. The
+reset Oracle was kept, not deleted.
+
+---
+
 ## 2026-09-02 — `agent/phase9-oracle-audit` — Phase 9A through 9M
 
 **Agent / task.** Claude Opus 5 — fix the hidden state at four dimensions, expand and

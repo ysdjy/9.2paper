@@ -481,3 +481,166 @@ non-causally smoothed observations would not transfer. Keeping the raw channel a
 makes the filter's effect auditable after the fact rather than a matter of trust.
 
 **Date.** 2026-09-02
+
+---
+
+### D026 — The sequential Oracle is the ground truth; the reset Oracle is kept as a comparison
+
+**Decision.** The paper's labels come from `outputs/logs/sequential_oracle_fall035.json`, in
+which the probe, an inference gap and the execution run without a reset in between. Phase 9's
+reset datasets are kept, are not superseded in the repository, and are used for exactly one
+thing: measuring what the reset was hiding.
+
+**Reason.** A real robot does not get a reset between feeling a drawer and pulling it, and the
+difference is not small. Measured on the Phase 9 task over all 108 hidden states, the required
+force falls by a median of **0.45 N — a factor of 0.80** — with per-state ratios from **0.32 to
+1.02** and a largest single shift of **1.40 N**. That is far too large to absorb into a
+tolerance.
+
+**Also.** The ratio distribution is **bimodal**, not centred: one cluster near 0.55–0.65 and
+another near 0.95–1.00 (figure E). So the reset was not a uniform rescaling that a calibration
+constant could undo — how much the probe helps depends on the hidden state, which is precisely
+the quantity a model has to infer. Meanwhile the *ranking* survives almost intact (rank
+correlation **+0.95**), so the reset Oracle remains a fair answer to "which drawer is stiff"
+and a biased answer to "by how much".
+
+**Date.** 2026-09-02
+
+---
+
+### D027 — `d_goal` is measured from before the probe
+
+**Decision.** `d_total(T) = x_drawer(T) − x_initial`, where `x_initial` is read once at the
+start of the episode, before the probe. The probe's own displacement therefore counts towards
+the goal. `SweepRecord.final_displacement` holds this quantity for both protocols.
+
+**Reason.** It is the only frame in which the robot's total behaviour is what is judged.
+Measuring from the post-probe position would let a policy bank arbitrary free displacement by
+probing harder, turning an information-gathering action into a covert part of the task.
+
+**Also.** `tests/integration/test_sequential_protocol.py::test_ignoring_the_probe_would_change_the_label`
+demonstrates the frame is load-bearing rather than bookkeeping: the same episode passes with
+the probe counted and fails without it.
+
+**Date.** 2026-09-02
+
+---
+
+### D028 — The inference gap is 8 control steps, chosen on repeatability
+
+**Decision.** A fixed 8 steps (133 ms at 60 Hz) of zero pull force separates the probe from
+the execution, in every episode, identically.
+
+**Reason.** A deployed system needs wall-clock time to run its adaptation model, so the time
+is reserved explicitly rather than left implicit. The *length* was measured, not assumed: over
+six identical episodes at the operating point (F = 4.25 N), the spread of `d_total(T)` was
+3.58 mm at 0 steps, 2.61 mm at 2, 3.29 mm at 4, **0.90 mm at 8** and 1.40 mm at 12. A second
+run over 4, 8 and 12 steps gave 1.66, 1.14 and 1.40 mm: the absolute values move by a few
+tenths of a millimetre between runs, and 8 steps is the minimum in both.
+
+**Also.** The mechanism is that `dd/dF` reaches about 40 mm/N just above breakaway, so the few
+hundred µm/s of residual velocity the probe leaves is amplified into millimetres of finished
+displacement. Coasting to a near-stop under the drawer's own friction removes the
+amplification. About **1 mm** (0.90–1.14 mm over two runs) is the protocol's intrinsic
+episode noise, and it is the reason `ε_d` is 7.5 mm rather than 5 mm.
+
+**Date.** 2026-09-02
+
+---
+
+### D029 — The execution controller must not settle in the sequential protocol
+
+**Decision.** `SequentialPullProtocol.__init__` raises `ValueError` if
+`system.execution.cfg.settle_steps != 0`. The protocol refuses to run rather than warning.
+
+**Reason.** The settle applies a velocity-proportional braking force of up to 15 N to the pull
+axis. In Phase 9 that was correct — it quieted the rig between independent sweep points. In
+the sequential protocol it would erase exactly the post-probe velocity the protocol exists to
+preserve, and it would do so silently, producing data that looked like sequential data and was
+not.
+
+**Also.** This is why the post-probe velocity is allowed to decay by physics and is never
+written. Measured: the drawer retains **under 0.2 %** of its probe-end velocity after the
+gap (0.19 % in one run, below the reporting precision in another; 54 % at 2 steps and 0.1 % at
+4, so the decay is a physical time constant and not a threshold). The
+number is small; how it got small is the point.
+
+**Date.** 2026-09-02
+
+---
+
+### D030 — The inference gap belongs to neither history
+
+**Decision.** The gap is recorded as its own `InferenceTransition`. It is not appended to the
+probe history a model reads, and it is not counted inside the commanded `T`.
+
+**Reason.** The probe history must contain exactly what a deployed robot would have measured
+*before* it had to decide, or the model is trained on evidence it will not have. And `T` is a
+task parameter: if the gap were inside it, changing the model's inference budget would silently
+change the task.
+
+**Date.** 2026-09-02
+
+---
+
+### D031 — The dataset splits by group, and a per-row split is not offered
+
+**Decision.** `SPLIT_LEVELS = ("xi_id", "probe_id")`; `SplitCfg(level="candidate_id")` raises.
+Group assignment is by hashing the group key, not by shuffling with a seed.
+
+**Reason.** One probe is expensive and is naturally paired with many candidate forces, so those
+rows share a hidden state, a probe recording and a post-probe state. A random row split puts
+near-duplicates of a training row into the test set and reports memorisation as
+generalisation. Making the leaking option raise is cheaper than catching it in review.
+
+**Also.** Hashing rather than seeding makes the split *stable*: adding hidden states later does
+not move existing ones between subsets, so a model trained on an earlier version of the
+dataset can still be evaluated honestly on the later version's test set.
+
+**Date.** 2026-09-02
+
+---
+
+### D032 — Damping stays unidentified this round, and is recorded as a limitation
+
+**Decision.** No second probe segment is added. The Phase 9 probe is kept unchanged as the
+baseline so that the protocol is the only thing that changed this round.
+
+**Reason.** The calibrated probe does not distinguish damping: sweeping `b` from 2 to
+11 N·s/m leaves the probe duration and the breakaway force essentially unchanged, because the
+probe moves the drawer 3 mm at a few mm/s and a viscous term scales with velocity. A second,
+faster segment would identify `b` and would also change the probe, the task and the dataset
+simultaneously, leaving no way to attribute any change in the results.
+
+**Also.** Figure F is the consolation as well as the limitation. Required force is driven
+almost entirely by **dynamic friction**, with static friction secondary; mass and damping
+barely move the median at all. A hidden dimension that does not change the answer costs little
+to leave unidentified — but that is a measured claim about this task, not a general one, and it
+should be re-checked if the task changes.
+
+**Date.** 2026-09-02
+
+---
+
+### D033 — `ε_d` is 7.5 mm even though 5 mm has higher coverage
+
+**Decision.** The task is `d_goal = 40 mm`, `ε_d = 7.5 mm`, `ε_v = 0.03 m/s`, `T = 1.5 s`, with
+`fall_fraction = 0.35`.
+
+**Reason.** At `ε_d = 5 mm` the coverage is actually *higher* (0.981 against 0.972), so
+coverage is not what rules it out. The success band is: at 5 mm it collapses to **0.10 N** —
+one force grid step, and about **7 %** of the required force. That is a knife edge no
+regression could be expected to hit, and it fails the project's own learnability floor
+(`min_relative_width = 0.10`). At 7.5 mm the median band is 0.20 N, 14 % of the required force.
+
+**Also.** `ε_d = 7.5 mm` is about **7×** the protocol's intrinsic `d_total(T)` noise of
+roughly 1 mm (D028); 5 mm would be about 4.5×, which is too close to the floor for a label to
+be reliable.
+
+**And on the priority order.** `fall_fraction = 0.20` was *not* chosen despite marginally
+higher discrimination in the Phase 9 sweep. At the Phase 10 task its coverage is 0.71 against
+0.98 for 0.35 (figure D), because a short ramp-down leaves a low-resistance drawer no time to
+decelerate before `T` and the terminal-velocity condition then fails. Discrimination is the
+last tie-breaker, not the objective.
+
+**Date.** 2026-09-02

@@ -142,3 +142,66 @@ honest, and each is enforced by a unit test rather than by convention:
 ACE, PSP, SPC, VLM, RL policies and RMA baselines. The current scope is the physical and
 control substrate plus its validation. Adding any of them should not require changing the
 two public controller APIs.
+
+---
+
+## Phase 10 additions
+
+Two packages joined, both of which own a boundary rather than a mechanism.
+
+### `protocols/` — sequencing, and nothing else
+
+```
+script  ->  protocol  ->  controllers  ->  environment
+```
+
+A one-way dependency. `SequentialPullProtocol` decides *when* the probe, the gap and the
+execution happen; the controllers still decide *what force* and the sensors still decide
+*what was measured*. It applies no force, reads no dynamics and holds no state between
+episodes.
+
+It exists because the alternative was for every sweep script to re-implement the ordering,
+and a script that gets the ordering subtly wrong — a stray reset, a settle left enabled —
+produces data that looks correct. The refusal to run with `settle_steps != 0` lives here for
+the same reason (D029).
+
+| Must | Must never |
+|---|---|
+| call the controllers in order | generate a force profile |
+| record what happened between them | read or write `xi` |
+| refuse a configuration that would corrupt the protocol | know what `d_goal` is used for |
+
+The protocol *is* handed `criteria` so it can call the evaluator, but it only passes them
+through; it does not act on them, and the execution controller never sees them.
+
+### `dataset/` — the simulator-to-model boundary
+
+`schema.py` defines one training sample and the three nested identifiers; `splits.py` does
+grouped splitting and asserts the result does not leak. Neither imports Isaac Lab, so the
+package runs wherever the data has been copied to.
+
+The deployability rule is *not* re-implemented here — `validate_probe_history` delegates to
+`observations.validate_model_input`, so "deployable" has one definition in the project.
+
+| Must | Must never |
+|---|---|
+| define the sample's fields and identifiers | read a simulator |
+| refuse a leaking split level | drop invalid rows (that is the training script's visible decision) |
+| refuse a reset-protocol row | define what "deployable" means |
+
+### Where the new modules sit
+
+```
+scripts/build_sequential_oracle.py
+        |
+        v
+protocols/sequential_pull_protocol.py ----> controllers/{probe,execution}_pull_controller.py
+        |                                            |
+        |                                            v
+        |                                   controllers/hybrid_osc.py  (step, settle, coast)
+        v
+evaluation/task_evaluator.py  --->  analysis/sweep.py  --->  analysis/oracle.py
+                                            |
+                                            v
+                                    dataset/{schema,splits}.py   (no simulator)
+```

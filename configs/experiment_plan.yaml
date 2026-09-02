@@ -11,19 +11,23 @@ _source:
   execution_controller: probe_drawer.experiment_plan:RECOMMENDED_EXECUTION_CFG
   training_xi: probe_drawer.experiment_plan:TRAINING_XI_RANGES
   ood_xi: probe_drawer.experiment_plan:OOD_XI_RANGES
+  sequential_transition_steps: probe_drawer.experiment_plan:SEQUENTIAL_TRANSITION_STEPS
+  phase9_reset_task: probe_drawer.experiment_plan:PHASE9_RESET_TASK
 _provenance:
-  main_task: scripts/build_oracle_landscape.py -> outputs/logs/oracle_landscape.json
+  main_task: scripts/refine_task_space.py -> outputs/logs/task_refinement.json (sequential
+    Oracle)
+  transition: scripts/validate_sequential_protocol.py -> outputs/logs/sequential_protocol_validation.json
   probe: scripts/calibrate_probe.py -> outputs/logs/probe_calibration.json
-  xi_ranges: scripts/sweep_execution_space.py -> outputs/logs/sweep_fine_fall*.json
-  note: Every number is the output of a sweep. See docs/EXPERIMENT_SPACE.md.
+  xi_ranges: scripts/build_sequential_oracle.py -> outputs/logs/sequential_oracle_fall*.json
+  note: Every number is the output of a sweep. See docs/EXPERIMENT_SPACE.md and docs/SEQUENTIAL_PROTOCOL.md.
 main_task:
   duration: 1.5
-  goal_displacement: 0.05
-  displacement_tolerance: 0.015
-  velocity_tolerance: 0.08
+  goal_displacement: 0.04
+  displacement_tolerance: 0.0075
+  velocity_tolerance: 0.03
   peak_force_range:
-  - 1.0
-  - 5.0
+  - 0.15
+  - 4.5
 probe_task:
   initial_force: 1.0
   max_force: 6.0
@@ -37,9 +41,9 @@ probe_controller:
   settle_steps: 30
 execution_controller:
   rise_fraction: 0.1
-  fall_fraction: 0.2
+  fall_fraction: 0.35
   shape: smoothstep
-  settle_steps: 30
+  settle_steps: 0
   zero_force_cleanup_steps: 2
   post_execution_settle_steps: 0
 training_xi:
@@ -68,3 +72,13 @@ ood_xi:
   damping:
   - 1.0
   - 16.0
+protocol: 'sequential: reset -> probe -> inference gap -> execution, no reset in between'
+phase9_reset_task:
+  duration: 1.5
+  goal_displacement: 0.05
+  displacement_tolerance: 0.015
+  velocity_tolerance: 0.08
+  peak_force_range:
+  - 1.0
+  - 5.0
+sequential_transition_steps: 8

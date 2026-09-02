@@ -270,6 +270,7 @@ class BasePullController(ABC):
         max_steps: int,
         timeout_reason: TerminationReason,
         settle_steps: int = 0,
+        force_scale: torch.Tensor | None = None,
     ) -> PullOutcome:
         """Drive the environment with ``profile`` until every environment stops.
 
@@ -281,12 +282,23 @@ class BasePullController(ABC):
                 ``TIMEOUT`` for a probe, ``DURATION_COMPLETED`` for an execution.
             settle_steps: Steps of zero-force pose holding before the pull, so grasp
                 contact transients do not contaminate the measurement.
+            force_scale: Per-environment multiplier on the profile, shape ``(num_envs,)``.
+                Defaults to ones. This is how several force candidates are compared from the
+                same starting state: every environment follows the *same* normalised shape
+                ``phi(t/T)`` and differs only in amplitude, which is exactly the invariance
+                the execution profile is designed around.
 
         Raises:
-            ValueError: If the profile would command more than
+            ValueError: If the profile, after scaling, would command more than
                 :attr:`SafetyLimits.max_commanded_force`.
         """
-        self._validate_profile(profile, max_steps)
+        if force_scale is None:
+            force_scale = torch.ones(self._num_envs, device=self._device)
+        if force_scale.shape != (self._num_envs,):
+            raise ValueError(
+                f"force_scale must have shape ({self._num_envs},), got {tuple(force_scale.shape)}."
+            )
+        self._validate_profile(profile, max_steps, float(force_scale.abs().max()))
         self._timeout_reason = timeout_reason
 
         self.osc.settle(settle_steps)
@@ -303,7 +315,7 @@ class BasePullController(ABC):
         for step in range(max_steps):
             # Environments that have already stopped are commanded zero force, so they stop
             # being driven without interrupting the ones still running.
-            commanded = torch.full((self._num_envs,), float(profile.force(elapsed)), device=self._device)
+            commanded = force_scale * float(profile.force(elapsed))
             commanded = torch.where(accumulator.active, commanded, torch.zeros_like(commanded))
 
             self.osc.step(self.osc.action(commanded))
@@ -354,10 +366,10 @@ class BasePullController(ABC):
             )
         return conditions
 
-    def _validate_profile(self, profile: ForceProfile, max_steps: int) -> None:
-        """Reject a profile that would exceed the absolute force limit."""
+    def _validate_profile(self, profile: ForceProfile, max_steps: int, scale: float = 1.0) -> None:
+        """Reject a profile that would exceed the absolute force limit once scaled."""
         samples = np.linspace(0.0, max_steps * self.step_dt, 512)
-        peak = float(np.max(np.abs(np.asarray(profile.force(samples)))))
+        peak = scale * float(np.max(np.abs(np.asarray(profile.force(samples)))))
         if peak > self.safety.max_commanded_force:
             raise ValueError(
                 f"{type(profile).__name__} peaks at {peak:.2f} N, above the absolute safety limit of "

@@ -151,3 +151,74 @@ Not licensed by this document:
   execution. The probe travels 3.4 mm, 6.9 % of the goal, so a sequential protocol is
   plausible -- but it has not been measured, and `d_goal` would have to be interpreted
   relative to the post-probe position.
+
+---
+
+## Phase 10 — the sequential landscape
+
+The landscape above was measured with a reset between the probe and the execution. It is
+preliminary verification and is kept for the protocol comparison; the authoritative landscape
+is the sequential one (D026). Dataset: `outputs/logs/sequential_oracle_fall035.json`, 5616
+rows, 97.2 % valid, 108 hidden states × 52 forces from 0.15 to 5.00 N, `T = 1.5 s`,
+`fall_fraction = 0.35`, 8-step inference gap.
+
+Every row is a **complete episode**: reset, probe, gap, execution. A candidate force is only
+meaningful together with the probe that preceded it, so the probe is re-run for each
+`(xi, F_peak)` rather than one starting state being reused. The cost is about one extra second
+of simulated time per row.
+
+### The bands (figure A)
+
+At the selected task the required force rises monotonically across the grid from **0.20 N to
+4.30 N**, a 21.5× range, with a median band of 0.20 N. The bands are narrow relative to the
+spread — which is what makes the task discriminative — and 100 of 105 are contiguous.
+
+### What drives the force (figure F)
+
+The required force is driven almost entirely by **dynamic friction**: across its twelve
+derived levels the median rises monotonically from about 0.4 N to 4.0 N, with tight boxes.
+Static friction is secondary. **Mass and damping barely move the median at all** (1.4–1.7 N
+across every level of each).
+
+Two consequences:
+
+* The task is, to first order, an identification problem in one dimension. That makes it
+  learnable and it also means the four-dimensional hidden state is not four-dimensionally
+  *relevant* — a point the paper should state rather than imply.
+* The damping identifiability limitation (D032) costs less than it appears to, because a
+  dimension that does not change the answer costs little to leave unidentified. This is a
+  measured claim about *this* task and should be re-checked if the task changes.
+
+### Is a scalar probe feature enough? (figure G)
+
+Recomputed against the sequential required force over 105 hidden states:
+
+| Probe feature | Spearman | Pearson |
+|---|---|---|
+| `displacement_per_newton` | **−0.910** | −0.841 |
+| `final_commanded_force` | +0.902 | +0.899 |
+| `duration` | +0.902 | +0.899 |
+| `breakaway_time` | +0.880 | +0.862 |
+| `breakaway_force` | +0.880 | +0.862 |
+| `mean_speed_after_breakaway` | −0.771 | −0.795 |
+| `final_velocity` | −0.675 | −0.752 |
+| `final_displacement` | −0.493 | −0.553 |
+| `peak_acceleration` | −0.406 | −0.406 |
+
+The relationship survives the protocol change: `|ρ| = 0.910`, down from 0.969 against the
+reset Oracle but still strong, and monotone with visible curvature (Pearson below Spearman for
+the leading feature).
+
+**It is not sufficient, and the figure is why.** At a given `displacement_per_newton` the
+residual spread in required force reaches roughly ±0.3 N in the mid-range — wider than the
+0.20 N success band. So a one-feature regression would land outside the band for a
+non-negligible fraction of hidden states, which is exactly the gap a learned adaptation model
+has to close. That makes the scalar fit a genuine baseline to beat rather than a solution, and
+it is the number to report it against.
+
+### Comparison with the reset landscape
+
+See `docs/SEQUENTIAL_PROTOCOL.md` §5. In short: coverage 1.000 under both protocols on the
+Phase 9 task, ranking preserved (`+0.95`), and the required force lower under the sequential
+protocol by a median factor of 0.80 — but bimodally, from 0.32 to 1.02 depending on the hidden
+state.

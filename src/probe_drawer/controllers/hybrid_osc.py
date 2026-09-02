@@ -198,6 +198,34 @@ class HybridPullOSC:
             # attached to where the TCP actually is, so it never fights that drift.
             self.capture_pose_reference()
 
+    def coast(self, steps: int) -> None:
+        """Hold the five motion axes and command **zero** pull force, without braking.
+
+        This is the physics of the inference transition between a probe and an execution:
+        the pull axis is released and whatever momentum the probe left is allowed to persist,
+        because that momentum is part of the state the probe produced and erasing it would
+        make the sequential protocol a fiction (``docs/DECISIONS.md`` D029).
+
+        Contrast with :meth:`settle`, which *does* brake the pull axis and is therefore only
+        appropriate at the start of an episode, before any measurement has been taken.
+
+        The pose reference is left where it is: the held axes have not moved, and re-latching
+        each step would remove the very restoring force that keeps them still.
+
+        Args:
+            steps: Number of environment steps to coast for. Zero is a no-op.
+
+        Raises:
+            RuntimeError: If no pose reference has been captured yet.
+        """
+        if steps <= 0:
+            return
+        if not self._has_reference:
+            raise RuntimeError("capture_pose_reference() must be called before coast().")
+        zero = torch.zeros(self._num_envs, device=self._device)
+        for _ in range(steps):
+            self.step(self.action(zero))
+
     def residual_pull_velocity(self) -> torch.Tensor:
         """TCP speed along the pull axis (m/s), shape ``(num_envs,)``.
 
