@@ -45,6 +45,28 @@ parser.add_argument("--force-step", type=float, default=0.5)
 parser.add_argument("--duration-low", type=float, default=0.5)
 parser.add_argument("--duration-high", type=float, default=3.0)
 parser.add_argument("--duration-step", type=float, default=0.25)
+parser.add_argument(
+    "--cabinet-x-offset",
+    type=float,
+    default=0.0,
+    help=(
+        "Shift the cabinet along the robot's +x (m). Positive moves it away, which starts the "
+        "arm more extended and leaves the shoulder-lift joint more range before a long pull "
+        "saturates it. Needs a grasp recorded at the same placement."
+    ),
+)
+parser.add_argument(
+    "--grasp-pose-path",
+    type=str,
+    default=None,
+    help="Grasp record to reset into. Required when --cabinet-x-offset is non-zero.",
+)
+parser.add_argument(
+    "--fall-fraction",
+    type=float,
+    default=None,
+    help="Execution ramp-down fraction. Defaults to the task's 0.35.",
+)
 parser.add_argument("--seed", type=int, default=20260902)
 parser.add_argument("--output", type=str, default=None)
 AppLauncher.add_app_launcher_args(parser)
@@ -85,10 +107,23 @@ from probe_drawer.utils import (  # noqa: E402
 )
 
 
+def execution_fall_fraction() -> float:
+    """The ramp-down this run uses, reported so a placement comparison is not confounded."""
+    return (
+        args_cli.fall_fraction
+        if args_cli.fall_fraction is not None
+        else RECOMMENDED_EXECUTION_CFG.fall_fraction
+    )
+
+
 def build_system(num_envs: int) -> PullSystem:
     execution = ExecutionControllerCfg(
         rise_fraction=RECOMMENDED_EXECUTION_CFG.rise_fraction,
-        fall_fraction=RECOMMENDED_EXECUTION_CFG.fall_fraction,
+        fall_fraction=(
+            args_cli.fall_fraction
+            if args_cli.fall_fraction is not None
+            else RECOMMENDED_EXECUTION_CFG.fall_fraction
+        ),
         shape=RECOMMENDED_EXECUTION_CFG.shape,
         settle_steps=0,
         zero_force_cleanup_steps=RECOMMENDED_EXECUTION_CFG.zero_force_cleanup_steps,
@@ -100,6 +135,8 @@ def build_system(num_envs: int) -> PullSystem:
             device=args_cli.device,
             probe=RECOMMENDED_PROBE_CFG,
             execution=execution,
+            cabinet_x_offset=args_cli.cabinet_x_offset,
+            grasp_pose_path=args_cli.grasp_pose_path,
         )
     )
 
@@ -197,6 +234,8 @@ def main() -> None:
           f"({len(durations)})")
     print(f"[reach] episodes      : {len(grid) * len(states)}")
     print(f"[reach] drawer travel : {DRAWER_TRAVEL_LIMIT * 1000:.0f} mm (official cabinet asset)")
+    print(f"[reach] cabinet offset: {args_cli.cabinet_x_offset:+.3f} m  grasp={args_cli.grasp_pose_path}")
+    print(f"[reach] fall_fraction : {execution_fall_fraction()}")
     print("[reach] recording     : joint margins, manipulability, pull-axis transmission, "
           "Jacobian condition, wrist spike")
 
@@ -285,6 +324,9 @@ def main() -> None:
     payload = {
         "git_commit": git_commit(),
         "drawer_travel_limit": DRAWER_TRAVEL_LIMIT,
+        "cabinet_x_offset": args_cli.cabinet_x_offset,
+        "grasp_pose_path": args_cli.grasp_pose_path,
+        "fall_fraction": execution_fall_fraction(),
         "forces": list(forces),
         "durations": list(durations),
         "num_hidden_states": len(states),

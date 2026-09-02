@@ -54,6 +54,23 @@ parser.add_argument(
     ),
 )
 parser.add_argument("--video", action="store_true", help="Record outputs/videos/official_open_drawer.mp4.")
+parser.add_argument(
+    "--cabinet-x-offset",
+    type=float,
+    default=0.0,
+    help=(
+        "Shift the cabinet along the robot's +x (m) before grasping. Positive moves it away. "
+        "Used to record a grasp for a repositioned cabinet, since the arm's shoulder-lift "
+        "joint runs toward its stop as the drawer is pulled and the placement decides how "
+        "much of that range a long pull consumes."
+    ),
+)
+parser.add_argument(
+    "--grasp-pose-output",
+    type=str,
+    default=None,
+    help="Where to write the grasp record. Defaults to configs/grasp_pose.yaml.",
+)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
@@ -95,6 +112,13 @@ def build_env() -> gym.Env:
     if args_cli.deterministic_init:
         env_cfg.events.reset_robot_joints = None
         env_cfg.observations.policy.enable_corruption = False
+    if args_cli.cabinet_x_offset:
+        position = env_cfg.scene.cabinet.init_state.pos
+        env_cfg.scene.cabinet.init_state.pos = (
+            position[0] + args_cli.cabinet_x_offset,
+            position[1],
+            position[2],
+        )
 
     render_mode = "rgb_array" if args_cli.video else None
     env = gym.make(OFFICIAL_ENV_ID, cfg=env_cfg, render_mode=render_mode)
@@ -242,10 +266,17 @@ def main() -> None:
 
 def export_grasp_pose(snapshot: dict, measured_axis: torch.Tensor) -> None:
     """Persist the grasped arm configuration for the research environment to reset into."""
-    path = project_root() / "configs" / "grasp_pose.yaml"
+    path = (
+        Path(args_cli.grasp_pose_output)
+        if args_cli.grasp_pose_output
+        else project_root() / "configs" / "grasp_pose.yaml"
+    )
+    if not path.is_absolute():
+        path = project_root() / path
     payload = {
         "_generated_by": "scripts/run_official_drawer.py --deterministic-init --export-grasp-pose",
         "_source_environment": OFFICIAL_ENV_ID,
+        "_cabinet_x_offset": args_cli.cabinet_x_offset,
         "_note": (
             "Arm configuration with the gripper closed on the top drawer handle, reached by the "
             "motion-driven approach state machine. The research environment resets into this "

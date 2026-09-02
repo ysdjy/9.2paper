@@ -62,6 +62,10 @@ class PullSystemCfg:
             their own durations.
         warm_up_steps: Settle steps run and discarded at build time, so the first episode
             starts from the same contact state as every later one.
+        cabinet_x_offset: Shift of the cabinet along the robot's ``+x`` (m). Non-zero needs a
+            grasp recorded at that placement, because the canonical record is joint angles
+            measured at the official one.
+        grasp_pose_path: Which grasp record to reset into. ``None`` uses the canonical file.
         video_folder: When set, the environment is wrapped in ``RecordVideo`` and rendered.
             Recording is started and stopped explicitly via
             :meth:`PullSystem.start_recording` / :meth:`PullSystem.stop_recording`, not by a
@@ -81,6 +85,8 @@ class PullSystemCfg:
     warm_up_steps: int = 60
 
     video_folder: Path | str | None = None
+    cabinet_x_offset: float = 0.0
+    grasp_pose_path: str | None = None
     video_name_prefix: str = "pull"
 
     hybrid: HybridPullControlCfg = field(default_factory=HybridPullControlCfg)
@@ -122,7 +128,10 @@ class PullSystem:
         # `hybrid_pull` and `research_episode_length_s` are consumed by __post_init__, so
         # they must be passed to the constructor rather than assigned afterwards.
         env_cfg = ProbeDrawerEnvCfg(
-            hybrid_pull=cfg.hybrid, research_episode_length_s=cfg.episode_length_s
+            hybrid_pull=cfg.hybrid,
+            research_episode_length_s=cfg.episode_length_s,
+            cabinet_x_offset=cfg.cabinet_x_offset,
+            grasp_pose_path=cfg.grasp_pose_path,
         )
         env_cfg.scene.num_envs = cfg.num_envs
         env_cfg.sim.device = cfg.device

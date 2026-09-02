@@ -64,6 +64,24 @@ class ProbeDrawerEnvCfg(OfficialFrankaCabinetEnvCfg):
     #: against the motion-driven baseline.
     reset_to_grasp_configuration: bool = True
 
+    #: Shift of the cabinet along the robot's ``+x`` (m), added to the official ``0.8``.
+    #:
+    #: Positive moves the cabinet **away** from the robot. It exists because the arm's
+    #: shoulder-lift joint runs monotonically toward its lower limit as the drawer is pulled
+    #: -- ``panda_joint2`` reaches -1.76 rad, its stop, past 300 mm -- so where the cabinet
+    #: stands decides how much of that joint's range a long pull consumes. Zero reproduces the
+    #: official scene exactly, and every result before this knob existed used zero.
+    #:
+    #: Changing it invalidates the recorded grasp in ``configs/grasp_pose.yaml``, which is
+    #: joint angles for the official placement. A non-zero offset therefore requires either
+    #: a grasp recorded at *that* placement (:attr:`grasp_pose_path`) or
+    #: ``reset_to_grasp_configuration = False``.
+    cabinet_x_offset: float = 0.0
+
+    #: Where to read the grasped arm configuration from. ``None`` uses the canonical
+    #: ``configs/grasp_pose.yaml``, which was recorded at the official cabinet placement.
+    grasp_pose_path: str | None = None
+
     #: Drawer drive stiffness (N/m). The official cabinet uses 10 N/m, which acts as a
     #: spring pulling the drawer shut and would be a fourth hidden parameter on top of
     #: xi = [mass, friction, damping]. Removed by default; see docs/DECISIONS.md D008.
@@ -91,13 +109,14 @@ class ProbeDrawerEnvCfg(OfficialFrankaCabinetEnvCfg):
         super().__post_init__()
 
         self._configure_robot_for_effort_control()
+        self._configure_cabinet_placement()
         self._configure_drawer_drive()
         self._pin_contact_friction()
         self._configure_hybrid_pull_action()
         self._add_handle_contact_sensor()
         if self.reset_to_grasp_configuration:
             # Read once: both the reset pose and the balanced grip come from the same record.
-            self._configure_research_reset(load_grasp_configuration())
+            self._configure_research_reset(load_grasp_configuration(self.grasp_pose_path))
 
         self.episode_length_s = self.research_episode_length_s
         # Rewards and observations belong to the RL formulation, which this project does not
@@ -121,6 +140,29 @@ class ProbeDrawerEnvCfg(OfficialFrankaCabinetEnvCfg):
             event.params["static_friction_range"] = (friction[0], friction[0])
             event.params["dynamic_friction_range"] = (friction[1], friction[1])
             event.params["num_buckets"] = 1
+
+    def _configure_cabinet_placement(self) -> None:
+        """Move the cabinet along the robot's ``x`` axis, if asked.
+
+        Raises:
+            ValueError: If a non-zero offset is combined with the *canonical* recorded grasp,
+                which is joint angles measured at the official placement.
+        """
+        if self.cabinet_x_offset == 0.0:
+            return
+        if self.reset_to_grasp_configuration and self.grasp_pose_path is None:
+            raise ValueError(
+                f"cabinet_x_offset = {self.cabinet_x_offset} m needs either a grasp recorded at "
+                "that placement (grasp_pose_path) or reset_to_grasp_configuration = False. The "
+                "canonical grasp is joint angles measured at the official placement and would "
+                "put the gripper somewhere other than the handle."
+            )
+        position = self.scene.cabinet.init_state.pos
+        self.scene.cabinet.init_state.pos = (
+            position[0] + self.cabinet_x_offset,
+            position[1],
+            position[2],
+        )
 
     def _configure_drawer_drive(self) -> None:
         """Make the drawer a pure mass-friction-damper system by default."""
