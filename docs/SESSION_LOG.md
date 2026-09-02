@@ -205,8 +205,21 @@ gitignored), `patches/rma4rma/`, `docs/RMA2_{REPRODUCTION_REPORT,TO_DRAWER_MAPPI
 
 **Tests.** 383 unit (~5 s) + 84 integration (297 s), all passing.
 
+**Commit.** `05eb49d241ed21a0510d8338de15a7693c4abe62` on `agent/phase11-dataset-v0`; `main`
+fast-forwarded to the same commit; tagged `v0.4.0-phase11`
+(`7b4bd8417ecf488e8dd6dc3dee180d4a70bb91ef`).
+
+**Push status.** Pushed. `main`, `agent/phase11-dataset-v0` and the tag all resolve on
+`https://github.com/ysdjy/9.2paper.git`, confirmed with `git ls-remote`.
+
 **Not done, deliberately.** No SPC, no VLM, no RMA baseline, no real robot, no hyperparameter
 search, no dataset beyond the pilot scale the plan set.
+
+**Left for whoever picks this up.** `.git` is 23 MB because several partial versions of
+`dataset_v0/candidates.jsonl` were committed while generation was still writing. The
+`.gitignore` now prevents it recurring. I did not rewrite that history on purpose: another
+session is actively working in this repository, and rewriting commits it may have based work
+on would be worse than the bloat.
 
 ---
 
