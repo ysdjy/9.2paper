@@ -1,0 +1,167 @@
+"""Public API 2 -- the full-duration force-driven execution.
+
+The execution controller answers one question: *given a peak force and a duration, what
+does the drawer do?*  It applies ``F(t) = peak_force * phi(t / duration)`` with a fixed
+normalised shape and runs for the whole duration.
+
+The goal displacement is deliberately absent
+--------------------------------------------
+``d_goal`` is **not** an input, and no stop condition anywhere in this class refers to
+drawer displacement.  Letting the controller stop when it reached a goal would turn an
+open-loop force-execution study into a closed-loop position-control study and would change
+the research question outright (``docs/DECISIONS.md`` D004).  Evaluating
+``|d(T) - d_goal| <= epsilon`` is the caller's job.
+
+The only thing that may cut an execution short is an absolute safety violation, and that is
+implemented in :class:`~probe_drawer.controllers.base_pull_controller.BasePullController`,
+not here: :meth:`ExecutionPullController._stop_conditions` returns nothing at all, which
+makes the guarantee structural rather than a matter of review discipline.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+import numpy as np
+import torch
+
+if TYPE_CHECKING:  # pragma: no cover - needs the Isaac Sim app at runtime
+    from isaaclab.envs import ManagerBasedRLEnv
+
+from probe_drawer.controllers.base_pull_controller import BasePullController, SafetyLimits, StopCondition
+from probe_drawer.controllers.force_profiles import RampShape, TrapezoidForceProfile
+from probe_drawer.controllers.hybrid_osc import HybridPullOSC
+from probe_drawer.controllers.types import ExecutionResult, TerminationReason
+from probe_drawer.sensors import DrawerStateReader
+
+__all__ = ["ExecutionControllerCfg", "ExecutionPullController"]
+
+
+@dataclass
+class ExecutionControllerCfg:
+    """Fixed shape of the execution force profile. Not per-episode task parameters.
+
+    Args:
+        rise_fraction: Fraction of the duration spent rising smoothly from 0 to the peak.
+        fall_fraction: Fraction of the duration spent falling smoothly back to 0.
+        shape: Interpolation of the rise and fall segments. ``"smoothstep"`` is C1, so the
+            command never steps.
+        settle_steps: Zero-force pose-holding steps before the profile starts.
+    """
+
+    rise_fraction: float = 0.1
+    fall_fraction: float = 0.1
+    shape: RampShape = "smoothstep"
+    settle_steps: int = 30
+
+    def __post_init__(self) -> None:
+        if self.settle_steps < 0:
+            raise ValueError(f"settle_steps must be >= 0, got {self.settle_steps}.")
+
+    def as_dict(self) -> dict:
+        return {
+            "rise_fraction": self.rise_fraction,
+            "fall_fraction": self.fall_fraction,
+            "shape": self.shape,
+            "settle_steps": self.settle_steps,
+        }
+
+
+class ExecutionPullController(BasePullController):
+    """Applies a peak-scaled force profile for a fixed duration and reports what happened.
+
+    Args:
+        env: The running research environment.
+        osc: The shared hybrid operational-space controller wrapper.
+        reader: State accessor for the same environment.
+        cfg: Fixed profile shape. Project defaults when omitted.
+        safety: Absolute limits. Project defaults when omitted.
+
+    Example:
+        >>> execution = ExecutionPullController(env, osc, reader)
+        >>> result = execution.run(peak_force=16.0, duration=2.0)
+        >>> success = abs(result.final_displacement[0] - d_goal) <= epsilon  # caller's job
+    """
+
+    def __init__(
+        self,
+        env: ManagerBasedRLEnv,
+        osc: HybridPullOSC,
+        reader: DrawerStateReader,
+        cfg: ExecutionControllerCfg | None = None,
+        safety: SafetyLimits | None = None,
+    ) -> None:
+        super().__init__(env, osc, reader, safety)
+        self.cfg = cfg or ExecutionControllerCfg()
+
+    def run(self, peak_force: float, duration: float) -> ExecutionResult:
+        """Execute the full force profile.
+
+        Args:
+            peak_force: Plateau pull-axis force (N).
+            duration: Total execution time (s). The controller runs for this long, then the
+                force is back at zero.
+
+        Returns:
+            An :class:`~probe_drawer.controllers.types.ExecutionResult` with one entry per
+            environment plus the complete time series. It carries no notion of success.
+
+        Raises:
+            ValueError: On non-physical arguments, or if the profile would exceed the
+                absolute force safety limit.
+        """
+        if peak_force <= 0.0:
+            raise ValueError(f"peak_force must be > 0 N, got {peak_force}.")
+        if duration <= 0.0:
+            raise ValueError(f"duration must be > 0 s, got {duration}.")
+
+        profile = TrapezoidForceProfile(
+            peak_force=peak_force,
+            duration=duration,
+            rise_fraction=self.cfg.rise_fraction,
+            fall_fraction=self.cfg.fall_fraction,
+            shape=self.cfg.shape,
+        )
+        outcome = self.run_profile(
+            profile=profile,
+            max_steps=self.steps_for(duration),
+            timeout_reason=TerminationReason.DURATION_COMPLETED,
+            settle_steps=self.cfg.settle_steps,
+        )
+
+        safety_aborted = np.asarray(
+            [reason is TerminationReason.SAFETY_ABORT for reason in outcome.termination_reason]
+        )
+        return ExecutionResult(
+            termination_reason=outcome.termination_reason,
+            duration=outcome.duration,
+            final_displacement=outcome.final_displacement,
+            final_velocity=outcome.final_velocity,
+            peak_commanded_force=outcome.peak_commanded_force,
+            peak_measured_force=outcome.peak_measured_force,
+            safety_aborted=safety_aborted,
+            history=outcome.history,
+            parameters={
+                "controller": "ExecutionPullController",
+                "peak_force": peak_force,
+                "duration": duration,
+                "profile": profile.describe(),
+                "config": self.cfg.as_dict(),
+                "safety": self.safety.as_dict(),
+                "step_dt": self.step_dt,
+                "commanded_steps": self.steps_for(duration),
+                "reference_drawer_position": np.asarray(outcome.reference_drawer_position).tolist(),
+                "initial_drawer_velocity": np.asarray(outcome.initial_drawer_velocity).tolist(),
+                "initial_tcp_pull_velocity": np.asarray(outcome.initial_tcp_pull_velocity).tolist(),
+            },
+        )
+
+    def _stop_conditions(self, elapsed: float, commanded_force: torch.Tensor) -> Sequence[StopCondition]:
+        """No task stop conditions. See this module's docstring and DECISIONS D004.
+
+        Returning an empty sequence is the enforcement mechanism: there is nowhere in this
+        class for a displacement-triggered stop to live.
+        """
+        return ()

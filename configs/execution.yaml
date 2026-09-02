@@ -1,0 +1,19 @@
+# GENERATED SNAPSHOT -- do not edit by hand and do not load this file at runtime.
+#
+# The authoritative values live in the dataclass named under `_source` below; this file
+# exists so the current configuration can be read and reviewed without opening the code.
+# tests/unit/test_config_snapshots.py fails if the two ever disagree, and prints the
+# corrected contents when it does.
+_source:
+  execution_controller: probe_drawer.controllers.execution_pull_controller:ExecutionControllerCfg
+execution_controller:
+  rise_fraction: 0.1
+  fall_fraction: 0.1
+  shape: smoothstep
+  settle_steps: 30
+task_parameters_are_not_configuration: peak_force and duration are arguments to ExecutionPullController.run.
+  The goal displacement d_goal is deliberately not an input at all (docs/DECISIONS.md
+  D004).
+reference_operating_point:
+  peak_force: 5.0
+  duration: 2.0

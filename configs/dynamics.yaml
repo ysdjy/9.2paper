@@ -1,0 +1,56 @@
+# GENERATED SNAPSHOT -- do not edit by hand and do not load this file at runtime.
+#
+# The authoritative values live in the dataclass named under `_source` below; this file
+# exists so the current configuration can be read and reviewed without opening the code.
+# tests/unit/test_config_snapshots.py fails if the two ever disagree, and prints the
+# corrected contents when it does.
+_source:
+  presets: probe_drawer.envs.dynamics_randomization:PRESETS
+  randomizer: probe_drawer.envs.dynamics_randomization:DynamicsRandomizerCfg
+hidden_state:
+- drawer_mass
+- joint_friction
+- joint_damping
+presets:
+  nominal:
+    name: nominal
+    drawer_mass: 5.175
+    joint_friction: 0.0
+    joint_damping: 1.0
+    joint_stiffness: 0.0
+  easy:
+    name: easy
+    drawer_mass: 5.0
+    joint_friction: 1.5
+    joint_damping: 4.0
+    joint_stiffness: 0.0
+  medium:
+    name: medium
+    drawer_mass: 8.0
+    joint_friction: 3.0
+    joint_damping: 6.0
+    joint_stiffness: 0.0
+  hard:
+    name: hard
+    drawer_mass: 10.0
+    joint_friction: 4.0
+    joint_damping: 9.0
+    joint_stiffness: 0.0
+randomizer:
+  cabinet_asset: cabinet
+  drawer_joint_name: drawer_top_joint
+  drawer_body_name: drawer_top
+  handle_body_name: drawer_handle_top
+  mass_range:
+  - 4.0
+  - 12.0
+  friction_range:
+  - 0.5
+  - 5.0
+  damping_range:
+  - 3.0
+  - 10.0
+  joint_stiffness: 0.0
+reference_operating_point:
+  peak_force: 5.0
+  duration: 2.0

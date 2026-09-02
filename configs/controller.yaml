@@ -1,0 +1,68 @@
+# GENERATED SNAPSHOT -- do not edit by hand and do not load this file at runtime.
+#
+# The authoritative values live in the dataclass named under `_source` below; this file
+# exists so the current configuration can be read and reviewed without opening the code.
+# tests/unit/test_config_snapshots.py fails if the two ever disagree, and prints the
+# corrected contents when it does.
+_source:
+  hybrid_pull_control: probe_drawer.envs.hybrid_pull_cfg:HybridPullControlCfg
+  hybrid_pull_osc: probe_drawer.controllers.hybrid_osc:HybridPullOSCCfg
+  safety_limits: probe_drawer.controllers.base_pull_controller:SafetyLimits
+  drawer_state: probe_drawer.sensors.drawer_state:DrawerStateCfg
+hybrid_pull_control:
+  pull_axis_index: 0
+  pull_axis_sign: -1.0
+  motion_stiffness: 500.0
+  motion_damping_ratio: 1.0
+  nullspace_stiffness: 20.0
+  nullspace_damping_ratio: 1.0
+  inertial_dynamics_decoupling: true
+  partial_inertial_dynamics_decoupling: false
+  gravity_compensation: false
+derived_pull_axis:
+  index: 0
+  sign: -1.0
+  name: -x
+derived_osc_axes:
+  motion_control_axes_task:
+  - 0
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  contact_wrench_control_axes_task:
+  - 1
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+hybrid_pull_osc:
+  gripper_command: -1.0
+  settle_brake_gain: 200.0
+  settle_brake_limit: 15.0
+safety_limits:
+  max_commanded_force: 60.0
+  max_drawer_velocity: 1.0
+  max_tcp_speed: 2.0
+  max_lateral_error: 0.05
+  max_orientation_error_deg: 30.0
+  max_arm_joint_velocity: 6.0
+drawer_state:
+  robot_asset: robot
+  cabinet_asset: cabinet
+  ee_frame_sensor: ee_frame
+  cabinet_frame_sensor: cabinet_frame
+  handle_contact_sensor: handle_contact
+  drawer_joint_name: drawer_top_joint
+  handle_body_name: drawer_handle_top
+  arm_joint_expr: panda_joint.*
+  finger_joint_expr: panda_finger_joint.*
+  ee_body_name: panda_hand
+  ee_parent_body_name: panda_link7
+  ee_offset:
+  - 0.0
+  - 0.0
+  - 0.1034
+  velocity_filter_window: 2

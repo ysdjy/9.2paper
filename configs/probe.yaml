@@ -1,0 +1,23 @@
+# GENERATED SNAPSHOT -- do not edit by hand and do not load this file at runtime.
+#
+# The authoritative values live in the dataclass named under `_source` below; this file
+# exists so the current configuration can be read and reviewed without opening the code.
+# tests/unit/test_config_snapshots.py fails if the two ever disagree, and prints the
+# corrected contents when it does.
+_source:
+  probe_controller: probe_drawer.controllers.probe_pull_controller:ProbeControllerCfg
+probe_controller:
+  ramp_duration: 1.0
+  ramp_shape: linear
+  hold_after_max_force: 0.0
+  max_probe_duration: 2.5
+  settle_steps: 30
+task_parameters_are_not_configuration: 'initial_force, max_force, target_displacement
+  and max_velocity are arguments to ProbePullController.run, not configuration: they
+  are the experiment''s task parameters. The values below are the documented example
+  from docs/API.md.'
+example_task_parameters:
+  initial_force: 2.0
+  max_force: 10.0
+  target_displacement: 0.005
+  max_velocity: 0.05

@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual envs
+.venv/
+venv/
+
+# Experiment outputs (large / regenerable -- keep the directories, not the data)
+outputs/logs/**
+outputs/plots/**
+outputs/videos/**
+!outputs/logs/.gitkeep
+!outputs/plots/.gitkeep
+!outputs/videos/.gitkeep
+
+# Large experiment snapshots
+backups/**
+!backups/README.md
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store

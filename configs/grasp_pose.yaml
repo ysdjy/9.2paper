@@ -1,0 +1,59 @@
+_generated_by: scripts/run_official_drawer.py --deterministic-init --export-grasp-pose
+_source_environment: Isaac-Open-Drawer-Franka-IK-Abs-v0
+_note: Arm configuration with the gripper closed on the top drawer handle, reached
+  by the motion-driven approach state machine. The research environment resets into
+  this configuration directly so probe data is not polluted by approach variability.
+  finger_joint_position is the contact equilibrium of each finger; the research environment
+  derives per-finger closed commands from it so the two fingers squeeze the handle
+  equally (see ProbeDrawerEnvCfg.grip_squeeze).
+captured_at_t: 3.9833
+grasp_offset:
+- 0.025
+- 0.0
+- 0.0
+finger_joint_names:
+- panda_finger_joint1
+- panda_finger_joint2
+finger_joint_position:
+- 0.00765592
+- 0.01521041
+finger_asymmetry: 0.0075545
+joint_pos:
+  panda_joint1: -0.03726814
+  panda_joint2: -0.70976508
+  panda_joint3: -0.10887291
+  panda_joint4: -2.40846038
+  panda_joint5: -0.72570801
+  panda_joint6: 3.32008481
+  panda_joint7: -0.13811
+  panda_finger_joint1: 0.00765592
+  panda_finger_joint2: 0.01521041
+tcp_pose_env:
+- 0.454145
+- -9.6e-05
+- 0.730367
+- -0.503625
+- -0.497562
+- -0.49661
+- -0.502168
+handle_pose_env:
+- 0.4435
+- 0.0
+- 0.7272
+- 0.5
+- 0.5
+- 0.5
+- 0.5
+tcp_minus_handle_position:
+- 0.010645
+- -9.6e-05
+- 0.003167
+drawer_position_at_grasp: 0.0
+measured_drawer_axis_world:
+- -1.0
+- 0.0
+- 0.0
+pull_axis:
+  index: 0
+  sign: -1.0
+  name: -x

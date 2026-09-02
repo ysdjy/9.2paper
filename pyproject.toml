@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "probe-drawer"
+version = "0.1.0"
+description = "Single-probe physical adaptation for force-driven Franka drawer pulling under unknown dynamics."
+readme = "README.md"
+requires-python = ">=3.10"
+# NOTE: isaacsim / isaaclab / torch are provided by the Isaac Lab conda environment
+# (`env_isaaclab`) and are deliberately NOT listed here -- pip must never try to
+# resolve or reinstall them.
+dependencies = [
+    "numpy",
+    "pyyaml",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# This machine has ROS 2 Humble on PYTHONPATH, whose `launch_testing` / `launch_pytest`
+# pytest plugins fail to import under Python 3.11. Disable them explicitly so `pytest`
+# works without having to unset PYTHONPATH.
+addopts = "-p no:launch_testing -p no:launch_ros"
+markers = [
+    "isaacsim: integration test that launches Isaac Sim (slow, needs a GPU)",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
