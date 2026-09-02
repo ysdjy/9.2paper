@@ -411,3 +411,31 @@ force_grid(low, high, step) -> tuple[float, ...]
 
 Inclusive force grid with exact spacing, so two sweeps that asked for the same forces produce
 values that compare equal and can be merged. Raises on `step <= 0` or `high < low`.
+
+---
+
+## `analysis.adaptation_premise`
+
+Whether the adaptation problem is well posed, answered from a finished Oracle sweep. Offline,
+no Isaac Sim. Entry point: `scripts/audit_adaptation_premise.py`; interpretation of every
+number: `docs/RMA2_TO_DRAWER_MAPPING.md` §19.
+
+```python
+audit(dataset, criteria, duration, source="", radii=(0.25, 0.5, 1.0)) -> AdaptationPremise
+```
+
+| Function | Question it answers |
+|---|---|
+| `collect_bands(dataset, criteria, duration)` | Each hidden state's succeeding forces, and how many states have none. |
+| `band_structure(...)` | Is adaptation necessary (the best constant force's success rate), and is the answer a point or a set (band width, contiguity, whether the midpoint succeeds)? |
+| `probe_ambiguity(...)` | How often averaging over probe-indistinguishable hidden states leaves the success band, as a function of the resolution assumed. |
+| `identifiability(...)` | What the probe determines about `xi`, what precision the task demands, and how far simple leave-one-out readouts get from the probe and from the true `xi`. |
+
+`HiddenStateBand.contains(force)` is interval membership; **`HiddenStateBand.succeeds_at(force)`
+is the success test** — it snaps to the nearest swept force and asks whether that force
+actually succeeded. For a band with an interior failure the two disagree, and every audit uses
+the second.
+
+Every model estimate is leave-one-out, and the readouts are deliberately simple (linear,
+quadratic, `k`-NN): they establish what is achievable *without* a learned model, so a learned
+model's number has something to beat.

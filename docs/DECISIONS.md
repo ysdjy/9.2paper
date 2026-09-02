@@ -644,3 +644,93 @@ decelerate before `T` and the terminal-velocity condition then fails. Discrimina
 last tie-breaker, not the objective.
 
 **Date.** 2026-09-02
+
+---
+
+### D034 — The adapted skill parameter is `p = [F_peak, T]`, two-dimensional
+
+**Decision.** The parameter the adaptation methods predict is `p = [F_peak, T]`. `T` moves out
+of the task definition and becomes a predicted parameter; the task is then `(d_goal, eps_d,
+eps_v)` alone. The Oracle is re-swept over a `(F_peak, T)` grid and `MAIN_TASK` re-selected
+against it by the existing scored rule (D024).
+
+**Reason.** Measured, not preferred. On the one-dimensional landscape
+(`outputs/logs/sequential_oracle_fall035.json`, `scripts/audit_adaptation_premise.py`) each
+hidden state's succeeding forces form a contiguous interval: median band 0.20 N, median 3
+succeeding forces on a 0.05 N grid, only 5 of 105 bands contain any interior failure, and
+**the midpoint of the succeeding set succeeds for 104 of 105 hidden states**. In one dimension
+averaging is therefore safe by construction, so a model that predicts the whole success
+landscape cannot beat a single-output regressor on the grounds of multi-modality -- there is
+none to exploit. That is the paper's central claim, and a one-dimensional parameter space
+cannot test it.
+
+In two dimensions the success set is a region that can be curved or disconnected, and the mean
+of two succeeding parameter pairs need not succeed. Whether the regions *are* multi-modal is
+an empirical question the re-sweep will answer; the point of the decision is that the question
+becomes askable.
+
+**Alternatives considered.** `p = [F_peak]` was rejected for the reason above, despite being
+free -- the Oracle on disk is already its ground truth. `p = [F_max, v_cmd]`, which the
+original task description specified, was rejected on cost: the pull axis is force-controlled
+throughout (`HybridPullOSC`) and there is no velocity command anywhere in `src/`, so it would
+need a new control mode, a re-run of all of Phase 6's controller validation, a new Oracle and
+a new task selection -- a new benchmark rather than a new parameter. `[F_peak, T]` needs **no
+new control code at all**: `ExecutionPullController.run` already takes `(peak_force, duration)`
+and `SweepRecord` already carries `duration` as a first-class axis.
+
+**Consequences.** `MainTask.duration` becomes a range rather than a constant.
+`analysis/adaptation_premise.py` generalises from bands to regions, and gains a connected-
+component count per hidden state -- the direct measurement of multi-modality. The oracle
+regression target becomes the point of the success region furthest from its boundary, and
+hidden states whose region is disconnected have more than one such point; those must be
+counted and reported, because they are exactly the states where asking a regressor for one
+answer is ill-posed. The Phase 10 sequential Oracle remains valid evidence about the physics
+and about `F_peak` at `T = 1.5 s`, but it is no longer the task's ground truth.
+
+**Date.** 2026-09-02
+
+---
+
+### D034 — One probe supplies many candidate labels by snapshot-and-restore, with the branch order shuffled
+
+**Decision.** Dataset v0 runs a probe once, captures the state with
+`protocols.simulation_snapshot`, and restores it before each of the 24 candidate executions.
+The candidates are executed in a **deterministically shuffled order** and every row records
+its `branch_index`. This is a dataset-generation device only: deployment runs one probe and
+one execution and restores nothing.
+
+**Reason.** The alternative — re-running the probe before every candidate, as Phase 9 and 10
+did — means the 24 candidates do not share a starting state, because a probe is reproducible
+only to 264–464 µm of post-probe displacement. Then the label attached to a candidate force is
+partly a property of that candidate's own probe, and the counterfactual is only approximate.
+
+Measured, with 24 samples on both sides at the same force: branch-to-branch spread is 23 µm
+where the execution barely moves the drawer (against 398–681 µm for fresh episodes) and
+2 739–2 892 µm just past breakaway (against 2 070–7 997 µm fresh). So branching is between
+comparable and 30× more reproducible than the alternative, and its bias is negligible — across
+seven runs the branch mean always landed inside the fresh episodes' range, with |bias| ≤
+0.096 mm.
+
+**Also — why the order is shuffled.** There is a *systematic* drift: at `medium`/2.5 N the
+outcome falls 57 µm per branch, 1 312 µm (0.17 `ε_d`) across a full sweep. It appears only when
+the execution pushes the drawer past breakaway, which points at the un-restorable PhysX
+contact state. Drift matters more than its size suggests: candidate forces are assigned to
+ordered strata, so a drift correlated with branch index would put a bias along the exact axis
+the model is learning. Shuffling turns that into force-uncorrelated noise by construction, and
+`branch_index` keeps it auditable.
+
+**Two bugs this found**, both of which would have silently corrupted the dataset: a restore
+left the TCP pose stale by 34 mm (the execution reads its pose reference from it), and 24
+branches of 1.5 s exceed the 30 s episode, so the environment would have auto-reset partway
+through every sweep. Both are fixed and regression-tested.
+
+**Not solved, recorded.** Some operating points near a high-friction drawer's breakaway
+threshold are genuinely bistable — the same command either breaks the drawer loose or does
+not, and both protocols show it. Those are flagged, not removed, and are the reason each
+hidden state keeps three independent probe repeats: so label noise is measured rather than
+assumed.
+
+Full evidence, including the criteria that were changed during the work and why:
+`docs/COUNTERFACTUAL_BRANCHING.md`.
+
+**Date.** 2026-09-02

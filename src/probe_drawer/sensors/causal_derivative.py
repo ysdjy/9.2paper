@@ -89,6 +89,32 @@ class CausalDerivative:
         self._differences = []
         self._value = None
 
+    def state_dict(self) -> dict:
+        """Everything :meth:`update` depends on, cloned.
+
+        The filter carries genuine state -- the previous sample and the last ``window``
+        differences -- so a derived channel is a function of the *history*, not of the
+        current instant. Capturing and restoring an episode therefore has to include it, or
+        a restored episode's first velocity reading would be wrong (see
+        ``docs/COUNTERFACTUAL_BRANCHING.md``).
+        """
+        return {
+            "previous": None if self._previous is None else self._previous.clone(),
+            "differences": [difference.clone() for difference in self._differences],
+            "value": None if self._value is None else self._value.clone(),
+        }
+
+    def load_state_dict(self, state: dict) -> None:
+        """Restore a :meth:`state_dict`, replacing whatever history is held now."""
+        missing = {"previous", "differences", "value"} - set(state)
+        if missing:
+            raise KeyError(f"CausalDerivative state is missing {sorted(missing)}.")
+        previous = state["previous"]
+        value = state["value"]
+        self._previous = None if previous is None else previous.clone()
+        self._differences = [difference.clone() for difference in state["differences"]]
+        self._value = None if value is None else value.clone()
+
     def describe(self) -> dict:
         """Serialisable filter description, recorded with every episode."""
         return {

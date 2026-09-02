@@ -4,6 +4,135 @@ One entry per work session. Newest first.
 
 ---
 
+## 2026-09-02 — RMA² reproduction and baseline design (uncommitted; see "Git state")
+
+**Agent / task.** Claude Opus 5 — reproduce the official RMA² implementation, understand it
+from its source, and design the RMA²-inspired Direct Adaptation baseline for this project.
+No baseline code was written this round; that was deliberate (the commission's §55).
+
+**What was added.**
+
+* `docs/RMA2_REPRODUCTION_REPORT.md` — the official code, read line by line, and how far it
+  ran here.
+* `docs/RMA2_TO_DRAWER_MAPPING.md` — what transfers, what does not, and the contract the
+  `methods/rma2_direct` implementation must satisfy.
+* `analysis/adaptation_premise.py` + `scripts/audit_adaptation_premise.py` +
+  `tests/unit/test_adaptation_premise.py` (12 tests) — whether the adaptation problem is well
+  posed, answered from the Oracle already on disk. Offline, no Isaac Sim.
+* `patches/rma4rma/` — the four fixes the official code needed, plus the install script.
+* `third_party/` (git-ignored) — the official `rma4rma` clone and its two forks.
+
+**The official RMA² code does not run as published.** Four separate defects, each observed
+rather than inferred:
+
+1. `.gitmodules` declares two submodules but **no gitlink is committed**, so
+   `git clone --recurse-submodules` silently produces nothing and `environment.yml` then
+   points at directories that do not exist.
+2. `ManiSkill2@49c3093` (the fork's HEAD, "add new robot") calls `joint.set_drive_trget` —
+   a typo — in `PDJointPosController.set_drive_targets`, so **every `env.step` raises
+   `AttributeError`** under the `pd_ee_delta_pose` mode all four tasks train with.
+3. `ActorCriticPolicyRMA` sizes the adapter with a different rule than
+   `FeaturesExtractorRMA` sizes the encoder, and has no PegInsertionSide branch. The adapter
+   comes out 71-wide against a 67-wide latent and stage 2 dies at the first forward pass:
+   `mat1 and mat2 shapes cannot be multiplied (4x123 and 119x512)`.
+4. `adaptation.py:102` hard-codes `range(50)`, so adapter training crashes at the first
+   episode end for any `-n` other than 50.
+
+With those patched, the full two-stage pipeline runs: PPO trains and checkpoints, the
+100-episode evaluation completes, and the adapter's L² latent loss falls 0.578 → 1e-5 over
+3157 steps. **That last number is an artefact, not a result** — PegInsertion's randomisation
+is curriculum-annealed to 2e6 steps, so at 3k steps there is almost nothing for `z_priv` to
+encode.
+
+**TurnFaucet could not be run.** The ManiSkill2 asset server is unreachable through this
+network's proxy (TLS closed, 0 bytes), which rules out TurnFaucet, PickSingleYCB and
+PickSingleEGAD. `PickCube-v1` — the launcher's own default — cannot be constructed by the
+launcher, because `PickCubeRMA.__init__` rejects three kwargs `config_envs` always passes.
+`PegInsertionSide-v1` was used instead.
+
+**What the source analysis found that matters for us.** `z_priv` is **72**-dimensional for
+TurnFaucet (71 for PickSingle, 67 for PegInsertion) from a 76-dim input — RMA²'s "compact
+embedding" removes four dimensions, and 64 of its 76 inputs are learned per-object identity
+embeddings that have no analogue for one drawer. Only 2 of TurnFaucet's 12 privileged dims
+are randomised physics. The adapter is distilled **on-policy** — the policy acts on `z_hat`
+while the adapter learns — which the paper's figure does not make explicit and which has no
+analogue here, because our probe is open-loop. The temporal CNN's kernel stack `(9,7,5,3)`
+transfers to our probe **unchanged** if the window is the 1.5 s probe budget (90 steps at
+60 Hz); at the median probe length of 28 steps it is arithmetically invalid.
+
+**What was measured about our own task, before writing any model.**
+`scripts/audit_adaptation_premise.py` on `sequential_oracle_fall035.json` at `MAIN_TASK`:
+
+* **Adaptation is necessary.** The best single fixed force (0.70 N) succeeds on 20/108 =
+  **0.185** of hidden states. Required forces span 0.25–4.30 N.
+* **The answer is an interval, not a set of modes.** Median band 0.20 N, median 3 succeeding
+  forces, only 5/105 bands have an interior failure, and the band midpoint succeeds for
+  **104/105**. So the regression-to-the-mean failure the commission anticipates **does not
+  exist within a hidden state** — in 1-D with contiguous bands, averaging is safe by
+  construction. This is the round's most important finding and it is an argument for a
+  two-dimensional parameter space.
+* **The probe identifies friction and nothing else.** Leave-one-out R² from nine probe
+  features: `mu_s` +0.946, `mu_d` +0.883, `mass` +0.251, `damping` **−0.107**. D032's damping
+  limitation is confirmed and extends to mass.
+* **The required force is essentially `mu_d`** (corr +0.987; mass +0.023, damping +0.077).
+* **The task is precision-limited.** Band half-width 0.100 N on a 1.50 N median target — 7 %.
+  A leave-one-out readout of the probe explains 90 % of the variance in the required force and
+  is inside the band **a third of the time**; from the true `xi` a quadratic reaches RMSE
+  0.099 N and 0.867. So the experiment's dynamic range is 0.185 → ~0.33 → 0.867, and
+  **success rate must be reported, not R²**.
+
+**One decision was escalated and answered: `p = [F_peak, T]` (D034).** The commission
+specified `p = [F_max, v_cmd]`, which this repository cannot express — the pull axis is
+force-controlled throughout and there is no velocity command in `src/`. Of the three options
+put to the owner, the two-dimensional `[F_peak, T]` was chosen: it needs **no new control
+code** (`ExecutionPullController.run` already takes a duration, and `SweepRecord` already
+carries `duration` as an axis), and it is the cheapest way to make the paper's central claim
+*testable at all* — in one dimension the success set is an interval whose midpoint succeeds
+104/105 times, so there is no multi-modality for a success-landscape model to exploit.
+
+This blocks the next round on three things, in order: re-sweep the Oracle over a
+`(F_peak, T)` grid; re-select `MAIN_TASK` against it with the existing scored rule (D024);
+generalise `analysis/adaptation_premise.py` from bands to regions and re-run it. That last one
+produces the number the paper actually needs — the count of hidden states whose success region
+is **disconnected**. If the 2-D regions turn out to be convex blobs, the framing has to change
+rather than the measurement.
+
+**A stale README table was corrected.** §7 still listed the Phase 9 task (`d_goal` 50 mm,
+`eps_d` 15 mm, `eps_v` 0.08, `F_peak` 1–5 N, ramp-down 20 %) against `experiment_plan.py`'s
+Phase 10 values. The `configs/experiment_plan.yaml` snapshot was correct, so no code or result
+was affected. Test counts were also stale.
+
+**A bug in this session's own new module, caught by its own test.**
+`HiddenStateBand.contains` is interval membership, and using it for "does the midpoint
+succeed?" made that question trivially true (it reported 105/105). Split into `contains`
+(membership) and `succeeds_at` (snap to the nearest swept force, ask whether it succeeded);
+the honest answer is 104/105. Every audit now uses `succeeds_at`.
+
+**Tests.** `pytest tests/unit -q` → **245 passed**. Integration tests were not run: another
+agent was holding the simulator (below).
+
+**Git state.** **Nothing was committed.** A concurrent session was editing this working tree
+throughout — `protocols/simulation_snapshot.py`, `scripts/validate_branching.py`,
+`controllers/hybrid_osc.py`, `sensors/drawer_state.py`, `sensors/causal_derivative.py`,
+`protocols/__init__.py` — so creating a branch or a commit would have moved shared git state
+under a live session. This round's files are:
+
+* new: `docs/RMA2_REPRODUCTION_REPORT.md`, `docs/RMA2_TO_DRAWER_MAPPING.md`,
+  `src/probe_drawer/analysis/adaptation_premise.py`,
+  `scripts/audit_adaptation_premise.py`, `tests/unit/test_adaptation_premise.py`,
+  `patches/rma4rma/*`;
+* modified: `README.md` (§7 table, test counts), `docs/API.md` (new section), `.gitignore`
+  (`third_party/`).
+
+That concurrent work is building state capture and restore — exactly the "candidate rollouts
+from one shared post-probe state" capability this round listed as missing. The dataset-
+generation plan in the mapping document should be revisited against it once it lands.
+
+**Next.** The three blockers above (2-D Oracle, 2-D task selection, region-level premise
+audit), then the probe dataset, then Stage A on 10–50 hidden states as a tiny overfit test.
+
+---
+
 ## 2026-09-02 — `agent/phase10-sequential-refinement` — Phase 10
 
 **Agent / task.** Claude Opus 5 — replace `probe -> reset -> execution` with a genuinely

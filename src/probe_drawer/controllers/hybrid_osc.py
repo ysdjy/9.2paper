@@ -120,6 +120,32 @@ class HybridPullOSC:
         """The held TCP pose, shape ``(num_envs, 7)`` as ``[position, quaternion]``."""
         return self._pose_reference
 
+    @property
+    def has_reference(self) -> bool:
+        """Whether a pose reference has been captured since the last reset."""
+        return self._has_reference
+
+    def load_pose_reference(self, reference: torch.Tensor, has_reference: bool = True) -> None:
+        """Set the held pose reference directly, instead of reading it from the robot.
+
+        Used only by dataset generation, to put the controller back to a captured instant so
+        that several candidate forces can be compared from one probe
+        (``docs/COUNTERFACTUAL_BRANCHING.md``). Deployment always uses
+        :meth:`capture_pose_reference`, which reads where the TCP actually is.
+
+        Args:
+            reference: Pose reference, shape ``(num_envs, 7)``.
+            has_reference: Whether the controller should consider itself referenced.
+
+        Raises:
+            ValueError: On a wrongly shaped reference.
+        """
+        expected = (self._num_envs, 7)
+        if tuple(reference.shape) != expected:
+            raise ValueError(f"reference must have shape {expected}, got {tuple(reference.shape)}.")
+        self._pose_reference = reference.clone().to(self._device)
+        self._has_reference = bool(has_reference)
+
     def capture_pose_reference(self) -> torch.Tensor:
         """Latch the current TCP pose as the pose the held axes are servoed to.
 

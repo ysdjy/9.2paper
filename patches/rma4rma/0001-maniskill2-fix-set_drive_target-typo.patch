@@ -1,0 +1,13 @@
+diff --git a/mani_skill2/agents/controllers/pd_joint_pos.py b/mani_skill2/agents/controllers/pd_joint_pos.py
+index cb44a33..fde47b2 100644
+--- a/mani_skill2/agents/controllers/pd_joint_pos.py
++++ b/mani_skill2/agents/controllers/pd_joint_pos.py
+@@ -45,7 +45,7 @@ class PDJointPosController(BaseController):
+ 
+     def set_drive_targets(self, targets):
+         for i, joint in enumerate(self.joints):
+-            joint.set_drive_trget(targets[i])
++            joint.set_drive_target(targets[i])
+ 
+     def set_action(self, action: np.ndarray):
+         action = self._preprocess_action(action)

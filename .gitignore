@@ -29,3 +29,6 @@ backups/**
 .vscode/
 .idea/
 .DS_Store
+
+# Official third-party code, cloned not vendored (see docs/rma2_reproduction_report.md)
+third_party/

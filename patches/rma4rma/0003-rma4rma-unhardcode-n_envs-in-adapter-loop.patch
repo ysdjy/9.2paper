@@ -1,0 +1,26 @@
+diff --git a/src/rma4rma/algo/adaptation.py b/src/rma4rma/algo/adaptation.py
+index 6af69c0..db50b3c 100644
+--- a/src/rma4rma/algo/adaptation.py
++++ b/src/rma4rma/algo/adaptation.py
+@@ -99,7 +99,9 @@ class ProprioAdapt:
+             self.policy.reset_buffer(dones=dones)
+ 
+             if th.any(dones == 1):
+-                n_succ = sum([infos[i]["success"] for i in range(50)])
++                # `range(50)` here hard-coded the paper's environment count and raised
++                # IndexError for any other -n. `infos` is one entry per environment.
++                n_succ = sum(info["success"] for info in infos)
+                 self.succ_rate = n_succ / n_envs
+ 
+             self.step_reward += rewards
+@@ -201,7 +203,9 @@ class ProprioAdapt:
+             self.policy.reset_buffer(dones=dones)
+ 
+             if th.any(dones == 1):
+-                n_succ = sum([infos[i]["success"] for i in range(50)])
++                # `range(50)` here hard-coded the paper's environment count and raised
++                # IndexError for any other -n. `infos` is one entry per environment.
++                n_succ = sum(info["success"] for info in infos)
+                 self.succ_rate = n_succ / n_envs
+ 
+             self.step_reward += rewards

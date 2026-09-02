@@ -1,0 +1,22 @@
+diff --git a/src/rma4rma/algo/policy.py b/src/rma4rma/algo/policy.py
+index c012af8..38af2ba 100644
+--- a/src/rma4rma/algo/policy.py
++++ b/src/rma4rma/algo/policy.py
+@@ -42,9 +42,15 @@ class ActorCriticPolicyRMA(ActorCriticPolicy):
+         self.perc_sample_idx = [19]
+         self.cparam_sample_idx = [19]
+         self.reset_buffer()
+-        priv_enc_in_dim = 4 + 3 + 4
++        # Must agree with FeaturesExtractorRMA (algo/models.py:41-49), which gives
++        # PegInsertionSide a 7-dim privileged vector. Without this branch the adapter is
++        # built 4 wider than the environment encoder's latent and stage 2 cannot run.
+         if env_name == "TurnFaucet":
+-            priv_enc_in_dim += 1
++            priv_enc_in_dim = 4 + 1 + 4 + 3
++        elif env_name == "PegInsertionSide":
++            priv_enc_in_dim = 4 + 3
++        else:
++            priv_enc_in_dim = 4 + 3 + 4
+         priv_enc_in_dim += object_emb_dim * 2
+         priv_env_out_dim = priv_enc_in_dim - 4
+ 

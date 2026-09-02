@@ -265,17 +265,18 @@ All measured, never guessed. Authoritative in `probe_drawer.experiment_plan`, mi
 | | Value |
 |---|---|
 | `T_goal` | 1.5 s |
-| `d_goal` | 50 mm |
-| `epsilon_d` / `epsilon_v` | 15 mm / 0.08 m/s |
-| `F_peak` range | 1.0 - 5.0 N |
-| execution ramp-down | 20 % of the duration |
+| `d_goal` | 40 mm, measured from *before* the probe (D027) |
+| `epsilon_d` / `epsilon_v` | 7.5 mm / 0.03 m/s |
+| `F_peak` range | 0.15 - 4.5 N (the union of every hidden state's success band) |
+| execution ramp-down | 35 % of the duration |
+| inference gap | 8 control steps (133 ms) of zero pull force |
 | probe | 1.0 -> 6.0 N over 1.0 s, stop at 3 mm or 0.08 m/s, budget 1.5 s |
 | training `xi` | m 4-12 kg, mu_s 0.5-3.0 N, mu_d/mu_s 0.3-1.0, b 2-10 N s/m |
 | OOD `xi` | m 2-18 kg, mu_s 0.25-4.5 N, mu_d/mu_s 0.15-1.0, b 1-16 N s/m |
 
 ## 8. Validation status
 
-All of Phases 0-9 pass. 196 unit tests and 52 integration tests pass. Highlights, with the
+All of Phases 0-10 pass. 245 unit tests and 69 integration tests pass. Highlights, with the
 values actually measured (full table in [docs/VALIDATION.md](docs/VALIDATION.md)):
 
 * the official drawer opens to 308.7 mm; the drawer's travel direction measures exactly

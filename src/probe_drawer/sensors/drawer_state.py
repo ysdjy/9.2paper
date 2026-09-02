@@ -149,6 +149,14 @@ class DrawerStateReader:
         self._drawer_acceleration_estimator = CausalDerivative(self._step_dt, self.cfg.acceleration_filter_window)
         self._tcp_acceleration_estimator = CausalDerivative(self._step_dt, self.cfg.acceleration_filter_window)
         self._joint_acceleration_estimator = CausalDerivative(self._step_dt, self.cfg.acceleration_filter_window)
+        # One registry, so resetting, describing and snapshotting the filters cannot drift
+        # apart when a fifth derived channel is added.
+        self._estimators: dict[str, CausalDerivative] = {
+            "drawer_velocity": self._drawer_velocity_estimator,
+            "drawer_acceleration": self._drawer_acceleration_estimator,
+            "tcp_pull_axis_acceleration": self._tcp_acceleration_estimator,
+            "joint_acceleration": self._joint_acceleration_estimator,
+        }
         self._has_samples = False
 
         self._check_base_frame_alignment()
@@ -243,23 +251,42 @@ class DrawerStateReader:
 
     def reset_history(self) -> None:
         """Discard every derivative estimate. Call after ``env.reset``."""
-        for estimator in (
-            self._drawer_velocity_estimator,
-            self._drawer_acceleration_estimator,
-            self._tcp_acceleration_estimator,
-            self._joint_acceleration_estimator,
-        ):
+        for estimator in self._estimators.values():
             estimator.reset()
         self._has_samples = False
 
+    def state_dict(self) -> dict:
+        """The reader's own state: every filter's history, and whether any sample exists.
+
+        This is *not* simulator state. It is the reason a restored episode needs more than
+        ``write_joint_state_to_sim``: velocity and acceleration here are functions of the
+        recent past, so a branch that restores only physics would read a wrong velocity on
+        its first step (``docs/COUNTERFACTUAL_BRANCHING.md``).
+        """
+        return {
+            "has_samples": self._has_samples,
+            "estimators": {name: estimator.state_dict() for name, estimator in self._estimators.items()},
+        }
+
+    def load_state_dict(self, state: dict) -> None:
+        """Restore a :meth:`state_dict`.
+
+        Raises:
+            KeyError: If the payload does not describe exactly this reader's filters, which
+                is what would happen if it came from a differently configured reader.
+        """
+        stored = state["estimators"]
+        if set(stored) != set(self._estimators):
+            raise KeyError(
+                f"filter state describes {sorted(stored)}, this reader has {sorted(self._estimators)}."
+            )
+        for name, estimator in self._estimators.items():
+            estimator.load_state_dict(stored[name])
+        self._has_samples = bool(state["has_samples"])
+
     def filter_description(self) -> dict:
         """How each derived channel was filtered, recorded with every episode."""
-        return {
-            "drawer_velocity": self._drawer_velocity_estimator.describe(),
-            "drawer_acceleration": self._drawer_acceleration_estimator.describe(),
-            "tcp_pull_axis_acceleration": self._tcp_acceleration_estimator.describe(),
-            "joint_acceleration": self._joint_acceleration_estimator.describe(),
-        }
+        return {name: estimator.describe() for name, estimator in self._estimators.items()}
 
     def _zeros(self) -> torch.Tensor:
         return torch.zeros(self.env.num_envs, device=self._device)
