@@ -1,0 +1,448 @@
+{
+  "dataset": {
+    "root": "/home/zbh/Downloads/IsaacLab/9.2paper/outputs/dataset_pilot32",
+    "dataset_version": "pilot32",
+    "counts": {
+      "hidden_states": 32,
+      "probes": 96,
+      "candidates": 3072
+    },
+    "history_files": 96
+  },
+  "manifest": {
+    "dataset_version": "pilot32",
+    "schema_version": "1.0",
+    "created_at": "2026-09-02T13:09:49.940723+00:00",
+    "git_commit": "0e44c39c01898d334739bd5c0a6ade688e9a9138",
+    "protocol": "sequential: reset -> probe -> inference gap -> branched executions",
+    "counterfactual_labels": "post-probe snapshot restored before each candidate",
+    "seed": 20260902,
+    "sampling": {
+      "num_hidden_states": 32,
+      "probe_repeats": 3,
+      "candidates_per_probe": 32,
+      "num_probes": 96,
+      "num_candidates": 3072,
+      "xi_sampler": {
+        "method": "scrambled Sobol",
+        "num_states": 32,
+        "seed": 20260902,
+        "parameterisation": [
+          "mass",
+          "static_friction",
+          "dynamic_friction_ratio",
+          "damping"
+        ],
+        "mass": [
+          4.0,
+          12.0
+        ],
+        "static_friction": [
+          0.5,
+          3.0
+        ],
+        "dynamic_friction_ratio": [
+          0.3,
+          1.0
+        ],
+        "damping": [
+          2.0,
+          10.0
+        ]
+      },
+      "force_sampler": {
+        "method": "label-independent stratified with per-hidden-state jitter",
+        "count": 32,
+        "force_range": [
+          0.15,
+          4.5
+        ],
+        "jitter": 0.4,
+        "seed": 20260902,
+        "reads_labels": false
+      }
+    },
+    "probe_task": {
+      "initial_force": 1.0,
+      "max_force": 6.0,
+      "target_displacement": 0.003,
+      "max_velocity": 0.08
+    },
+    "probe_cfg": {
+      "ramp_duration": 1.0,
+      "ramp_shape": "linear",
+      "hold_after_max_force": 0.0,
+      "max_probe_duration": 1.5,
+      "settle_steps": 30
+    },
+    "execution_cfg": {
+      "rise_fraction": 0.1,
+      "fall_fraction": 0.35,
+      "shape": "smoothstep",
+      "settle_steps": 0,
+      "zero_force_cleanup_steps": 2,
+      "post_execution_settle_steps": 0
+    },
+    "sequential_transition_steps": 8,
+    "main_task": {
+      "duration": 1.5,
+      "goal_displacement": 0.04,
+      "displacement_tolerance": 0.0075,
+      "velocity_tolerance": 0.03,
+      "peak_force_range": [
+        0.15,
+        4.5
+      ]
+    },
+    "operating_region": {
+      "mechanical_margin_fraction": 0.8,
+      "max_displacement": 0.32000000000000006,
+      "drawer_travel_limit": 0.4,
+      "max_peak_velocity": 0.25,
+      "max_lateral_drift": 0.005,
+      "max_orientation_drift_deg": 5.0,
+      "min_displacement": 0.001
+    },
+    "history_channels": [
+      "commanded_force",
+      "drawer_position",
+      "drawer_velocity",
+      "drawer_acceleration",
+      "tcp_pull_axis_position",
+      "tcp_pull_axis_velocity",
+      "tcp_pull_axis_acceleration"
+    ],
+    "diagnostic_channels": [
+      "time",
+      "measured_force",
+      "drawer_velocity_raw",
+      "drawer_acceleration_raw",
+      "tcp_lateral_error",
+      "tcp_orientation_error"
+    ],
+    "num_envs": 32,
+    "environment": {
+      "os": "Linux 5.15.0-1097-realtime",
+      "python": "3.11.15",
+      "python_executable": "/home/zbh/anaconda3/envs/env_isaaclab/bin/python",
+      "torch": "2.7.1+cu128",
+      "cuda": "12.8",
+      "gpu": "NVIDIA GeForce RTX 5080",
+      "isaacsim": "5.1.0.0",
+      "isaaclab": "0.49.0",
+      "isaaclab_root": "/home/zbh/Downloads/IsaacLab",
+      "project_root": "/home/zbh/Downloads/IsaacLab/9.2paper",
+      "project_git_commit": "0e44c39c01898d334739bd5c0a6ade688e9a9138",
+      "registered_drawer_envs": {}
+    },
+    "counts": {
+      "hidden_states": 32,
+      "probes": 96,
+      "candidates": 3072
+    }
+  },
+  "checks": {
+    "identifiers_unique": {
+      "unique_hidden_states": 32,
+      "unique_probes": 96,
+      "unique_candidates": 3072,
+      "duplicates": {},
+      "passes": true
+    },
+    "probe_references_resolve": {
+      "dangling_probe_references": [],
+      "dangling_hidden_state_references": [],
+      "missing_history_files": [],
+      "passes": true
+    },
+    "probes_belong_to_one_hidden_state": {
+      "candidates_disagreeing_with_their_probe": [],
+      "probes_per_hidden_state": {
+        "3": 32
+      },
+      "passes": true
+    },
+    "repeats_share_a_candidate_grid": {
+      "hidden_states_checked": 32,
+      "hidden_states_with_inconsistent_grids": [],
+      "passes": true
+    },
+    "finite_values": {
+      "non_finite_rows": [],
+      "non_finite_histories": [],
+      "unreadable_histories": [],
+      "histories_shorter_than_two_steps": [],
+      "passes": true
+    },
+    "no_privileged_fields_in_model_input": {
+      "hidden_state_recorded": true,
+      "privileged_fields_reachable_from_model_input": [],
+      "history_channels": [
+        "commanded_force",
+        "drawer_acceleration",
+        "drawer_position",
+        "drawer_velocity",
+        "tcp_pull_axis_acceleration",
+        "tcp_pull_axis_position",
+        "tcp_pull_axis_velocity"
+      ],
+      "diagnostics_kept_out_of_history": true,
+      "passes": true
+    },
+    "counts_match_the_manifest": {
+      "declared": {
+        "hidden_states": 32,
+        "probes": 96,
+        "candidates": 3072
+      },
+      "actual": {
+        "hidden_states": 32,
+        "probes": 96,
+        "candidates": 3072
+      },
+      "planned": {
+        "hidden_states": 32,
+        "probes": 96,
+        "candidates": 3072
+      },
+      "passes": true
+    },
+    "branch_index_decorrelated_from_force": {
+      "probes_checked": 96,
+      "candidates_per_probe": 32,
+      "mean_correlation": 0.014967627201526196,
+      "max_abs_correlation": 0.39815120490464073,
+      "null_standard_error": 0.018330889377669163,
+      "tolerance": 0.05499266813300749,
+      "sigmas": 0.8165248773886487,
+      "passes": true
+    },
+    "split_has_no_leakage": {
+      "level": "xi_id",
+      "counts": {
+        "level": "xi_id",
+        "rows": {
+          "train": 2016,
+          "val": 192,
+          "test": 864
+        },
+        "groups": {
+          "train": 21,
+          "test": 9,
+          "val": 2
+        }
+      },
+      "positive_fraction": {
+        "train": 0.05853174603174603,
+        "val": 0.041666666666666664,
+        "test": 0.07291666666666667
+      },
+      "empty_subsets": [],
+      "overlapping_groups": {},
+      "passes": true
+    }
+  },
+  "distributions": {
+    "hidden_states_with_incomplete_xi": 0,
+    "rows": 3072,
+    "probes": 96,
+    "hidden_states": 32,
+    "positive_fraction": 0.0615234375,
+    "invalid_fraction": 0.0016276041666666297,
+    "invalid_reasons": {
+      "excessive_lateral_drift": 5,
+      "excessive_velocity": 1,
+      "excessive_orientation_drift": 1
+    },
+    "force_range": [
+      0.165864,
+      4.485581
+    ],
+    "force_histogram": {
+      "edges": [
+        0.15,
+        0.5125,
+        0.875,
+        1.2374999999999998,
+        1.5999999999999999,
+        1.9625,
+        2.3249999999999997,
+        2.6875,
+        3.05,
+        3.4124999999999996,
+        3.775,
+        4.1375,
+        4.5
+      ],
+      "counts": [
+        249,
+        258,
+        261,
+        249,
+        264,
+        255,
+        267,
+        240,
+        261,
+        258,
+        249,
+        261
+      ]
+    },
+    "success_vs_force": [
+      {
+        "low": 0.15,
+        "high": 0.5125,
+        "rows": 249,
+        "positive_fraction": 0.004016064257028112
+      },
+      {
+        "low": 0.5125,
+        "high": 0.875,
+        "rows": 258,
+        "positive_fraction": 0.027131782945736434
+      },
+      {
+        "low": 0.875,
+        "high": 1.2374999999999998,
+        "rows": 261,
+        "positive_fraction": 0.11877394636015326
+      },
+      {
+        "low": 1.2374999999999998,
+        "high": 1.5999999999999999,
+        "rows": 249,
+        "positive_fraction": 0.13654618473895583
+      },
+      {
+        "low": 1.5999999999999999,
+        "high": 1.9625,
+        "rows": 264,
+        "positive_fraction": 0.05303030303030303
+      },
+      {
+        "low": 1.9625,
+        "high": 2.3249999999999997,
+        "rows": 255,
+        "positive_fraction": 0.12549019607843137
+      },
+      {
+        "low": 2.3249999999999997,
+        "high": 2.6875,
+        "rows": 267,
+        "positive_fraction": 0.09363295880149813
+      },
+      {
+        "low": 2.6875,
+        "high": 3.05,
+        "rows": 240,
+        "positive_fraction": 0.10416666666666667
+      },
+      {
+        "low": 3.05,
+        "high": 3.4124999999999996,
+        "rows": 261,
+        "positive_fraction": 0.0421455938697318
+      },
+      {
+        "low": 3.4124999999999996,
+        "high": 3.775,
+        "rows": 258,
+        "positive_fraction": 0.011627906976744186
+      },
+      {
+        "low": 3.775,
+        "high": 4.1375,
+        "rows": 249,
+        "positive_fraction": 0.024096385542168676
+      },
+      {
+        "low": 4.1375,
+        "high": 4.5,
+        "rows": 261,
+        "positive_fraction": 0.0
+      }
+    ],
+    "positives_per_probe": {
+      "0": 6,
+      "1": 20,
+      "2": 42,
+      "3": 27,
+      "4": 1
+    },
+    "probes_with_no_positive": 6,
+    "probes_with_at_least_one": 90,
+    "probes_with_at_least_two": 70,
+    "sequence_length": {
+      "min": 16,
+      "max": 46,
+      "mean": 29.333333333333332,
+      "distinct": 25,
+      "histogram": {
+        "16": 2,
+        "18": 2,
+        "19": 3,
+        "20": 4,
+        "21": 7,
+        "22": 3,
+        "23": 9,
+        "24": 1,
+        "25": 3,
+        "26": 2,
+        "27": 1,
+        "28": 2,
+        "29": 5,
+        "30": 9,
+        "31": 2,
+        "32": 8,
+        "33": 4,
+        "34": 4,
+        "35": 2,
+        "36": 6,
+        "37": 5,
+        "38": 5,
+        "39": 3,
+        "40": 1,
+        "46": 3
+      }
+    },
+    "xi_ranges": {
+      "mass": [
+        4.003585398197174,
+        11.994923114776611
+      ],
+      "static_friction": [
+        0.5485221389681101,
+        2.95989128947258
+      ],
+      "dynamic_friction": [
+        0.1904938556783049,
+        2.8417002783001846
+      ],
+      "damping": [
+        2.092906430363655,
+        9.895305633544922
+      ]
+    },
+    "dynamic_friction_never_exceeds_static": true
+  },
+  "gates": [
+    "identifiers_unique",
+    "probe_references_resolve",
+    "probes_belong_to_one_hidden_state",
+    "repeats_share_a_candidate_grid",
+    "finite_values",
+    "no_privileged_fields_in_model_input",
+    "split_has_no_leakage",
+    "counts_match_the_manifest",
+    "branch_index_decorrelated_from_force"
+  ],
+  "failed_gates": [],
+  "all_gates_passed": true,
+  "split_cfg": {
+    "level": "xi_id",
+    "train_fraction": 0.7,
+    "val_fraction": 0.15,
+    "salt": "phase11"
+  }
+}

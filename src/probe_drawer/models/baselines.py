@@ -114,11 +114,19 @@ class FeatureRegression:
 
 
 class MlpForceRegressor(nn.Module):
-    """Baseline C: a small MLP from probe summary features to a force."""
+    """Baseline C: a small MLP from probe summary features to a force.
+
+    It standardises its own inputs, from statistics fitted on the training split and stored
+    as buffers, so a checkpoint carries everything needed to reproduce a prediction. The
+    alternative -- letting the caller standardise -- makes it possible to fit the statistics
+    on the wrong split without anything noticing.
+    """
 
     def __init__(self, num_features: int, hidden: int = 64) -> None:
         super().__init__()
         self.num_features = num_features
+        self.register_buffer("mean", torch.zeros(num_features))
+        self.register_buffer("std", torch.ones(num_features))
         self.net = nn.Sequential(
             nn.Linear(num_features, hidden),
             nn.SiLU(),
@@ -127,9 +135,16 @@ class MlpForceRegressor(nn.Module):
             nn.Linear(hidden, 1),
         )
 
+    def fit_scaler(self, features: torch.Tensor) -> None:
+        """Set the input statistics. Call with the *training* features only."""
+        if features.shape[1] != self.num_features:
+            raise ValueError(f"expected {self.num_features} features, got {features.shape[1]}.")
+        self.mean.copy_(features.mean(0))
+        self.std.copy_(features.std(0).clamp_min(1e-9))
+
     def forward(self, features: torch.Tensor) -> torch.Tensor:
         """``(batch, num_features) -> (batch,)`` predicted force."""
-        return self.net(features).squeeze(-1)
+        return self.net((features - self.mean) / self.std).squeeze(-1)
 
 
 class GruForceRegressor(nn.Module):
