@@ -222,3 +222,124 @@ class TestBranching:
             restore_snapshot(branchable, snapshot)
             branchable.execution.run(peak_force=2.0, duration=MAIN_TASK.duration)
             assert branchable.env.episode_length_buf.max() < limit
+
+
+class TestVariableDurationBranching:
+    """Phase 12: candidates now differ in ``T``, so branches consume different step counts.
+
+    Everything the one-dimensional sweep relied on has to survive that. The dangerous one is
+    the episode limit: a 2-D sweep runs hundreds of branches off a single snapshot, and their
+    durations sum to far more than the 30 s episode, so a snapshot that did not restore
+    ``episode_length_buf`` would auto-reset partway through and the failure would look like
+    physics.
+    """
+
+    def test_a_long_duration_branch_runs_its_full_duration(self, branchable, post_probe) -> None:
+        _, _, snapshot = post_probe
+        for duration in (0.4, 1.5, 2.5):
+            restore_snapshot(branchable, snapshot)
+            result = branchable.execution.run(peak_force=2.0, duration=duration)
+            assert result.history.time[-1] == pytest.approx(duration, abs=1e-6)
+            assert result.history.num_steps == branchable.execution.steps_for(duration)
+
+    def test_a_longer_duration_moves_the_drawer_further(self, branchable, post_probe) -> None:
+        """The same force applied for longer must do more work, or ``T`` is not doing anything."""
+        _, pre_execution, snapshot = post_probe
+        totals = []
+        for duration in (0.6, 1.2, 2.0):
+            restore_snapshot(branchable, snapshot)
+            result = branchable.execution.run(peak_force=2.5, duration=duration)
+            totals.append(float((pre_execution + result.final_displacement).mean()))
+        assert totals[0] < totals[1] < totals[2], totals
+
+    def test_the_normalised_profile_is_the_same_curve_at_every_duration(
+        self, branchable, post_probe
+    ) -> None:
+        """``phi(t/T)`` must not change with ``T`` (D041).
+
+        Sampled at matching normalised times, the commanded force of a 0.8 s execution and a
+        2.0 s one must agree. If they did not, ``T`` would be reshaping the profile as well as
+        stretching it, and would stop being a single interpretable parameter.
+
+        Note the one-step offset. ``history.time[k]`` is the time *after* step ``k``, while
+        ``commanded_force[k]`` was computed from the time *before* it -- which is the right
+        causal pairing for a model, since that force is what produced that position. But it
+        means the force at index ``k`` was issued at ``time[k] - step_dt``, and comparing
+        against ``time[k]`` instead shifts the curve by ``step_dt / T`` -- 2.6 % of the
+        profile at ``T = 0.8 s`` against 0.8 % at ``T = 2.0 s``. On the steep rise that alone
+        produces a 0.5 N disagreement between two identical profiles, which is what this test
+        reported before the offset was accounted for.
+        """
+        _, _, snapshot = post_probe
+        curves = {}
+        for duration in (0.8, 2.0):
+            restore_snapshot(branchable, snapshot)
+            history = branchable.execution.run(peak_force=3.0, duration=duration).history
+            issued_at = (history.time - branchable.step_dt) / duration
+            curves[duration] = (issued_at, history.commanded_force[:, 0])
+
+        # Primary check: each execution follows the analytic phi at its own sample times.
+        # This is exact up to float error, and it is the property that actually matters --
+        # that the commanded force is peak_force * phi(t/T) for one fixed phi.
+        from probe_drawer.controllers.force_profiles import TrapezoidForceProfile  # noqa: PLC0415
+
+        for duration, (issued_at, commanded) in curves.items():
+            shape = TrapezoidForceProfile(
+                peak_force=1.0,
+                duration=duration,
+                rise_fraction=branchable.execution.cfg.rise_fraction,
+                fall_fraction=branchable.execution.cfg.fall_fraction,
+                shape=branchable.execution.cfg.shape,
+            )
+            expected = 3.0 * np.asarray(shape.normalized(issued_at))
+            assert np.allclose(commanded, expected, atol=1e-4), (
+                duration,
+                float(np.abs(commanded - expected).max()),
+            )
+
+        # Secondary check: the two runs therefore trace the same curve. Compared at 2 % of
+        # peak force rather than exactly, because they sample phi at different spacings --
+        # step_dt/T is 2.1 % of the profile at T = 0.8 s and 0.8 % at T = 2.0 s -- and
+        # interpolating a curved segment at those two spacings cannot agree exactly.
+        probe_points = np.linspace(0.05, 0.95, 19)
+        short = np.interp(probe_points, *curves[0.8])
+        long = np.interp(probe_points, *curves[2.0])
+        assert np.allclose(short, long, atol=0.02 * 3.0), np.abs(short - long).max()
+
+    def test_a_long_sweep_of_mixed_durations_never_trips_the_episode_limit(
+        self, branchable, post_probe
+    ) -> None:
+        """The 2-D sweep's actual failure mode, in miniature.
+
+        Twelve branches whose durations sum to 16 s, against a 30 s episode: without the
+        restored step counter this would be halfway to an auto-reset, and a real sweep of
+        hundreds of branches would cross it.
+        """
+        _, _, snapshot = post_probe
+        limit = branchable.env.max_episode_length
+        durations = [0.4, 2.5, 0.8, 2.0, 1.2, 1.6] * 2
+        assert sum(durations) > 15.0, "the test must actually exceed half the episode"
+
+        for duration in durations:
+            restore_snapshot(branchable, snapshot)
+            branchable.execution.run(peak_force=2.0, duration=duration)
+            assert branchable.env.episode_length_buf.max() < limit
+
+    def test_duration_and_force_are_independent(self, branchable, post_probe) -> None:
+        """A branch's outcome must depend on its own ``(F, T)`` and not on its neighbours'.
+
+        Running the same pair twice with a very different pair in between is the direct test.
+        """
+        _, pre_execution, snapshot = post_probe
+
+        def run(force: float, duration: float) -> float:
+            restore_snapshot(branchable, snapshot)
+            result = branchable.execution.run(peak_force=force, duration=duration)
+            return float((pre_execution + result.final_displacement).mean())
+
+        first = run(2.0, 1.0)
+        run(5.0, 2.5)
+        again = run(2.0, 1.0)
+        assert abs(again - first) <= 0.5 * MAIN_TASK.displacement_tolerance, (
+            f"{first * 1000:.3f} mm then {again * 1000:.3f} mm"
+        )
