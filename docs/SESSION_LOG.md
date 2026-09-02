@@ -52,8 +52,20 @@ dataset schema.
 
 **Tests.** 233 unit (~1 s) + 69 integration (~106 s), all passing.
 
+**Commit.** `089faed491626512d809e8c743b2110310a67259` on
+`agent/phase10-sequential-refinement`; `main` fast-forwarded to the same commit; tagged
+`v0.3.0-phase10` (`7df2e50e46ba884ca11ed91159e8b667a730ee3e`).
+
+**Push status.** Pushed. `main`, `agent/phase10-sequential-refinement` and the tag all
+resolve on `https://github.com/ysdjy/9.2paper.git`, confirmed with `git ls-remote`.
+
 **Not done, deliberately.** No second probe for damping (D032). No networks trained. The
 reset Oracle was kept, not deleted.
+
+**Next.** Generate the formal training dataset against `docs/DATASET_SCHEMA.md` §6, which
+lists the four decisions the generation phase still has to make (probe-history channels and
+length, candidate sampling, repeats per hidden state, and whether the three unsolvable hidden
+states are included).
 
 ---
 
