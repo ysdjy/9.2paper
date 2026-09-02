@@ -5,6 +5,7 @@ fact from an :class:`~probe_drawer.controllers.types.ExecutionResult`, which is 
 the goal displacement out of the control loop (``docs/DECISIONS.md`` D004).
 """
 
+from .force_selection import ForceSelection, SelectionCfg, select_forces, select_nearest
 from .operating_region import (
     DRAWER_TRAVEL_LIMIT,
     PROVISIONAL_VALIDATION_DURATION,
@@ -23,11 +24,15 @@ __all__ = [
     "PROVISIONAL_VALIDATION_PEAK_FORCE",
     "EvaluationReport",
     "ExecutionVerdict",
+    "ForceSelection",
     "InvalidReason",
     "OperatingRegionCfg",
+    "SelectionCfg",
     "SuccessCriteria",
     "ValidityReport",
     "ValidityVerdict",
     "assess_validity",
     "evaluate_execution",
+    "select_forces",
+    "select_nearest",
 ]

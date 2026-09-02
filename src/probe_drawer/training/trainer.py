@@ -169,8 +169,11 @@ def evaluate(model: nn.Module, dataset: SampleDataset, cfg: TrainCfg, batch_size
             predictions["probe_ids"], raw_forces, predictions["labels"], predictions["logits"], reference
         )
     )
+    # ``selected_force`` is a per-probe mapping, useful for a figure but not a metric; it is
+    # dropped here and recomputed where a figure needs it. ``curve`` (the reliability bins)
+    # is kept, because the final report plots it -- it is excluded from the per-epoch history
+    # instead, where it would bloat every row.
     metrics.pop("selected_force", None)
-    metrics.pop("curve", None)
     return metrics
 
 
@@ -206,7 +209,7 @@ def _run_epochs(
             "epoch": epoch,
             "train_loss": float(np.mean(losses)) if losses else float("nan"),
             "seconds": time.perf_counter() - started,
-            **{f"val_{key}": value for key, value in validation.items()},
+            **{f"val_{key}": value for key, value in validation.items() if key != "curve"},
         }
         trained.history.append(record)
 

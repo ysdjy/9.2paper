@@ -315,6 +315,11 @@ def main() -> None:
 
         gru = GruForceRegressor(len(channels), psp)
         train_force_regressor(gru, subsets["train"], subsets["val"], targets, args.baseline_epochs, seed)
+        # Checkpointed like the neural models, so the closed-loop evaluation can deploy the
+        # same weights rather than refitting and getting a different baseline.
+        gru_dir = run_root / f"gru_seed{seed}"
+        gru_dir.mkdir(parents=True, exist_ok=True)
+        torch.save({"state_dict": gru.state_dict(), "psp": psp.as_dict()}, gru_dir / "best.pt")
         for name in ("val", "test"):
             predicted = _predict_force(gru, subsets[name], None)
             results["D GRU (history)"].append(
