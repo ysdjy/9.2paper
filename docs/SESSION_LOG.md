@@ -73,7 +73,11 @@ episodes across six sweeps. Full table in `docs/VALIDATION.md`.
 5. **The Phase 8 held-axis drift was the operating point, not the controller.** Drift stays
    under 1 mm across the whole force range at moderate displacement and speed.
 
-**Commit.** See `git log` on `agent/phase9-oracle-audit`; SHA recorded below after push.
+**Commits.** `9b7af67` (Phases 9A-9G: hidden state, observations, audits, evaluator) and
+`07c15dd` (Phases 9H-9M: sweeps, Oracle landscape, parameter selection) on
+`agent/phase9-oracle-audit`, then `main`. Pushed to
+`https://github.com/ysdjy/9.2paper.git`; the SHA of this log entry follows in the next
+commit.
 
 **Remaining issues.** See "Outstanding" in `docs/VALIDATION.md`. The one that matters most
 for the next phase: **the calibrated probe does not identify damping** — sweeping `b` from 2
