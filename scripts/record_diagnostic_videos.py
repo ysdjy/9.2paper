@@ -62,7 +62,12 @@ from PIL import Image, ImageDraw  # noqa: E402
 
 from probe_drawer.controllers import ExecutionControllerCfg  # noqa: E402
 from probe_drawer.envs import DynamicsParameters, DynamicsRandomizer  # noqa: E402
-from probe_drawer.evaluation import DRAWER_TRAVEL_LIMIT, OperatingRegionCfg, evaluate_execution  # noqa: E402
+from probe_drawer.evaluation import (  # noqa: E402
+    DRAWER_TRAVEL_LIMIT,
+    OperatingRegionCfg,
+    assess_validity,
+    evaluate_execution,
+)
 from probe_drawer.evaluation.task_evaluator import SuccessCriteria  # noqa: E402
 from probe_drawer.experiment_plan import (  # noqa: E402
     MAIN_TASK,
@@ -238,6 +243,7 @@ def main() -> None:
 
     try:
         for number, case in enumerate(cases, start=1):
+          try:
             frames: list[np.ndarray] = []
             annotator = Annotator(case)
             randomizer.apply(
@@ -336,6 +342,9 @@ def main() -> None:
             criteria = SuccessCriteria(case.goal, MAIN_TASK.displacement_tolerance, MAIN_TASK.velocity_tolerance)
             evaluation = evaluate_execution(result, criteria, region, pre_execution_displacement=pre_execution)
             verdict = evaluation.verdicts[0]
+            # The drift metrics live on the *validity* verdict; ExecutionVerdict carries the
+            # task outcome only.
+            validity = assess_validity(result, region, pre_execution_displacement=pre_execution).verdicts[0]
             for _ in range(args_cli.fps // 2):
                 frames.append(
                     annotator.draw(
@@ -370,9 +379,10 @@ def main() -> None:
                     "invalid_reasons": "|".join(r.value for r in verdict.invalid_reasons),
                     "peak_velocity": round(float(result.peak_velocity[0]), 4),
                     "peak_wrist_force": round(float(result.peak_measured_force[0]), 3),
-                    "peak_lateral_drift_mm": round(float(verdict.metrics["peak_lateral_drift"]) * 1000, 3)
-                    if "peak_lateral_drift" in verdict.metrics
-                    else "",
+                    "peak_lateral_drift_mm": round(float(validity.metrics["peak_lateral_drift"]) * 1000, 3),
+                    "peak_orientation_drift_deg": round(
+                        float(validity.metrics["peak_orientation_drift_deg"]), 3
+                    ),
                     "travel_fraction": round(verdict.total_displacement / DRAWER_TRAVEL_LIMIT, 3),
                     "note": case.note,
                     **{key: round(value, 4) for key, value in case.metrics.items()},
@@ -384,6 +394,8 @@ def main() -> None:
                 f"{'ok ' if verdict.success else 'FAIL'} "
                 f"{'' if verdict.valid else 'INVALID'} ({time.perf_counter() - started:.0f} s)"
             )
+          except Exception as error:  # noqa: BLE001 - one bad case must not cost the other twenty
+            print(f"[vid] {number:2d}/{len(cases)} {case.name:<28} FAILED: {type(error).__name__}: {error}")
     finally:
         system.close()
 

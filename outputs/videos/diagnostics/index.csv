@@ -1,0 +1,22 @@
+filename,category,d_goal_mm,F_peak,T,success,valid,d_total_mm,expected_displacement_mm,invalid_reasons,manipulability,min_joint_margin,note,peak_lateral_drift_mm,peak_orientation_drift_deg,peak_velocity,peak_wrist_force,probe_displacement_mm,travel_fraction,v_T,xi_damping,xi_dynamic_friction,xi_mass,xi_static_friction
+A1_normal_success.mp4,A,40.0,1.9,1.5,False,True,55.77,,,,,"moderate dynamics, expected success",0.472,0.15,0.047,1.891,5.802,0.139,0.03647,6.0,1.0,8.0,1.75
+A2_normal_success_slow.mp4,A,40.0,1.6,2.2,False,True,68.23,,,,,"same drawer, gentler and longer",0.456,0.147,0.0411,1.905,5.801,0.171,0.02526,6.0,1.0,8.0,1.75
+B1_high_static_breakaway.mp4,B,40.0,3.2,1.5,False,True,134.19,,,,,"stationary, then breakaway",0.729,0.239,0.1303,2.538,6.093,0.335,0.12183,6.0,0.6,8.0,3.0
+B2_high_static_marginal.mp4,B,40.0,2.6,2.0,False,True,167.37,,,,,near the breakaway threshold,0.85,0.38,0.123,2.665,5.655,0.418,0.11091,6.0,0.6,8.0,3.0
+C1_high_mass_slow_accel.mp4,C,40.0,1.3,1.8,False,True,71.9,,,,,moving but barely accelerating,0.382,0.102,0.051,1.327,5.635,0.18,0.04678,3.0,0.5,12.0,0.8
+C2_high_mass_more_force.mp4,C,40.0,2.2,1.2,False,True,64.02,,,,,"heavier push, shorter time",0.422,0.126,0.0712,1.799,5.607,0.16,0.06969,3.0,0.5,12.0,0.8
+D1_high_drag_damping.mp4,D,40.0,3.6,1.8,True,True,41.99,,,,,sustained motion is hard,0.469,0.174,0.0383,3.555,3.987,0.105,0.00238,10.0,2.7,8.0,2.8
+D2_high_drag_underpowered.mp4,D,40.0,2.4,2.4,False,True,6.79,,,,,likely stalls short,0.459,0.131,0.003,2.878,3.845,0.017,-0.00016,10.0,2.7,8.0,2.8
+E1_low_friction_fast.mp4,E,40.0,0.6,1.5,False,True,57.59,,,,,"easy drawer, overshoot risk",0.559,0.164,0.0441,0.656,6.241,0.144,0.04189,2.0,0.2,4.0,0.5
+E2_low_friction_overshoot.mp4,E,40.0,1.6,2.0,False,True,181.48,,,,,deliberate overshoot,3.201,1.666,0.1352,1.092,6.443,0.454,0.13076,2.0,0.2,4.0,0.5
+F1_lowF_shortT.mp4,F,40.0,0.5,1.0,False,True,7.43,,,,,"too little force, too little time",0.296,0.069,0.0119,1.639,4.922,0.019,0.0,6.0,1.0,8.0,1.75
+F2_highF_shortT.mp4,F,40.0,4.0,1.0,False,True,72.79,,,,,fast and still moving at T,0.546,0.226,0.1037,3.068,5.552,0.182,0.0982,6.0,1.0,8.0,1.75
+F3_lowF_longT.mp4,F,40.0,0.5,2.5,False,True,8.47,,,,,"too little force, plenty of time",0.277,0.068,0.0147,1.44,5.678,0.021,0.0,6.0,1.0,8.0,1.75
+F4_highF_longT.mp4,F,40.0,4.0,2.5,False,False,325.05,,mechanical_limit|excessive_lateral_drift|excessive_orientation_drift,,,overshoot toward the end stop,11.205,5.374,0.2174,38.589,5.578,0.813,0.18512,6.0,1.0,8.0,1.75
+G_goal100mm.mp4,G,100.0,5.5,1.0,False,True,105.53,100.1019,,0.0878,0.1538,"reaches 100 mm; joint margin 0.154, drift 0.6 mm",0.5537,0.212,0.1611,5.144,5.733,0.264,0.15927,2.4,0.6031,11.6,0.625
+G_goal150mm.mp4,G,150.0,3.0,2.25,False,True,160.96,149.8268,,0.0763,0.1273,"reaches 150 mm; joint margin 0.127, drift 0.9 mm",0.8972,0.268,0.1042,3.022,5.648,0.402,0.08315,9.6,0.9631,11.6,2.875
+G_goal200mm.mp4,G,200.0,4.5,1.5,False,True,199.38,199.8819,,0.0648,0.0916,"reaches 200 mm; joint margin 0.092, drift 0.5 mm",0.5354,0.734,0.2137,3.316,6.046,0.498,0.21131,2.4,0.2094,11.6,0.625
+G_goal250mm.mp4,G,250.0,6.5,1.5,False,False,261.92,249.7448,excessive_velocity,0.0566,0.0435,"reaches 250 mm; joint margin 0.043, drift 1.3 mm",1.3171,0.772,0.2866,4.477,5.605,0.655,0.27962,3.8063,0.8851,8.6692,1.7286
+G_goal300mm.mp4,G,300.0,7.0,1.75,False,False,307.79,300.0855,excessive_velocity|excessive_lateral_drift,0.0537,0.0007,"reaches 300 mm; joint margin 0.001, drift 2.2 mm",2.2344,2.39,0.282,11.395,5.249,0.769,0.21444,9.1876,0.6549,11.657,0.7115
+G_goal350mm.mp4,G,350.0,7.5,2.0,False,False,355.05,350.0,mechanical_limit|excessive_velocity|excessive_lateral_drift|excessive_orientation_drift,0.0614,0.0005,"reaches 350 mm; joint margin 0.000, drift 45.6 mm",45.6426,24.581,0.4539,37.143,5.597,0.888,0.09432,9.6,0.9631,4.4,2.875
+G_goal390mm.mp4,G,390.0,7.5,2.75,False,False,274.63,374.3219,excessive_velocity|excessive_lateral_drift|excessive_orientation_drift,0.0683,0.0891,"reaches 374 mm; joint margin 0.089, drift 44.5 mm",44.5192,28.358,0.4167,44.925,5.357,0.687,-0.17,2.4,0.6031,11.6,0.625

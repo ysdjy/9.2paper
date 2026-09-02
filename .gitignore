@@ -20,6 +20,11 @@ outputs/videos/**
 !outputs/logs/.gitkeep
 !outputs/plots/.gitkeep
 !outputs/videos/.gitkeep
+# The diagnostic index and manifest are small and are what makes the clips findable; the
+# clips themselves stay out.
+!outputs/videos/diagnostics/
+!outputs/videos/diagnostics/index.csv
+!outputs/videos/diagnostics/manifest.json
 
 # Large experiment snapshots
 backups/**
