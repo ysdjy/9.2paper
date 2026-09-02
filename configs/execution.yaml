@@ -11,9 +11,14 @@ execution_controller:
   fall_fraction: 0.1
   shape: smoothstep
   settle_steps: 30
+  zero_force_cleanup_steps: 2
+  post_execution_settle_steps: 0
 task_parameters_are_not_configuration: peak_force and duration are arguments to ExecutionPullController.run.
   The goal displacement d_goal is deliberately not an input at all (docs/DECISIONS.md
   D004).
 reference_operating_point:
   peak_force: 5.0
   duration: 2.0
+zero_force_cleanup_note: zero_force_cleanup_steps and post_execution_settle_steps
+  run after t = T. They are excluded from the returned history, from duration, from
+  d(T)/v(T) and from success evaluation -- see docs/DECISIONS.md D022.

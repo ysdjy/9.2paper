@@ -15,8 +15,7 @@ from typing import TYPE_CHECKING
 
 from .dynamics_randomization import (
     PRESETS,
-    REFERENCE_DURATION,
-    REFERENCE_PEAK_FORCE,
+    XI_FIELDS,
     AppliedDynamics,
     DynamicsParameters,
     DynamicsRandomizer,
@@ -35,8 +34,7 @@ _LAZY: dict[str, str] = {
 
 __all__ = [
     "PRESETS",
-    "REFERENCE_DURATION",
-    "REFERENCE_PEAK_FORCE",
+    "XI_FIELDS",
     "AppliedDynamics",
     "DynamicsParameters",
     "DynamicsRandomizer",

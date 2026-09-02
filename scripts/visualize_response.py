@@ -51,7 +51,9 @@ def env_labels(metadata: dict, num_envs: int) -> list[str]:
     requested = metadata.get("dynamics_parameters", {}).get("requested", [])
     if len(requested) == num_envs:
         return [
-            f"{p.get('name', f'env {i}')} (m={p['drawer_mass']:g}, f={p['joint_friction']:g}, c={p['joint_damping']:g})"
+            f"{p.get('name', f'env {i}')} "
+            f"(m={p['drawer_mass']:g}, mu_s={p['joint_static_friction']:g}, "
+            f"mu_d={p['joint_dynamic_friction']:g}, b={p['joint_damping']:g})"
             for i, p in enumerate(requested)
         ]
     return [f"env {i}" for i in range(num_envs)]

@@ -6,11 +6,13 @@ import numpy as np
 import pytest
 
 from probe_drawer.controllers import ExecutionControllerCfg, SafetyLimits, TerminationReason
+from probe_drawer.evaluation import PROVISIONAL_VALIDATION_DURATION, PROVISIONAL_VALIDATION_PEAK_FORCE
 
 pytestmark = pytest.mark.isaacsim
 
-REFERENCE_PEAK_FORCE = 5.0
-REFERENCE_DURATION = 2.0
+#: The provisional operating point Phases 6-8 validated at. Not the paper's final values.
+REFERENCE_PEAK_FORCE = PROVISIONAL_VALIDATION_PEAK_FORCE
+REFERENCE_DURATION = PROVISIONAL_VALIDATION_DURATION
 
 
 class TestDuration:
@@ -145,6 +147,93 @@ class TestSafety:
         args.update(kwargs)
         with pytest.raises(ValueError, match=match):
             pull_system.execution.run(**args)
+
+
+class TestZeroForceCleanup:
+    """The result is snapshotted at ``T``; the cleanup afterwards must not touch it (D022)."""
+
+    @staticmethod
+    def _commanded_pull_force(pull_system) -> float:
+        """The pull-axis force in the action the environment is currently holding."""
+        action = pull_system.env.action_manager.action
+        direction = pull_system.pull_axis.direction(pull_system.env.device)
+        return float(action[0, 7:10] @ direction)
+
+    def test_the_pull_force_is_released_after_the_duration(self, uniform_system, pull_system) -> None:
+        uniform_system("medium")
+        pull_system.execution.run(peak_force=REFERENCE_PEAK_FORCE, duration=REFERENCE_DURATION)
+        assert self._commanded_pull_force(pull_system) == pytest.approx(0.0, abs=1e-6)
+
+    def test_without_cleanup_a_residual_command_would_remain(self, uniform_system, pull_system) -> None:
+        """Control: shows the cleanup is what zeroes the command, not the profile."""
+        original = pull_system.execution.cfg
+        pull_system.execution.cfg = ExecutionControllerCfg(zero_force_cleanup_steps=0)
+        try:
+            uniform_system("medium")
+            pull_system.execution.run(peak_force=REFERENCE_PEAK_FORCE, duration=REFERENCE_DURATION)
+            residual = self._commanded_pull_force(pull_system)
+        finally:
+            pull_system.execution.cfg = original
+        assert residual > 0.0
+        assert residual < 0.03 * REFERENCE_PEAK_FORCE
+
+    def test_cleanup_steps_are_absent_from_the_history(self, uniform_system, pull_system) -> None:
+        uniform_system("medium")
+        result = pull_system.execution.run(peak_force=REFERENCE_PEAK_FORCE, duration=REFERENCE_DURATION)
+        assert result.history.num_steps == pull_system.execution.steps_for(REFERENCE_DURATION)
+        assert result.history.time[-1] == pytest.approx(REFERENCE_DURATION, abs=1e-9)
+        assert result.parameters["post_execution_steps_excluded_from_result"] > 0
+
+    def test_the_snapshot_predates_the_cleanup(self, uniform_system, pull_system) -> None:
+        """``d(T)`` and ``v(T)`` must be the values at ``T``, not after the release."""
+        uniform_system("medium")
+        result = pull_system.execution.run(peak_force=REFERENCE_PEAK_FORCE, duration=REFERENCE_DURATION)
+
+        # The drawer keeps coasting once the force is released, so the state now differs
+        # from the snapshot -- which is exactly what proves the snapshot came first.
+        assert result.final_displacement[0] == pytest.approx(result.history.drawer_position[-1, 0], abs=1e-9)
+        assert float(pull_system.reader.drawer_position[0]) > result.final_displacement[0]
+
+    def test_cleanup_step_count_is_configurable_and_recorded(self, uniform_system, pull_system) -> None:
+        original = pull_system.execution.cfg
+        pull_system.execution.cfg = ExecutionControllerCfg(
+            zero_force_cleanup_steps=3, post_execution_settle_steps=4
+        )
+        try:
+            uniform_system("medium")
+            result = pull_system.execution.run(peak_force=REFERENCE_PEAK_FORCE, duration=0.5)
+        finally:
+            pull_system.execution.cfg = original
+        assert result.parameters["post_execution_steps_excluded_from_result"] == 7
+        assert result.history.num_steps == pull_system.execution.steps_for(0.5)
+
+    def test_the_next_episode_does_not_inherit_a_pull_force(self, uniform_system, pull_system) -> None:
+        uniform_system("medium")
+        pull_system.execution.run(peak_force=REFERENCE_PEAK_FORCE, duration=0.5)
+        uniform_system("medium")
+        first = pull_system.execution.run(peak_force=REFERENCE_PEAK_FORCE, duration=0.5)
+        assert first.history.commanded_force[0, 0] == pytest.approx(0.0, abs=1e-6)
+
+
+class TestPeakVelocity:
+    def test_peak_velocity_is_reported_and_at_least_the_terminal_speed(
+        self, uniform_system, pull_system
+    ) -> None:
+        uniform_system("medium")
+        result = pull_system.execution.run(peak_force=REFERENCE_PEAK_FORCE, duration=REFERENCE_DURATION)
+        assert result.peak_velocity[0] >= abs(result.final_velocity[0]) - 1e-9
+        assert result.peak_velocity[0] == pytest.approx(
+            float(np.abs(result.history.drawer_velocity[:, 0]).max()), rel=1e-6
+        )
+
+    def test_peak_velocity_grows_with_force(self, uniform_system, pull_system) -> None:
+        peaks = []
+        for peak_force in (3.0, 6.0):
+            uniform_system("medium")
+            peaks.append(
+                float(pull_system.execution.run(peak_force=peak_force, duration=1.0).peak_velocity[0])
+            )
+        assert peaks[1] > peaks[0]
 
 
 class TestHeldAxisStability:

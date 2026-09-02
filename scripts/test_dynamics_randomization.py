@@ -54,11 +54,10 @@ import json  # noqa: E402
 
 import numpy as np  # noqa: E402
 
-from probe_drawer.envs import (  # noqa: E402
-    REFERENCE_DURATION,
-    REFERENCE_PEAK_FORCE,
-    DynamicsRandomizer,
-    preset,
+from probe_drawer.envs import DynamicsRandomizer, preset  # noqa: E402
+from probe_drawer.evaluation import (  # noqa: E402
+    PROVISIONAL_VALIDATION_DURATION,
+    PROVISIONAL_VALIDATION_PEAK_FORCE,
 )
 from probe_drawer.logging import EpisodeLogger  # noqa: E402
 from probe_drawer.pull_system import PullSystem, PullSystemCfg  # noqa: E402
@@ -70,8 +69,8 @@ PRESET_ORDER = ("easy", "medium", "hard")
 def main() -> None:
     enable_unbuffered_stdout()
 
-    peak_force = args_cli.peak_force if args_cli.peak_force is not None else REFERENCE_PEAK_FORCE
-    duration = args_cli.duration if args_cli.duration is not None else REFERENCE_DURATION
+    peak_force = args_cli.peak_force if args_cli.peak_force is not None else PROVISIONAL_VALIDATION_PEAK_FORCE
+    duration = args_cli.duration if args_cli.duration is not None else PROVISIONAL_VALIDATION_DURATION
 
     system = PullSystem.build(PullSystemCfg(num_envs=len(PRESET_ORDER), device=args_cli.device))
     system.verify_measured_force_available()
@@ -91,6 +90,8 @@ def main() -> None:
     print(f"[dynamics] handle mass          : {applied.handle_mass:.4f} kg")
     print(f"[dynamics] total moving mass    : {[round(m, 4) for m in applied.total_moving_mass]} kg")
     print(f"[dynamics] readback consistent  : {applied.consistent}")
+    print(f"[dynamics] isaaclab mirror agrees: {applied.mirror_agrees}")
+    print(f"[dynamics] pinned non-xi        : {json.dumps(applied.fixed)}")
     print(f"[dynamics] targets              : {json.dumps(applied.notes)}")
 
     # -- Check 2a: the same execution gives clearly different final displacements.

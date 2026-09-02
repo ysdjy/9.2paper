@@ -7,35 +7,57 @@
 _source:
   presets: probe_drawer.envs.dynamics_randomization:PRESETS
   randomizer: probe_drawer.envs.dynamics_randomization:DynamicsRandomizerCfg
+  xi_fields: probe_drawer.envs.dynamics_randomization:XI_FIELDS
 hidden_state:
 - drawer_mass
-- joint_friction
+- joint_static_friction
+- joint_dynamic_friction
 - joint_damping
+hidden_state_note: The main paper's xi is exactly these four. Joint stiffness, per-DOF
+  viscous friction, armature, centre of mass, inertia tensor, contact materials, restitution,
+  joint limits and every robot-side parameter are writable but held fixed -- see docs/HIDDEN_STATE_AUDIT.md
+  and docs/DECISIONS.md D015.
+physx_constraint: joint_dynamic_friction <= joint_static_friction. PhysX silently
+  discards writes that violate this, so DynamicsParameters refuses them and sampling
+  draws mu_d as a fraction of mu_s. See docs/DECISIONS.md D016.
 presets:
   nominal:
     name: nominal
     drawer_mass: 5.175
-    joint_friction: 0.0
+    joint_static_friction: 0.0
+    joint_dynamic_friction: 0.0
     joint_damping: 1.0
-    joint_stiffness: 0.0
   easy:
     name: easy
     drawer_mass: 5.0
-    joint_friction: 1.5
+    joint_static_friction: 1.5
+    joint_dynamic_friction: 1.5
     joint_damping: 4.0
-    joint_stiffness: 0.0
   medium:
     name: medium
     drawer_mass: 8.0
-    joint_friction: 3.0
+    joint_static_friction: 3.0
+    joint_dynamic_friction: 3.0
     joint_damping: 6.0
-    joint_stiffness: 0.0
   hard:
     name: hard
     drawer_mass: 10.0
-    joint_friction: 4.0
+    joint_static_friction: 4.0
+    joint_dynamic_friction: 4.0
     joint_damping: 9.0
-    joint_stiffness: 0.0
+  sticky:
+    name: sticky
+    drawer_mass: 8.0
+    joint_static_friction: 6.0
+    joint_dynamic_friction: 1.5
+    joint_damping: 6.0
+  slippery:
+    name: slippery
+    drawer_mass: 8.0
+    joint_static_friction: 3.0
+    joint_dynamic_friction: 0.5
+    joint_damping: 6.0
+presets_note: Provisional. The paper's ranges come from the Phase 9 sweep.
 randomizer:
   cabinet_asset: cabinet
   drawer_joint_name: drawer_top_joint
@@ -44,13 +66,14 @@ randomizer:
   mass_range:
   - 4.0
   - 12.0
-  friction_range:
+  static_friction_range:
   - 0.5
   - 5.0
+  dynamic_friction_ratio_range:
+  - 0.3
+  - 1.0
   damping_range:
   - 3.0
   - 10.0
-  joint_stiffness: 0.0
-reference_operating_point:
-  peak_force: 5.0
-  duration: 2.0
+  fixed_joint_stiffness: 0.0
+  fixed_joint_viscous_friction: 0.0

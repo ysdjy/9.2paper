@@ -11,9 +11,10 @@ from .execution_pull_controller import ExecutionControllerCfg, ExecutionPullCont
 from .force_profiles import ForceProfile, RampForceProfile, TrapezoidForceProfile
 from .hybrid_osc import HybridPullOSC, HybridPullOSCCfg
 from .probe_pull_controller import ProbeControllerCfg, ProbePullController
-from .types import ExecutionResult, ProbeResult, PullHistory, TerminationReason
+from .types import HISTORY_CHANNELS, ExecutionResult, ProbeResult, PullHistory, TerminationReason
 
 __all__ = [
+    "HISTORY_CHANNELS",
     "BasePullController",
     "ExecutionControllerCfg",
     "ExecutionPullController",

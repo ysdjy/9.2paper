@@ -9,7 +9,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from probe_drawer.envs import REFERENCE_DURATION, REFERENCE_PEAK_FORCE, DynamicsRandomizer, preset
+from probe_drawer.envs import XI_FIELDS, DynamicsRandomizer, preset
+from probe_drawer.evaluation import (
+    PROVISIONAL_VALIDATION_DURATION as REFERENCE_DURATION,
+)
+from probe_drawer.evaluation import (
+    PROVISIONAL_VALIDATION_PEAK_FORCE as REFERENCE_PEAK_FORCE,
+)
 
 pytestmark = pytest.mark.isaacsim
 
@@ -24,15 +30,13 @@ def preset_dynamics(pull_system, randomizer, preset_order):
 class TestParametersReachTheSimulation:
     def test_every_parameter_reads_back_as_requested(self, preset_dynamics) -> None:
         assert preset_dynamics.consistent
-        for key in ("drawer_mass", "joint_friction", "joint_damping", "joint_stiffness"):
+        for key in XI_FIELDS:
             requested = [getattr(p, key) for p in preset_dynamics.requested]
             assert preset_dynamics.readback[key] == pytest.approx(requested, rel=1e-4, abs=1e-6)
 
-    def test_static_and_dynamic_friction_are_both_set(self, preset_dynamics) -> None:
-        """A stiff drawer must resist while sliding, not only while starting."""
-        assert preset_dynamics.readback["joint_dynamic_friction"] == pytest.approx(
-            preset_dynamics.readback["joint_friction"], rel=1e-4, abs=1e-6
-        )
+    def test_the_isaaclab_mirror_agrees_with_the_simulator(self, preset_dynamics) -> None:
+        """A disagreement would mean PhysX silently rejected one of the writes."""
+        assert preset_dynamics.mirror_agrees
 
     def test_the_targeted_joint_and_body_are_the_top_drawer(self, preset_dynamics) -> None:
         assert preset_dynamics.notes["drawer_joint"] == "drawer_top_joint"
@@ -42,7 +46,9 @@ class TestParametersReachTheSimulation:
         cabinet = pull_system.env.scene["cabinet"]
         for joint_name in ("drawer_bottom_joint", "door_left_joint", "door_right_joint"):
             index = cabinet.find_joints(joint_name)[0][0]
-            assert float(cabinet.data.joint_friction_coeff[0, index]) == pytest.approx(0.0)
+            friction = cabinet.root_physx_view.get_dof_friction_properties()[0, index, :]
+            assert float(friction[0]) == pytest.approx(0.0)
+            assert float(friction[1]) == pytest.approx(0.0)
 
     def test_the_moving_mass_accounts_for_the_handle(self, preset_dynamics) -> None:
         assert preset_dynamics.handle_mass > 0.0

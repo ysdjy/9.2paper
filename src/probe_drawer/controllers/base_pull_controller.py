@@ -19,7 +19,7 @@ from __future__ import annotations
 import math
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -30,7 +30,7 @@ if TYPE_CHECKING:  # pragma: no cover - needs the Isaac Sim app at runtime
 
 from probe_drawer.controllers.force_profiles import ForceProfile
 from probe_drawer.controllers.hybrid_osc import HybridPullOSC
-from probe_drawer.controllers.types import PullHistory, TerminationReason
+from probe_drawer.controllers.types import HISTORY_CHANNELS, PullHistory, TerminationReason
 from probe_drawer.sensors import DrawerStateReader
 
 __all__ = ["BasePullController", "PullOutcome", "SafetyLimits", "StopCondition"]
@@ -95,59 +95,40 @@ class PullOutcome:
     final_commanded_force: np.ndarray
     peak_commanded_force: np.ndarray
     peak_measured_force: np.ndarray
+    peak_drawer_velocity: np.ndarray
     history: PullHistory
     reference_drawer_position: np.ndarray
     initial_drawer_velocity: np.ndarray
     initial_tcp_pull_velocity: np.ndarray
 
 
-@dataclass
 class _HistoryRecorder:
-    """Accumulates one time step per :meth:`record` call."""
+    """Accumulates one time step per :meth:`record` call.
 
-    time: list[float] = field(default_factory=list)
-    active: list[np.ndarray] = field(default_factory=list)
-    commanded_force: list[np.ndarray] = field(default_factory=list)
-    measured_force: list[np.ndarray] = field(default_factory=list)
-    drawer_position: list[np.ndarray] = field(default_factory=list)
-    drawer_velocity: list[np.ndarray] = field(default_factory=list)
-    drawer_velocity_raw: list[np.ndarray] = field(default_factory=list)
-    tcp_position: list[np.ndarray] = field(default_factory=list)
-    tcp_linear_velocity: list[np.ndarray] = field(default_factory=list)
-    tcp_angular_velocity: list[np.ndarray] = field(default_factory=list)
-    tcp_pull_axis_position: list[np.ndarray] = field(default_factory=list)
-    tcp_lateral_error: list[np.ndarray] = field(default_factory=list)
-    tcp_orientation_error: list[np.ndarray] = field(default_factory=list)
-    handle_contact_force_w: list[np.ndarray] = field(default_factory=list)
-    joint_position: list[np.ndarray] = field(default_factory=list)
-    joint_velocity: list[np.ndarray] = field(default_factory=list)
-    joint_applied_effort: list[np.ndarray] = field(default_factory=list)
+    Generic over :data:`~probe_drawer.controllers.types.HISTORY_CHANNELS` rather than
+    listing twenty-five fields twice: a channel added to ``PullHistory`` and to
+    :meth:`BasePullController._sample` is recorded without touching this class.
+    """
 
-    def record(self, t: float, sample: dict[str, np.ndarray]) -> None:
-        self.time.append(t)
+    def __init__(self) -> None:
+        self.time: list[float] = []
+        self.channels: dict[str, list[np.ndarray]] = {name: [] for name in HISTORY_CHANNELS}
+
+    def record(self, elapsed: float, sample: dict[str, np.ndarray]) -> None:
+        missing = set(HISTORY_CHANNELS) - set(sample)
+        if missing:
+            raise KeyError(f"Missing channels in a recorded step: {sorted(missing)}.")
+        unexpected = set(sample) - set(HISTORY_CHANNELS)
+        if unexpected:
+            raise KeyError(f"Unknown channels in a recorded step: {sorted(unexpected)}.")
+        self.time.append(elapsed)
         for name, value in sample.items():
-            getattr(self, name).append(value)
+            self.channels[name].append(value)
 
     def build(self) -> PullHistory:
-        stack = lambda rows: np.stack(rows, axis=0)  # noqa: E731
         return PullHistory(
             time=np.asarray(self.time, dtype=np.float64),
-            active=stack(self.active),
-            commanded_force=stack(self.commanded_force),
-            measured_force=stack(self.measured_force),
-            drawer_position=stack(self.drawer_position),
-            drawer_velocity=stack(self.drawer_velocity),
-            drawer_velocity_raw=stack(self.drawer_velocity_raw),
-            tcp_position=stack(self.tcp_position),
-            tcp_linear_velocity=stack(self.tcp_linear_velocity),
-            tcp_angular_velocity=stack(self.tcp_angular_velocity),
-            tcp_pull_axis_position=stack(self.tcp_pull_axis_position),
-            tcp_lateral_error=stack(self.tcp_lateral_error),
-            tcp_orientation_error=stack(self.tcp_orientation_error),
-            handle_contact_force_w=stack(self.handle_contact_force_w),
-            joint_position=stack(self.joint_position),
-            joint_velocity=stack(self.joint_velocity),
-            joint_applied_effort=stack(self.joint_applied_effort),
+            **{name: np.stack(rows, axis=0) for name, rows in self.channels.items()},
         )
 
 
@@ -169,19 +150,21 @@ class _StopAccumulator:
         self.final_commanded = torch.zeros(num_envs, device=device)
         self.peak_commanded = torch.zeros(num_envs, device=device)
         self.peak_measured = torch.zeros(num_envs, device=device)
+        self.peak_velocity = torch.zeros(num_envs, device=device)
 
     @property
     def any_active(self) -> bool:
         return bool(self.active.any())
 
-    def note_peaks(self, commanded: torch.Tensor, measured: torch.Tensor) -> None:
+    def note_peaks(self, commanded: torch.Tensor, measured: torch.Tensor, velocity: torch.Tensor) -> None:
         """Update the running peaks, ignoring environments that have already stopped."""
-        self.peak_commanded = torch.maximum(
-            self.peak_commanded, torch.where(self.active, commanded, self.peak_commanded)
-        )
-        self.peak_measured = torch.maximum(
-            self.peak_measured, torch.where(self.active, measured, self.peak_measured)
-        )
+        for name, value in (
+            ("peak_commanded", commanded),
+            ("peak_measured", measured),
+            ("peak_velocity", velocity.abs()),
+        ):
+            running = getattr(self, name)
+            setattr(self, name, torch.maximum(running, torch.where(self.active, value, running)))
 
     def stop(
         self,
@@ -329,7 +312,7 @@ class BasePullController(ABC):
             displacement = self.drawer_displacement
             measured = self.reader.measured_pull_force
             self._record_step(recorder, elapsed, accumulator.active, commanded, displacement, measured)
-            accumulator.note_peaks(commanded, measured)
+            accumulator.note_peaks(commanded, measured, self.reader.drawer_velocity)
 
             for reason, mask in self._all_stop_conditions(step, max_steps, elapsed, commanded):
                 accumulator.stop(
@@ -346,6 +329,7 @@ class BasePullController(ABC):
             final_commanded_force=accumulator.final_commanded.cpu().numpy(),
             peak_commanded_force=accumulator.peak_commanded.cpu().numpy(),
             peak_measured_force=accumulator.peak_measured.cpu().numpy(),
+            peak_drawer_velocity=accumulator.peak_velocity.cpu().numpy(),
             history=recorder.build(),
             reference_drawer_position=self._reference_drawer_position.cpu().numpy(),
             initial_drawer_velocity=initial_drawer_velocity.cpu().numpy(),
@@ -393,28 +377,53 @@ class BasePullController(ABC):
         measured: torch.Tensor,
     ) -> None:
         """Append the post-step state of every environment to the history."""
-        to_np = lambda t: t.detach().cpu().numpy()  # noqa: E731
-        recorder.record(
-            elapsed,
-            {
-                "active": to_np(active),
-                "commanded_force": to_np(commanded),
-                "measured_force": to_np(measured),
-                "drawer_position": to_np(displacement),
-                "drawer_velocity": to_np(self.reader.drawer_velocity),
-                "drawer_velocity_raw": to_np(self.reader.drawer_joint_velocity_raw),
-                "tcp_position": to_np(self.reader.tcp_pose[:, :3]),
-                "tcp_linear_velocity": to_np(self.reader.tcp_linear_velocity),
-                "tcp_angular_velocity": to_np(self.reader.tcp_angular_velocity),
-                "tcp_pull_axis_position": to_np(self.osc.pull_axis_displacement()),
-                "tcp_lateral_error": to_np(self.osc.lateral_error()),
-                "tcp_orientation_error": to_np(self.osc.orientation_error()),
-                "handle_contact_force_w": to_np(self.reader.handle_contact_force_w),
-                "joint_position": to_np(self.reader.arm_joint_position),
-                "joint_velocity": to_np(self.reader.arm_joint_velocity),
-                "joint_applied_effort": to_np(self.reader.arm_joint_applied_effort),
-            },
-        )
+        recorder.record(elapsed, self._sample(active, commanded, displacement, measured))
+
+    def _sample(
+        self,
+        active: torch.Tensor,
+        commanded: torch.Tensor,
+        displacement: torch.Tensor,
+        measured: torch.Tensor,
+    ) -> dict[str, np.ndarray]:
+        """One step of every channel in :data:`HISTORY_CHANNELS`, as numpy arrays.
+
+        Adding a channel means adding it here, to ``PullHistory`` and to
+        ``OBSERVATION_SPECS``; ``tests/unit/test_observation_spec.py`` fails if the three
+        ever disagree.
+        """
+        reader, osc = self.reader, self.osc
+
+        def to_numpy(tensor: torch.Tensor) -> np.ndarray:
+            return tensor.detach().cpu().numpy()
+
+        return {
+            "active": to_numpy(active),
+            "commanded_force": to_numpy(commanded),
+            "drawer_position": to_numpy(displacement),
+            "drawer_velocity": to_numpy(reader.drawer_velocity),
+            "drawer_velocity_raw": to_numpy(reader.drawer_joint_velocity_raw),
+            "drawer_acceleration": to_numpy(reader.drawer_acceleration),
+            "drawer_acceleration_raw": to_numpy(reader.drawer_acceleration_raw),
+            "tcp_pull_axis_position": to_numpy(osc.pull_axis_displacement()),
+            "tcp_pull_axis_velocity": to_numpy(reader.tcp_pull_axis_velocity),
+            "tcp_pull_axis_acceleration": to_numpy(reader.tcp_pull_axis_acceleration),
+            "tcp_pull_axis_acceleration_raw": to_numpy(reader.tcp_pull_axis_acceleration_raw),
+            "tcp_position": to_numpy(reader.tcp_pose[:, :3]),
+            "tcp_orientation": to_numpy(reader.tcp_orientation),
+            "tcp_linear_velocity": to_numpy(reader.tcp_linear_velocity),
+            "tcp_angular_velocity": to_numpy(reader.tcp_angular_velocity),
+            "tcp_lateral_error": to_numpy(osc.lateral_error()),
+            "tcp_orientation_error": to_numpy(osc.orientation_error()),
+            "joint_position": to_numpy(reader.arm_joint_position),
+            "joint_velocity": to_numpy(reader.arm_joint_velocity),
+            "joint_acceleration": to_numpy(reader.arm_joint_acceleration),
+            "joint_applied_effort": to_numpy(reader.arm_joint_applied_effort),
+            "measured_force": to_numpy(measured),
+            "handle_contact_force_w": to_numpy(reader.handle_contact_force_w),
+            "drawer_resistance_force": to_numpy(reader.drawer_resistance_force),
+            "drawer_external_force": to_numpy(reader.drawer_external_force),
+        }
 
     def _safety_violation(self) -> torch.Tensor:
         """Per-environment mask of environments that have tripped an absolute limit."""

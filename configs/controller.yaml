@@ -65,4 +65,6 @@ drawer_state:
   - 0.0
   - 0.0
   - 0.1034
+  drawer_body_name: drawer_top
   velocity_filter_window: 2
+  acceleration_filter_window: 4

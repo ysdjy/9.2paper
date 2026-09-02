@@ -9,8 +9,10 @@ from probe_drawer.controllers import ExecutionControllerCfg, ProbeControllerCfg,
 from probe_drawer.controllers.probe_pull_controller import ProbePullController
 from probe_drawer.envs import (
     PRESETS,
+    XI_FIELDS,
     DynamicsParameters,
     DynamicsRandomizer,
+    DynamicsRandomizerCfg,
     GraspConfiguration,
     load_grasp_configuration,
     preset,
@@ -125,15 +127,45 @@ class TestTerminationReason:
 
 
 class TestDynamicsParameters:
+    """The main paper's hidden state is exactly four dimensional (DECISIONS D015)."""
+
+    def test_xi_is_four_dimensional(self) -> None:
+        assert XI_FIELDS == (
+            "drawer_mass",
+            "joint_static_friction",
+            "joint_dynamic_friction",
+            "joint_damping",
+        )
+        assert len(PRESETS["medium"].as_vector()) == 4
+
+    def test_as_vector_follows_the_canonical_order(self) -> None:
+        params = DynamicsParameters(7.0, 4.0, 2.0, 5.0)
+        assert params.as_vector() == (7.0, 4.0, 2.0, 5.0)
+
+    def test_as_dict_carries_every_xi_field_and_no_removed_one(self) -> None:
+        payload = PRESETS["medium"].as_dict()
+        assert set(XI_FIELDS) <= set(payload)
+        assert "joint_friction" not in payload, "the merged friction field is gone"
+        assert "joint_stiffness" not in payload, "stiffness is not part of xi (D008)"
+
     def test_presets_are_ordered_by_difficulty(self) -> None:
         easy, medium, hard = (PRESETS[n] for n in ("easy", "medium", "hard"))
-        for attribute in ("drawer_mass", "joint_friction", "joint_damping"):
+        for attribute in XI_FIELDS:
             values = [getattr(p, attribute) for p in (easy, medium, hard)]
             assert values == sorted(values), f"{attribute} must not decrease from easy to hard: {values}"
 
-    def test_presets_have_no_drive_stiffness(self) -> None:
-        """Stiffness would be a fourth hidden parameter; see DECISIONS D008."""
-        assert all(p.joint_stiffness == 0.0 for p in PRESETS.values())
+    def test_every_preset_respects_the_physx_friction_ordering(self) -> None:
+        for name, params in PRESETS.items():
+            assert params.joint_dynamic_friction <= params.joint_static_friction, name
+
+    def test_asymmetric_friction_presets_exist(self) -> None:
+        """The friction split must be exercisable on its own, not only via easy/medium/hard."""
+        assert PRESETS["sticky"].friction_ratio < 0.5
+        assert PRESETS["slippery"].friction_ratio < 0.5
+        assert PRESETS["medium"].friction_ratio == pytest.approx(1.0)
+
+    def test_friction_ratio_is_defined_without_static_friction(self) -> None:
+        assert DynamicsParameters(5.0, 0.0, 0.0, 1.0).friction_ratio == pytest.approx(1.0)
 
     def test_unknown_preset_lists_the_valid_ones(self) -> None:
         with pytest.raises(KeyError, match="Available: "):
@@ -143,15 +175,26 @@ class TestDynamicsParameters:
         ("kwargs", "match"),
         [
             ({"drawer_mass": 0.0}, "drawer_mass must be > 0"),
-            ({"joint_friction": -1.0}, "joint_friction must be >= 0"),
+            ({"joint_static_friction": -1.0}, "joint_static_friction must be >= 0"),
+            ({"joint_dynamic_friction": -1.0}, "joint_dynamic_friction must be >= 0"),
             ({"joint_damping": -1.0}, "joint_damping must be >= 0"),
         ],
     )
     def test_rejects_invalid(self, kwargs: dict, match: str) -> None:
-        args = {"drawer_mass": 5.0, "joint_friction": 1.0, "joint_damping": 1.0}
+        args = {
+            "drawer_mass": 5.0,
+            "joint_static_friction": 1.0,
+            "joint_dynamic_friction": 1.0,
+            "joint_damping": 1.0,
+        }
         args.update(kwargs)
         with pytest.raises(ValueError, match=match):
             DynamicsParameters(**args)
+
+    def test_rejects_dynamic_friction_above_static(self) -> None:
+        """PhysX discards such a write silently, so it must never reach the simulator."""
+        with pytest.raises(ValueError, match="PhysX enforces"):
+            DynamicsParameters(5.0, 1.0, 5.0, 1.0)
 
 
 class TestDynamicsRandomizer:
@@ -165,8 +208,29 @@ class TestDynamicsRandomizer:
         cfg = randomizer.cfg
         for params in randomizer.sample(64):
             assert cfg.mass_range[0] <= params.drawer_mass <= cfg.mass_range[1]
-            assert cfg.friction_range[0] <= params.joint_friction <= cfg.friction_range[1]
+            assert cfg.static_friction_range[0] <= params.joint_static_friction <= cfg.static_friction_range[1]
             assert cfg.damping_range[0] <= params.joint_damping <= cfg.damping_range[1]
+            low, high = cfg.dynamic_friction_ratio_range
+            assert low - 1e-9 <= params.friction_ratio <= high + 1e-9
+
+    def test_every_sample_is_writable_by_physx(self) -> None:
+        """Sampling a ratio rather than an absolute value makes this true by construction."""
+        for params in DynamicsRandomizer(seed=5).sample(256):
+            assert params.joint_dynamic_friction <= params.joint_static_friction
+
+    def test_sampling_spans_the_friction_asymmetry(self) -> None:
+        ratios = [p.friction_ratio for p in DynamicsRandomizer(seed=9).sample(256)]
+        low, high = DynamicsRandomizerCfg().dynamic_friction_ratio_range
+        assert min(ratios) < low + 0.1 * (high - low)
+        assert max(ratios) > high - 0.1 * (high - low)
+
+    def test_rejects_a_ratio_range_above_one(self) -> None:
+        with pytest.raises(ValueError, match="must lie inside"):
+            DynamicsRandomizerCfg(dynamic_friction_ratio_range=(0.5, 1.5))
+
+    def test_rejects_unordered_ranges(self) -> None:
+        with pytest.raises(ValueError, match="must be ordered"):
+            DynamicsRandomizerCfg(mass_range=(10.0, 2.0))
 
     def test_current_params_is_none_before_apply(self) -> None:
         assert DynamicsRandomizer().get_current_params() is None

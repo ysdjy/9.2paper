@@ -22,6 +22,7 @@ from enum import Enum
 import numpy as np
 
 __all__ = [
+    "HISTORY_CHANNELS",
     "ExecutionResult",
     "PullHistory",
     "TerminationReason",
@@ -47,13 +48,45 @@ class TerminationReason(str, Enum):
     SAFETY_ABORT = "safety_abort"
 
 
+#: Channel names in the order :class:`PullHistory` declares them. Kept in one place so the
+#: dataclass, the ``.npz`` layout and :data:`probe_drawer.observations.OBSERVATION_SPECS`
+#: cannot drift apart; ``tests/unit/test_observation_spec.py`` asserts they agree.
+HISTORY_CHANNELS: tuple[str, ...] = (
+    "active",
+    "commanded_force",
+    "drawer_position",
+    "drawer_velocity",
+    "drawer_velocity_raw",
+    "drawer_acceleration",
+    "drawer_acceleration_raw",
+    "tcp_pull_axis_position",
+    "tcp_pull_axis_velocity",
+    "tcp_pull_axis_acceleration",
+    "tcp_pull_axis_acceleration_raw",
+    "tcp_position",
+    "tcp_orientation",
+    "tcp_linear_velocity",
+    "tcp_angular_velocity",
+    "tcp_lateral_error",
+    "tcp_orientation_error",
+    "joint_position",
+    "joint_velocity",
+    "joint_acceleration",
+    "joint_applied_effort",
+    "measured_force",
+    "handle_contact_force_w",
+    "drawer_resistance_force",
+    "drawer_external_force",
+)
+
+
 @dataclass
 class PullHistory:
     """Time series recorded during a pull episode.
 
-    ``time`` has shape ``(T,)``.  Scalar per-environment signals have shape
-    ``(T, num_envs)``; Cartesian signals ``(T, num_envs, 3)``; joint signals
-    ``(T, num_envs, num_joints)``.
+    ``time`` has shape ``(T,)``. Scalar per-environment channels have shape
+    ``(T, num_envs)``; Cartesian channels ``(T, num_envs, 3)``; quaternions
+    ``(T, num_envs, 4)``; joint channels ``(T, num_envs, num_joints)``.
 
     ``active[k, e]`` says whether environment ``e`` was still being driven at step ``k``.
     A controller keeps stepping until *every* environment has stopped, and zeroes the force
@@ -61,41 +94,52 @@ class PullHistory:
     row is padding rather than measurement.  Mask with :meth:`active_steps` before
     analysing or plotting a single environment.
 
-    The distinction between :attr:`commanded_force` and :attr:`measured_force` is
-    load-bearing for this project and must not be blurred:
+    What each channel is, where it comes from, how it was filtered and whether a real robot
+    could produce it are all recorded in
+    :data:`probe_drawer.observations.OBSERVATION_SPECS`. Two distinctions matter enough to
+    repeat here:
 
-    ``commanded_force``
-        The pull-axis force the controller *asked* the operational-space controller for.
-        Open-loop: what the force profile produced at that instant.
-    ``measured_force``
-        The pull-axis component of the contact force PhysX actually reports on the drawer
-        handle body, from a :class:`~isaaclab.sensors.ContactSensor`.  This is a *measured*
-        physical quantity, not a copy of the command.
+    ``commanded_force`` vs ``measured_force``
+        The first is what the controller *asked* the operational-space controller for; the
+        second is the pull-axis component of the wrist joint reaction wrench, which is what
+        a real Franka's force/torque sensor reports. They are different physical
+        quantities and are never conflated (``docs/DECISIONS.md`` D006).
+    ``drawer_velocity`` vs ``drawer_velocity_raw``
+        The first is the causally filtered finite difference every decision is based on;
+        the second is PhysX's own aliased reading, kept so the substitution stays auditable
+        (``docs/DECISIONS.md`` D009).
 
-    Likewise :attr:`drawer_velocity` is the finite-difference estimate every decision is
-    based on, while :attr:`drawer_velocity_raw` is PhysX's own aliased reading, kept so the
-    substitution stays auditable.  :attr:`drawer_position` is the drawer opening
-    *relative to the start of the pull*, not the absolute joint coordinate; the absolute
-    reference is recorded in the result's ``parameters["reference_drawer_position"]``.
+    ``drawer_position`` is the drawer opening *relative to the start of the pull*, not the
+    absolute joint coordinate; the absolute reference is recorded in the result's
+    ``parameters["reference_drawer_position"]``.
     """
 
     time: np.ndarray
     active: np.ndarray
     commanded_force: np.ndarray
-    measured_force: np.ndarray
     drawer_position: np.ndarray
     drawer_velocity: np.ndarray
     drawer_velocity_raw: np.ndarray
+    drawer_acceleration: np.ndarray
+    drawer_acceleration_raw: np.ndarray
+    tcp_pull_axis_position: np.ndarray
+    tcp_pull_axis_velocity: np.ndarray
+    tcp_pull_axis_acceleration: np.ndarray
+    tcp_pull_axis_acceleration_raw: np.ndarray
     tcp_position: np.ndarray
+    tcp_orientation: np.ndarray
     tcp_linear_velocity: np.ndarray
     tcp_angular_velocity: np.ndarray
-    tcp_pull_axis_position: np.ndarray
     tcp_lateral_error: np.ndarray
     tcp_orientation_error: np.ndarray
-    handle_contact_force_w: np.ndarray
     joint_position: np.ndarray
     joint_velocity: np.ndarray
+    joint_acceleration: np.ndarray
     joint_applied_effort: np.ndarray
+    measured_force: np.ndarray
+    handle_contact_force_w: np.ndarray
+    drawer_resistance_force: np.ndarray
+    drawer_external_force: np.ndarray
 
     @property
     def num_steps(self) -> int:
@@ -109,27 +153,27 @@ class PullHistory:
         """Boolean mask of the steps environment ``env_index`` was actually driven for."""
         return self.active[:, env_index]
 
+    def channel(self, name: str, env_index: int, driven_only: bool = True) -> np.ndarray:
+        """One environment's trace of one channel.
+
+        Args:
+            name: A channel name from :data:`HISTORY_CHANNELS`.
+            env_index: Which environment.
+            driven_only: Drop the zero-padded tail after this environment stopped.
+
+        Raises:
+            KeyError: If ``name`` is not a channel of this history.
+        """
+        if name not in HISTORY_CHANNELS:
+            raise KeyError(f"Unknown channel {name!r}. Known: {list(HISTORY_CHANNELS)}.")
+        trace = getattr(self, name)[:, env_index]
+        return trace[self.active_steps(env_index)] if driven_only else trace
+
     def as_arrays(self) -> dict[str, np.ndarray]:
         """Flat ``{name: array}`` view, used by the episode logger to write an ``.npz``."""
-        return {
-            "time": self.time,
-            "active": self.active,
-            "commanded_force": self.commanded_force,
-            "measured_force": self.measured_force,
-            "drawer_position": self.drawer_position,
-            "drawer_velocity": self.drawer_velocity,
-            "drawer_velocity_raw": self.drawer_velocity_raw,
-            "tcp_position": self.tcp_position,
-            "tcp_linear_velocity": self.tcp_linear_velocity,
-            "tcp_angular_velocity": self.tcp_angular_velocity,
-            "tcp_pull_axis_position": self.tcp_pull_axis_position,
-            "tcp_lateral_error": self.tcp_lateral_error,
-            "tcp_orientation_error": self.tcp_orientation_error,
-            "handle_contact_force_w": self.handle_contact_force_w,
-            "joint_position": self.joint_position,
-            "joint_velocity": self.joint_velocity,
-            "joint_applied_effort": self.joint_applied_effort,
-        }
+        arrays = {"time": self.time}
+        arrays.update({name: getattr(self, name) for name in HISTORY_CHANNELS})
+        return arrays
 
 
 @dataclass
@@ -182,10 +226,15 @@ class ExecutionResult:
     close enough to a goal is an *evaluation* question and belongs to the caller, never to
     the execution controller (see ``docs/DECISIONS.md``, D004).
 
+    Every field is snapshotted at ``t = T``, before the zero-force cleanup steps the
+    controller sends afterwards; the cleanup changes nothing here and appears nowhere in
+    :attr:`history` (``docs/DECISIONS.md`` D022).
+
     Attributes:
         duration: Simulated duration actually executed per environment (s).
         final_displacement: Drawer opening when the force went back to zero (m).
         final_velocity: Drawer opening velocity at that instant (m/s).
+        peak_velocity: Largest drawer speed reached at any point during the execution (m/s).
         peak_commanded_force: Largest pull-axis force command issued (N).
         peak_measured_force: Largest measured pull-axis contact force (N).
         safety_aborted: Whether an absolute safety limit cut the episode short.
@@ -197,6 +246,7 @@ class ExecutionResult:
     duration: np.ndarray
     final_displacement: np.ndarray
     final_velocity: np.ndarray
+    peak_velocity: np.ndarray
     peak_commanded_force: np.ndarray
     peak_measured_force: np.ndarray
     safety_aborted: np.ndarray
@@ -214,6 +264,7 @@ class ExecutionResult:
             "duration": float(self.duration[env_index]),
             "final_displacement": float(self.final_displacement[env_index]),
             "final_velocity": float(self.final_velocity[env_index]),
+            "peak_velocity": float(self.peak_velocity[env_index]),
             "peak_commanded_force": float(self.peak_commanded_force[env_index]),
             "peak_measured_force": float(self.peak_measured_force[env_index]),
             "safety_aborted": bool(self.safety_aborted[env_index]),

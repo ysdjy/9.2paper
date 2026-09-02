@@ -55,6 +55,7 @@ from typing import TYPE_CHECKING
 import torch
 from isaaclab.utils.math import quat_apply
 
+from probe_drawer.sensors.causal_derivative import CausalDerivative
 from probe_drawer.sensors.pull_axis import PullAxis
 
 if TYPE_CHECKING:  # pragma: no cover - these need the Isaac Sim app at runtime
@@ -87,11 +88,19 @@ class DrawerStateCfg:
     """Parent of :attr:`ee_body_name`. The wrist reaction wrench is reported in its frame."""
     ee_offset: tuple[float, float, float] = (0.0, 0.0, 0.1034)
     """TCP offset from :attr:`ee_body_name`, matching the official ``ee_frame`` sensor."""
+    drawer_body_name: str = "drawer_top"
+    """Body whose mass, together with the handle's, is the drawer's moving mass."""
     velocity_filter_window: int = 2
     """Control steps averaged when estimating the drawer velocity.
 
     Two exactly cancels the two-step contact chatter observed in this scene; see this
     module's *Velocity provenance* note.
+    """
+    acceleration_filter_window: int = 4
+    """Control steps averaged when estimating any acceleration.
+
+    An acceleration is a second difference of position and therefore noisier than a
+    velocity, so it gets a longer window: four steps, i.e. 25 ms of lag at 60 Hz.
     """
 
 
@@ -124,6 +133,7 @@ class DrawerStateReader:
 
         self._drawer_joint_idx = self._cabinet.find_joints(self.cfg.drawer_joint_name)[0][0]
         self._handle_body_idx = self._cabinet.find_bodies(self.cfg.handle_body_name)[0][0]
+        self._drawer_body_idx = self._cabinet.find_bodies(self.cfg.drawer_body_name)[0][0]
         self._arm_joint_ids = self._robot.find_joints(self.cfg.arm_joint_expr)[0]
         self._finger_joint_ids = self._robot.find_joints(self.cfg.finger_joint_expr)[0]
         self._ee_body_idx = self._robot.find_bodies(self.cfg.ee_body_name)[0][0]
@@ -133,11 +143,13 @@ class DrawerStateReader:
         self._direction_w = pull_axis.direction(self._device)
         self._ee_offset = torch.tensor(self.cfg.ee_offset, device=self._device).repeat(env.num_envs, 1)
 
-        if self.cfg.velocity_filter_window < 1:
-            raise ValueError(f"velocity_filter_window must be >= 1, got {self.cfg.velocity_filter_window}.")
         self._step_dt = float(env.step_dt)
-        self._previous_drawer_position: torch.Tensor | None = None
-        self._velocity_samples: list[torch.Tensor] = []
+        # One estimator per differentiated signal. Constructing them validates the windows.
+        self._drawer_velocity_estimator = CausalDerivative(self._step_dt, self.cfg.velocity_filter_window)
+        self._drawer_acceleration_estimator = CausalDerivative(self._step_dt, self.cfg.acceleration_filter_window)
+        self._tcp_acceleration_estimator = CausalDerivative(self._step_dt, self.cfg.acceleration_filter_window)
+        self._joint_acceleration_estimator = CausalDerivative(self._step_dt, self.cfg.acceleration_filter_window)
+        self._has_samples = False
 
         self._check_base_frame_alignment()
 
@@ -183,31 +195,74 @@ class DrawerStateReader:
     def drawer_velocity(self) -> torch.Tensor:
         """Drawer opening rate (m/s), shape ``(num_envs,)``.
 
-        A moving average of the position finite difference over the last
-        :attr:`DrawerStateCfg.velocity_filter_window` control steps.  Zero until
-        :meth:`update` has been called at least once after a reset.
+        Causal moving average of the position finite difference. Zero until :meth:`update`
+        has been called after a reset.
         """
-        if not self._velocity_samples:
-            return torch.zeros(self.env.num_envs, device=self._device)
-        return torch.stack(self._velocity_samples, dim=0).mean(dim=0)
+        return self._zeros() if not self._has_samples else self._drawer_velocity_estimator.filtered
+
+    @property
+    def drawer_acceleration(self) -> torch.Tensor:
+        """Drawer acceleration (m/s^2), shape ``(num_envs,)``.
+
+        Causal moving average of the difference of :attr:`drawer_velocity`, i.e. a smoothed
+        second difference of position.
+        """
+        return self._zeros() if not self._has_samples else self._drawer_acceleration_estimator.filtered
+
+    @property
+    def drawer_acceleration_raw(self) -> torch.Tensor:
+        """Unsmoothed drawer acceleration (m/s^2), shape ``(num_envs,)``."""
+        return self._zeros() if not self._has_samples else self._drawer_acceleration_estimator.raw
+
+    @property
+    def drawer_moving_mass(self) -> torch.Tensor:
+        """Total mass the drawer joint moves (kg), shape ``(num_envs,)``.
+
+        The ``drawer_top`` body plus the rigidly attached handle, read out of PhysX so it
+        always reflects whatever mass was last applied.
+        """
+        masses = self._cabinet.root_physx_view.get_masses()
+        total = masses[:, self._drawer_body_idx] + masses[:, self._handle_body_idx]
+        return total.to(self._device)
 
     """
     Per-step bookkeeping.
     """
 
     def update(self) -> None:
-        """Advance the finite-difference velocity estimate. Call once per ``env.step``."""
-        position = self.drawer_position.clone()
-        if self._previous_drawer_position is not None:
-            sample = (position - self._previous_drawer_position) / self._step_dt
-            self._velocity_samples.append(sample)
-            del self._velocity_samples[: -self.cfg.velocity_filter_window]
-        self._previous_drawer_position = position
+        """Advance every causal derivative estimate. Call once per ``env.step``.
+
+        Order matters: the drawer's acceleration is the derivative of the *filtered*
+        velocity, so the velocity estimator has to take its sample first.
+        """
+        self._drawer_velocity_estimator.update(self.drawer_position)
+        self._has_samples = True
+        self._drawer_acceleration_estimator.update(self._drawer_velocity_estimator.filtered)
+        self._tcp_acceleration_estimator.update(self.tcp_pull_axis_velocity)
+        self._joint_acceleration_estimator.update(self.arm_joint_velocity)
 
     def reset_history(self) -> None:
-        """Discard the velocity estimate. Call after ``env.reset``."""
-        self._previous_drawer_position = None
-        self._velocity_samples = []
+        """Discard every derivative estimate. Call after ``env.reset``."""
+        for estimator in (
+            self._drawer_velocity_estimator,
+            self._drawer_acceleration_estimator,
+            self._tcp_acceleration_estimator,
+            self._joint_acceleration_estimator,
+        ):
+            estimator.reset()
+        self._has_samples = False
+
+    def filter_description(self) -> dict:
+        """How each derived channel was filtered, recorded with every episode."""
+        return {
+            "drawer_velocity": self._drawer_velocity_estimator.describe(),
+            "drawer_acceleration": self._drawer_acceleration_estimator.describe(),
+            "tcp_pull_axis_acceleration": self._tcp_acceleration_estimator.describe(),
+            "joint_acceleration": self._joint_acceleration_estimator.describe(),
+        }
+
+    def _zeros(self) -> torch.Tensor:
+        return torch.zeros(self.env.num_envs, device=self._device)
 
     @property
     def handle_pose(self) -> torch.Tensor:
@@ -251,9 +306,33 @@ class DrawerStateReader:
         return lin + torch.cross(ang, offset_w, dim=-1)
 
     @property
+    def tcp_orientation(self) -> torch.Tensor:
+        """TCP orientation in the environment frame, shape ``(num_envs, 4)`` as ``(w, x, y, z)``."""
+        return self._ee_frame.data.target_quat_w[:, 0, :]
+
+    @property
     def tcp_angular_velocity(self) -> torch.Tensor:
         """TCP angular velocity in the world frame (rad/s), shape ``(num_envs, 3)``."""
         return self._robot.data.body_ang_vel_w[:, self._ee_body_idx, :]
+
+    @property
+    def tcp_pull_axis_velocity(self) -> torch.Tensor:
+        """TCP speed along the drawer's opening direction (m/s), shape ``(num_envs,)``.
+
+        Taken straight from PhysX rather than differentiated: the *robot's* own end-effector
+        velocity is reliable at this control rate, unlike the drawer joint's (D009).
+        """
+        return self.tcp_linear_velocity @ self._direction_w
+
+    @property
+    def tcp_pull_axis_acceleration(self) -> torch.Tensor:
+        """TCP acceleration along the pull axis (m/s^2), shape ``(num_envs,)``."""
+        return self._zeros() if not self._has_samples else self._tcp_acceleration_estimator.filtered
+
+    @property
+    def tcp_pull_axis_acceleration_raw(self) -> torch.Tensor:
+        """Unsmoothed TCP acceleration along the pull axis (m/s^2), shape ``(num_envs,)``."""
+        return self._zeros() if not self._has_samples else self._tcp_acceleration_estimator.raw
 
     """
     Properties -- arm joints.
@@ -268,6 +347,17 @@ class DrawerStateReader:
     def arm_joint_velocity(self) -> torch.Tensor:
         """Arm joint velocities (rad/s), shape ``(num_envs, num_arm_joints)``."""
         return self._robot.data.joint_vel[:, self._arm_joint_ids]
+
+    @property
+    def arm_joint_acceleration(self) -> torch.Tensor:
+        """Arm joint accelerations (rad/s^2), shape ``(num_envs, num_arm_joints)``.
+
+        Differentiated here rather than read from ``Articulation.data.joint_acc`` so that
+        the filter and its causality are explicit and recorded.
+        """
+        if not self._has_samples:
+            return torch.zeros_like(self.arm_joint_velocity)
+        return self._joint_acceleration_estimator.filtered
 
     @property
     def finger_joint_ids(self) -> list[int]:
@@ -332,6 +422,41 @@ class DrawerStateReader:
         module's *Force provenance* note for what this is and what it is not.
         """
         return self.wrist_reaction_force_w @ self._direction_w
+
+    @property
+    def drawer_resistance_force(self) -> torch.Tensor:
+        """The drawer's own internal resistance along its joint (N), shape ``(num_envs,)``.
+
+        ``ArticulationView.get_dof_projected_joint_forces`` on ``drawer_top_joint``. Measured
+        to be exactly ``-(mu_dynamic * sign(v) + b * v)``: with ``b = 8`` and ``v = 0.0951``
+        it reported -0.7680 against -0.7611 predicted, and with ``mu_d = 3`` while sliding it
+        reported exactly -3.0000. Negative while the drawer opens, because it opposes motion.
+
+        **Simulator-only.** A real drawer does not publish its own friction. See
+        ``docs/FORCE_CHANNEL_AUDIT.md``.
+        """
+        return self._cabinet.root_physx_view.get_dof_projected_joint_forces()[:, self._drawer_joint_idx].to(
+            self._device
+        )
+
+    @property
+    def drawer_external_force(self) -> torch.Tensor:
+        """The axial force actually delivered to the drawer (N), shape ``(num_envs,)``.
+
+        From the drawer's equation of motion along its one degree of freedom::
+
+            m_total * a = F_external + F_resistance   =>   F_external = m_total * a - F_resistance
+
+        Every term on the right is available: the mass from PhysX, the acceleration from
+        :attr:`drawer_acceleration`, and the resistance from
+        :attr:`drawer_resistance_force`. Validated against the wrist channel, which it
+        matches to within the hand-and-finger inertial term of about 0.05-0.10 N
+        (``docs/FORCE_CHANNEL_AUDIT.md``).
+
+        **Simulator-only and privileged**: it needs the drawer's mass, which is part of the
+        hidden state the robot is supposed to be inferring.
+        """
+        return self.drawer_moving_mass * self.drawer_acceleration - self.drawer_resistance_force
 
     """
     Verification helpers.

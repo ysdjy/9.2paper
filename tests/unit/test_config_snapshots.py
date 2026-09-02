@@ -15,12 +15,12 @@ import pytest
 import yaml
 
 from probe_drawer.controllers import ExecutionControllerCfg, HybridPullOSCCfg, ProbeControllerCfg, SafetyLimits
-from probe_drawer.envs import (
-    PRESETS,
-    REFERENCE_DURATION,
-    REFERENCE_PEAK_FORCE,
-    DynamicsRandomizerCfg,
-    HybridPullControlCfg,
+from probe_drawer.envs import PRESETS, XI_FIELDS, DynamicsRandomizerCfg, HybridPullControlCfg
+from probe_drawer.evaluation import (
+    DRAWER_TRAVEL_LIMIT,
+    PROVISIONAL_VALIDATION_DURATION,
+    PROVISIONAL_VALIDATION_PEAK_FORCE,
+    OperatingRegionCfg,
 )
 from probe_drawer.sensors import DrawerStateCfg
 from probe_drawer.utils import project_root
@@ -96,7 +96,10 @@ class TestExecutionSnapshot:
         _assert_section(
             _snapshot("execution.yaml"),
             "reference_operating_point",
-            {"peak_force": REFERENCE_PEAK_FORCE, "duration": REFERENCE_DURATION},
+            {
+                "peak_force": PROVISIONAL_VALIDATION_PEAK_FORCE,
+                "duration": PROVISIONAL_VALIDATION_DURATION,
+            },
             "execution.yaml",
         )
 
@@ -110,12 +113,36 @@ class TestDynamicsSnapshot:
         expected = _as_yaml_types(asdict(DynamicsRandomizerCfg()))
         _assert_section(_snapshot("dynamics.yaml"), "randomizer", expected, "dynamics.yaml")
 
-    def test_hidden_state_is_the_three_documented_quantities(self) -> None:
-        assert _snapshot("dynamics.yaml")["hidden_state"] == ["drawer_mass", "joint_friction", "joint_damping"]
+    def test_hidden_state_is_exactly_the_four_xi_fields(self) -> None:
+        assert _snapshot("dynamics.yaml")["hidden_state"] == list(XI_FIELDS)
+
+    def test_every_snapshotted_preset_respects_the_physx_friction_ordering(self) -> None:
+        for name, params in _snapshot("dynamics.yaml")["presets"].items():
+            assert params["joint_dynamic_friction"] <= params["joint_static_friction"], name
+
+
+class TestEvaluationSnapshot:
+    def test_operating_region_matches(self) -> None:
+        _assert_section(
+            _snapshot("evaluation.yaml"), "operating_region", OperatingRegionCfg().as_dict(), "evaluation.yaml"
+        )
+
+    def test_travel_limit_matches_the_measured_asset(self) -> None:
+        assert _snapshot("evaluation.yaml")["drawer_travel_limit"] == DRAWER_TRAVEL_LIMIT
+
+    def test_validity_thresholds_are_tighter_than_the_safety_limits(self) -> None:
+        """Validity decides whether an episode is usable; safety only stops divergence."""
+        region = OperatingRegionCfg()
+        limits = SafetyLimits()
+        assert region.max_lateral_drift < limits.max_lateral_error
+        assert region.max_orientation_drift_deg < limits.max_orientation_error_deg
+        assert region.max_peak_velocity < limits.max_drawer_velocity
 
 
 class TestEverySnapshotNamesItsSource:
-    @pytest.mark.parametrize("name", ["controller.yaml", "probe.yaml", "execution.yaml", "dynamics.yaml"])
+    @pytest.mark.parametrize(
+        "name", ["controller.yaml", "probe.yaml", "execution.yaml", "dynamics.yaml", "evaluation.yaml"]
+    )
     def test_source_is_declared_and_importable(self, name: str) -> None:
         import importlib  # noqa: PLC0415
 
@@ -128,6 +155,13 @@ class TestEverySnapshotNamesItsSource:
 
     def test_no_stale_snapshot_files(self) -> None:
         """Every YAML in configs/ is either a snapshot tested above or a recorded artefact."""
-        known = {"controller.yaml", "probe.yaml", "execution.yaml", "dynamics.yaml", "grasp_pose.yaml"}
+        known = {
+            "controller.yaml",
+            "probe.yaml",
+            "execution.yaml",
+            "dynamics.yaml",
+            "evaluation.yaml",
+            "grasp_pose.yaml",
+        }
         found = {path.name for path in (project_root() / "configs").glob("*.yaml")}
         assert found == known, f"unexpected or missing configuration files: {found ^ known}"

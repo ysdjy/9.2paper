@@ -1,0 +1,24 @@
+# GENERATED SNAPSHOT -- do not edit by hand and do not load this file at runtime.
+#
+# The authoritative values live in the dataclass named under `_source` below; this file
+# exists so the current configuration can be read and reviewed without opening the code.
+# tests/unit/test_config_snapshots.py fails if the two ever disagree, and prints the
+# corrected contents when it does.
+_source:
+  operating_region: probe_drawer.evaluation.operating_region:OperatingRegionCfg
+success_definition: abs(d(T) - d_goal) <= epsilon_d AND abs(v(T)) <= epsilon_v AND
+  valid operating point. d_goal, epsilon_d and epsilon_v are task parameters chosen
+  from the Oracle sweep, not configuration -- see docs/EXPERIMENT_SPACE.md.
+operating_region:
+  mechanical_margin_fraction: 0.8
+  max_displacement: 0.32000000000000006
+  drawer_travel_limit: 0.4
+  max_peak_velocity: 0.25
+  max_lateral_drift: 0.005
+  max_orientation_drift_deg: 5.0
+  min_displacement: 0.001
+drawer_travel_limit: 0.4
+provisional_validation_operating_point:
+  peak_force: 5.0
+  duration: 2.0
+  note: What Phases 6-8 validated at. Provisional; see docs/DECISIONS.md D021.
