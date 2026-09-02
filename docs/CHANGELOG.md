@@ -3,6 +3,71 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project is research software; versions mark validated states, not releases.
 
+## [0.4.0] — 2026-09-02
+
+Phase 11: the first real dataset, the first models, and the first time a trained model
+chooses a force and the drawer actually moves to the goal.
+
+### Added
+
+* `probe_drawer.protocols.simulation_snapshot` — capture and restore an episode's state so one
+  probe can answer many candidate forces. A dataset-generation device, never part of a
+  deployment protocol. Validated in `docs/COUNTERFACTUAL_BRANCHING.md`.
+* `probe_drawer.dataset` gains `sampling` (Sobol hidden states, label-independent force
+  strata, deterministic branch shuffling), `storage` (normalised JSONL + per-probe NPZ) and
+  `audit` (nine gates plus the distributions).
+* `probe_drawer.models` — `PrivilegedEncoder`, `AdaptationContextEncoder`, `SuccessPredictor`,
+  and baselines A–D plus the fixed-force floor.
+* `probe_drawer.training` — dynamic-padding DataLoader, train-only `FeatureScaler`,
+  classification and selection metrics, and the teacher/student loop.
+* `probe_drawer.evaluation.force_selection` — grid search over a predicted landscape, run
+  outside the controller.
+* Scripts: `validate_branching`, `generate_dataset`, `audit_dataset`, `train_models`,
+  `evaluate_closed_loop`, `plot_phase11`.
+* Docs: `COUNTERFACTUAL_BRANCHING.md`, `DATASET_V0.md`, `TRAINING_V0.md`, decisions D035–D040.
+* Tests: 383 unit (+115) and 84 integration (+15).
+
+### Data and results
+
+* **Dataset v0** — 49 152 candidate rows from 1 536 probes over 512 hidden states, 29.5 MB,
+  nine audit gates passed, 0.98 % of hidden states with no positive.
+* **Closed loop on 88 unseen drawers** — privileged teacher 95.5 %, ACE + PSP **93.2 %**,
+  GRU regressing one force 79.5 %, ridge on nine scalar features 45.5 %, best fixed force
+  13.6 %.
+
+### Changed
+
+* Candidates per probe raised from 24 to 32 after measuring that 24 left 6 % of hidden states
+  with no positive — a grid-resolution miss, not infeasibility (D038).
+* `DrawerStateReader` keeps its four derivative estimators in one registry, so resetting,
+  describing and snapshotting them cannot drift apart.
+* `MlpForceRegressor` owns its input standardisation as buffers.
+
+### Fixed
+
+* A restore left the TCP pose stale by 34 mm, so every branch inherited the previous branch's
+  pose reference. Found by the branching validation.
+* 24 branches of 1.5 s exceed the 30 s episode, so the environment would have auto-reset
+  partway through every candidate sweep. `episode_length_buf` is now part of the snapshot.
+* The audit crashed on a dangling probe reference, a missing history file and an incomplete
+  hidden state instead of reporting them.
+* `evaluate()` discarded the reliability curve, which would have left the calibration figure
+  empty.
+
+### Known limitations
+
+* `T` is fixed, so the parameter is one-dimensional, and the midpoint of a hidden state's
+  succeeding force set succeeds for 104 of 105 solvable states. A landscape model therefore has
+  no *structural* advantage here; the measured gap is an accuracy gap. The project owner's
+  D034 (`p = [F_peak, T]`) is what makes the question askable.
+* Baseline C (MLP on summary features) is undertrained and scores below the ridge on the same
+  features. Reported as not-a-working-baseline rather than as a result.
+* The encoder ablation spans 2.1 points against 0.9–1.7 points of seed noise, and the channels
+  it adds are functions of drawer position. The genuinely independent channel, wrist force, is
+  excluded by D018 and is the next ablation.
+
+---
+
 ## [0.3.0] — 2026-09-02
 
 Phase 10: the probe and the execution become one continuous episode, the task is tightened

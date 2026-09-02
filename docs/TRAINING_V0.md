@@ -81,20 +81,39 @@ restricted to answerable forces would get.
 Test split, 88 hidden states / 8 448 rows, mean over 3 seeds. See
 `outputs/training/run_v0/comparison.json` for the full table including validation and spread.
 
-Teacher and student, per seed:
+Everything, test split, mean ± sd over three seeds (the two closed-form fits have no seed):
 
-| model | seed | test AUROC | test AUPRC | selection (feasible) | force MAE |
-|---|---|---|---|---|---|
-| teacher (privileged) | 0 | 0.9934 | 0.914 | 92.0 % | 0.064 N |
-| teacher (privileged) | 1 | 0.9940 | 0.926 | 90.8 % | 0.067 N |
-| ACE + PSP | 0 | 0.9925 | 0.910 | 89.2 % | 0.061 N |
-| ACE + PSP | 1 | 0.9921 | 0.899 | 85.7 % | 0.063 N |
+| model | selection, all probes | selection, feasible only | force MAE | AUROC |
+|---|---|---|---|---|
+| fixed force (1.31 N) | 12.9 % | 13.6 % | 0.815 N | — |
+| A linear (1 feature) | 30.0 % | 31.5 % | 0.318 N | — |
+| **B ridge (9 features)** | 46.0 % | **48.2 %** | 0.196 N | — |
+| C MLP (9 features) | 22.1 ± 2.4 % | 23.1 ± 2.5 % | 0.415 N | — |
+| **D GRU (7-channel history)** | 75.4 ± 1.3 % | **79.0 ± 1.3 %** | 0.069 N | — |
+| **teacher (privileged)** | 86.8 ± 0.8 % | **91.0 ± 0.8 %** | 0.068 N | 0.9924 |
+| **ACE + PSP** | 83.4 ± 1.4 % | **87.4 ± 1.5 %** | 0.061 N | 0.9922 |
+
+Three gaps, in decreasing size.
+
+**The time series is worth +30.8 points** — D GRU's 79.0 % against B ridge's 48.2 %. Both
+predict a single force; only the input differs. This is the largest effect in the table.
+
+**Modelling the landscape is worth +8.4 points** — ACE + PSP's 87.4 % against D GRU's 79.0 %.
+Identical seven channels through the identical encoder class; only the output differs.
+
+**The probe costs 3.6 points against knowing `xi`** — 87.4 % against the teacher's 91.0 %.
 
 The force MAE of about **0.06 N** is the number to hold against the task: the median success
-band is 0.20 N wide, so the typical prediction lands comfortably inside it. For contrast, a
-leave-one-out readout of the band centre from the nine *scalar* probe features achieves an
-RMSE of 0.352 N and lands in the band 33 % of the time
-(`outputs/logs/adaptation_premise.json`).
+band is 0.20 N, so a typical prediction lands comfortably inside it. For contrast, a
+leave-one-out readout of the band centre from the nine scalar features achieves RMSE 0.352 N
+and lands in the band 33 % of the time (`outputs/logs/adaptation_premise.json`), which is the
+same story from a different direction.
+
+**Baseline C is undertrained, not informative.** The MLP on summary features scores 23.1 %,
+*below* the ridge on the same nine features. It is fitted full-batch for 30 epochs, which is
+too few, and no attempt was made to tune it — the phase's budget went to the comparisons that
+answer the question. It should be read as "not a working baseline in this run" rather than as
+evidence about MLPs.
 
 ## 6. Closed-loop results — the number that counts
 
@@ -103,30 +122,32 @@ the post-probe state is snapshotted; each method's chosen force restores it and 
 every method faces an identical drawer **and an identical probe** — the reason the branching
 validation had to come first. One probe per method would let a lucky probe decide the ranking.
 
-| method | physical success | median `|d−goal|` | median `|v(T)|` | forces chosen |
-|---|---|---|---|---|
-| teacher (privileged, told `xi`) | **89.1 %** | 1.85 mm | 0.0244 | 0.50–3.35 N, sd 0.71 |
-| **ACE + PSP** | **87.5 %** | 2.25 mm | 0.0221 | 0.45–3.30 N, sd 0.70 |
-| D GRU (history → one force) | 81.2 % | 1.72 mm | 0.0247 | 0.45–3.40 N, sd 0.74 |
-| A linear (one scalar feature) | 18.8 % | 14.28 mm | 0.0314 | 0.95–2.60 N, sd 0.45 |
-| fixed force (1.31 N) | 14.1 % | 24.09 mm | 0.0035 | — |
+All 88 test hidden states, seed 0:
 
-No method produced an invalid episode.
+| method | physical success | median `|d−goal|` | forces chosen |
+|---|---|---|---|
+| teacher (privileged, told `xi`) | **95.5 %** | 1.74 mm | 0.50–3.40 N |
+| **ACE + PSP** | **93.2 %** | 2.22 mm | 0.45–3.40 N |
+| D GRU (history → one force) | 79.5 % | 2.28 mm | 0.45–3.45 N |
+| B ridge (9 scalar features) | 45.5 % | 7.21 mm | 0.70–3.30 N |
+| A linear (one scalar feature) | 18.2 % | 14.99 mm | 0.95–2.60 N |
+| fixed force (1.31 N) | 13.6 % | 29.97 mm | — |
 
-Three findings, in order of importance.
+No method produced an invalid episode. The ordering and the gaps reproduce the offline table,
+which is the check that the offline metric measures the physical task. The learned models
+score a few points *higher* in physics than offline because deployment searches a 0.05 N grid
+while the offline metric can only pick among that probe's 32 training candidates.
 
-**The probe history carries information the scalar features discard.** 87.5 % against 18.8 %.
-The linear baseline's failure is visible in the last column: it chose forces spanning only
-0.95–2.60 N with a standard deviation of 0.45 N, against the teacher's 0.50–3.35 N and 0.71 N.
-It *under-adapts* — a linear fit on a visibly curved relationship shrinks toward the mean — so
-it gets the ordering roughly right and the magnitude wrong, which a 0.20 N band does not
-forgive.
+**The probe history carries information the scalar features discard.** 93.2 % against the best
+scalar baseline's 45.5 % — a factor of 2.05. The scalar baselines' failure is visible in the
+last column: the linear fit chose forces spanning only 0.95–2.60 N against the teacher's
+0.50–3.40 N. It *under-adapts*, because a linear fit on a visibly curved relationship shrinks
+toward the mean, and a 0.20 N band does not forgive a magnitude error.
 
-**The probe is very nearly sufficient.** ACE + PSP lands 1.6 points below a model that is
-*given* the four hidden values. Whatever the probe fails to reveal costs about 1.6 points of
-task success at this operating point.
+**The probe is very nearly sufficient.** ACE + PSP lands 2.3 points below a model that is
+*given* the four hidden values.
 
-**Predicting the landscape beats regressing one force, by 6.3 points on identical input.**
+**Predicting the landscape beats regressing one force, by 13.7 points on identical input.**
 ACE + PSP and baseline D see exactly the same seven channels through the same encoder class;
 only the output differs. This is the one comparison in which the gap is attributable to the
 modelling rather than to the observation.
@@ -139,18 +160,35 @@ residual is plainly non-random. So 18.8 % understates what a scalar-feature appr
 achieve; the ridge and MLP baselines in the three-seed table are the fair comparison, and the
 parallel premise audit's quadratic readout reaches 33 % in-band.
 
-The conclusion "the history helps" survives that correction — 87.5 % against 33 % is still a
-factor of 2.6 — but the honest headline is *ACE + PSP against the best scalar readout*, not
-against the worst.
+The correction is applied: the closed-loop table above reports the ridge, and the honest
+headline is **93.2 % against 45.5 %**, a factor of 2.05 — not the 5.1× that comparing against
+the linear fit would have suggested.
 
 ## 8. Ablation: how much of the probe is needed
 
-Four encoder input sets, same architecture, same training, seed-averaged on the test split.
-`ACE-2` against `ACE-4` is the comparison that answers the question; the intermediate rungs
-show where the value appears. Wrist force is deliberately absent (D018): it is recorded in the
-dataset as a diagnostic and can be added without regenerating anything.
+Four encoder input sets, same architecture, same training, mean ± sd over three seeds on the
+test split. Wrist force is deliberately absent (D018): it is recorded in the dataset as a
+diagnostic and can be added without regenerating anything.
 
-See `outputs/training/run_v0/comparison.json`, keys `ablation ACE-*`.
+| channels | selection (feasible) | force MAE | AUROC |
+|---|---|---|---|
+| ACE-1 `[F_cmd, d]` | 85.3 ± 0.9 % | 0.069 N | 0.9881 |
+| ACE-2 `[F_cmd, d, v]` | 86.1 ± 1.2 % | 0.068 N | 0.9912 |
+| ACE-3 `[F_cmd, d, v, a]` | **87.8 ± 1.7 %** | 0.063 N | 0.9925 |
+| ACE-4 (7 channels, + TCP) | 87.4 ± 1.5 % | 0.061 N | 0.9922 |
+
+**The extra observations buy very little.** Commanded force and drawer position alone reach
+85.3 %, and the full seven channels reach 87.4 % — a 2.1-point spread across the whole
+ablation, against seed-to-seed standard deviations of 0.9 to 1.7 points. Adding velocity is
+worth +0.8, adding acceleration +1.7, and adding the three TCP-axis channels is −0.4, i.e.
+nothing distinguishable from noise.
+
+Two readings, and the honest one is the second. Optimistically, `[F_cmd, d]` is nearly enough,
+which is good news for a real robot with fewer sensors. Sceptically, the derived channels are
+functions of `d` — velocity and acceleration are causal differences of it — so a GRU can in
+principle compute them itself, and the ablation mostly confirms that rather than measuring new
+information. The one channel that is genuinely independent, the wrist force, was excluded by
+D018 and is the ablation worth running next.
 
 ## 9. What these numbers do not establish
 
@@ -160,7 +198,7 @@ for **104 of 105** solvable states. In one dimension the success set is essentia
 contiguous interval whose midpoint works, so a landscape model has **no structural advantage**
 over a single-output regressor — there is no multi-modality to exploit.
 
-The 6.3-point gap between ACE + PSP and baseline D is therefore a gap in *accuracy*, not
+The 13.7-point gap between ACE + PSP and baseline D is therefore a gap in *accuracy*, not
 proof that the landscape must be modelled. A better regressor could in principle close it.
 The question of whether landscape modelling is *necessary* needs a parameter space where
 averaging two good answers can give a bad one, which is what D034's `p = [F_peak, T]` is for.

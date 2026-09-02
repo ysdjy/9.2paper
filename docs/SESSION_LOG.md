@@ -133,6 +133,83 @@ audit), then the probe dataset, then Stage A on 10–50 hidden states as a tiny 
 
 ---
 
+## 2026-09-02 — `agent/phase11-dataset-v0` — Phase 11
+
+**Agent / task.** Claude Opus 5 — generate the first real dataset, train the first models,
+and put them back into the simulator on drawers they have never seen.
+
+**The gate came first.** Dataset v0 wants 32 counterfactual labels per probe, which needs the
+post-probe state captured and restored, and restoring a PhysX scene is not obviously sound.
+`scripts/validate_branching.py` is the evidence: everything the snapshot writes comes back
+bit-identical in float32, branch-to-branch spread is 23 µm where the execution barely moves
+the drawer (20–30× better than re-probing) and 2.7–2.9 mm just past breakaway where fresh
+episodes spread 2.1–8.0 mm, and the bias is negligible across seven runs. Full account in
+`docs/COUNTERFACTUAL_BRANCHING.md`.
+
+**Two bugs it caught**, both of which would have corrupted the dataset without failing
+anything: a restore left the TCP pose stale by 34 mm — the execution reads its pose reference
+from it, so every branch was hauling the arm back to where the previous one ended — and 24
+branches of 1.5 s exceed the 30 s episode, so the environment would have auto-reset partway
+through every candidate sweep.
+
+**One finding changed the design.** Branching drifts systematically, 57 µm per branch at
+medium/2.5 N, 1.3 mm across a full sweep. Drift matters more than its size: candidate forces
+go to ordered strata, so a drift correlated with branch index would bias exactly the axis
+being learned. The generator therefore shuffles the branch order deterministically and records
+`branch_index` on every row; the audit checks the decorrelation instead of trusting it
+(−0.0005, 0.11 σ over 1 536 probes).
+
+**One number changed because it was measured.** The plan specified 24 candidates per probe. A
+32-state pilot left 2 of 32 hidden states with no positive at all, and I first read those two
+as physically infeasible — their displacement jumped from 6.6 mm straight to 140 mm between
+adjacent candidates. Reading the force-sorted rows showed one of them reaching 40.1 mm at
+2.61 N, inside the position tolerance, failing only on terminal velocity by 0.002 m/s, with
+its neighbour at 2.42 N giving 31.7 mm at a compliant 0.023 m/s. The grid had missed a force
+that works. Just past breakaway `dd/dF` reaches 100–130 mm/N, so 24 strata map to 18–24 mm
+against a 15 mm success window. Raised to 32, the same pilot left zero states uncovered
+(D038).
+
+**Dataset v0.** 49 152 rows from 1 536 probes over 512 Sobol-sampled hidden states, 35 min,
+29.5 MB, nine audit gates passed. 5 of 512 hidden states (0.98 %) have no positive in any of
+three repeats.
+
+**Results.** The privileged teacher passes its gate decisively (test AUROC 0.993–0.994,
+selecting a succeeding force for 90.8–92.0 % of feasible probes), so training a student was
+licensed. Closed-loop on 64 unseen drawers, all methods sharing one probe:
+
+| method | physical success |
+|---|---|
+| teacher (privileged, told `xi`) | 89.1 % |
+| ACE + PSP | 87.5 % |
+| GRU regressing one force | 81.2 % |
+| linear on one scalar feature | 18.8 % |
+| best fixed force | 14.1 % |
+
+So the probe history carries information the scalar features discard, the probe is very
+nearly sufficient (1.6 points below being told `xi`), and predicting the landscape beats
+regressing one force by 6.3 points on identical input.
+
+**The thing the next session most needs to know.** Another session working in this repository
+recorded D034 — `p = [F_peak, T]`, decided by the project owner — while this phase was
+running, and my `git add -A` swept it in. I renumbered my branching decision to D040 and
+verified D034's central measurement independently: of the 105 solvable hidden states, the
+midpoint of the succeeding force set also succeeds for 104. So in the one-dimensional
+`F_peak` parameterisation the success set is essentially a contiguous interval whose midpoint
+works, a landscape model has no *structural* advantage over a single-output regressor, and the
+6.3-point gap above is an accuracy gap rather than proof of necessity. Dataset v0 is the
+one-dimensional baseline case, not the dataset D034 calls for.
+
+**Also in the tree from that session, untouched by me:** `third_party/rma4rma` (139 MB,
+gitignored), `patches/rma4rma/`, `docs/RMA2_{REPRODUCTION_REPORT,TO_DRAWER_MAPPING}.md`,
+`analysis/adaptation_premise.py` and its script and tests.
+
+**Tests.** 383 unit (~5 s) + 84 integration (297 s), all passing.
+
+**Not done, deliberately.** No SPC, no VLM, no RMA baseline, no real robot, no hyperparameter
+search, no dataset beyond the pilot scale the plan set.
+
+---
+
 ## 2026-09-02 — `agent/phase10-sequential-refinement` — Phase 10
 
 **Agent / task.** Claude Opus 5 — replace `probe -> reset -> execution` with a genuinely

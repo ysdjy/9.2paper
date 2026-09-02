@@ -82,6 +82,7 @@ from probe_drawer.experiment_plan import (  # noqa: E402
 )
 from probe_drawer.models import PspCfg, build_student, build_teacher  # noqa: E402
 from probe_drawer.models.baselines import STRONGEST_FEATURE, FeatureRegression, GruForceRegressor  # noqa: E402
+from probe_drawer.training.trainer import TrainCfg  # noqa: E402,F401  (kept for config symmetry)
 from probe_drawer.protocols import capture_snapshot, restore_snapshot  # noqa: E402
 from probe_drawer.pull_system import PullSystem, PullSystemCfg  # noqa: E402
 from probe_drawer.dataset.schema import XI_DIMENSIONS  # noqa: E402
@@ -177,9 +178,13 @@ def main() -> None:
     # serialising them.
     train_samples = split.train
     targets = reference_force_per_probe(train_samples)
-    linear = FeatureRegression(features=(STRONGEST_FEATURE,)).fit(
-        train_samples, [targets[sample.probe_id] for sample in train_samples]
-    )
+    training_targets = [targets[sample.probe_id] for sample in train_samples]
+    linear = FeatureRegression(features=(STRONGEST_FEATURE,)).fit(train_samples, training_targets)
+    # The ridge on all nine summary features is the *strongest* scalar-feature baseline
+    # offline (48.2 % against the linear fit's 31.5 %), so leaving it out of the closed loop
+    # would compare the learned model against the weakest available alternative.
+    summary_features = tuple(comparison.get("summary_features") or (STRONGEST_FEATURE,))
+    ridge = FeatureRegression(features=summary_features, alpha=10.0).fit(train_samples, training_targets)
     fixed_force = float(
         next(row for row in comparison["results"]["fixed force"] if row["split"] == "test")["force"]
     )
@@ -241,6 +246,9 @@ def main() -> None:
                 "fixed force": np.full(num_envs, fixed_force),
                 "A linear (1 feature)": select_nearest(
                     [float(linear.predict([_FeatureRow(row)])[0]) for row in features], selection_cfg
+                ).force,
+                "B ridge (summary)": select_nearest(
+                    [float(ridge.predict([_FeatureRow(row)])[0]) for row in features], selection_cfg
                 ).force,
                 "teacher (privileged)": _landscape_choice(
                     teacher, xi_tensor, post_probe, scaler, num_envs, selection_cfg, privileged=True
