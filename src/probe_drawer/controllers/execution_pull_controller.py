@@ -20,7 +20,7 @@ makes the guarantee structural rather than a matter of review discipline.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -116,7 +116,12 @@ class ExecutionPullController(BasePullController):
         super().__init__(env, osc, reader, safety)
         self.cfg = cfg or ExecutionControllerCfg()
 
-    def run(self, peak_force: float | Sequence[float], duration: float) -> ExecutionResult:
+    def run(
+        self,
+        peak_force: float | Sequence[float],
+        duration: float,
+        on_step: Callable[[int, float, torch.Tensor], None] | None = None,
+    ) -> ExecutionResult:
         """Execute the full force profile.
 
         Args:
@@ -127,6 +132,8 @@ class ExecutionPullController(BasePullController):
                 without changing anything else (``docs/DECISIONS.md`` D027).
             duration: Total execution time (s). The controller runs for this long, then the
                 force is back at zero.
+            on_step: Optional per-step observer, passed through to ``run_profile``. Used by the
+                diagnostic video recorder; it cannot influence the run.
 
         Returns:
             An :class:`~probe_drawer.controllers.types.ExecutionResult` with one entry per
@@ -155,6 +162,7 @@ class ExecutionPullController(BasePullController):
             timeout_reason=TerminationReason.DURATION_COMPLETED,
             settle_steps=self.cfg.settle_steps,
             force_scale=peaks,
+            on_step=on_step,
         )
         # `outcome` is already a set of numpy snapshots taken at t = T, so nothing below can
         # alter what this call returns.

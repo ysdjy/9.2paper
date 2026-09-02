@@ -115,10 +115,26 @@ class TestTerminationReason:
         assert TerminationReason.DURATION_COMPLETED.value == "duration_completed"
 
     def test_values_are_stable_strings(self) -> None:
-        """Logged episodes carry these strings, so renaming one silently breaks old logs."""
-        assert {r.value for r in TerminationReason} == {
+        """Logged episodes carry these strings, so renaming one silently breaks old logs.
+
+        Adding a member is safe and is why this asserts a superset relationship for the
+        original six rather than equality: ``AT_REST`` joined for the response-triggered
+        probe, whose coast ends because the drawer *stopped* -- the opposite of
+        ``VELOCITY_LIMIT``, which means it got too fast.
+        """
+        values = {r.value for r in TerminationReason}
+        assert {
             "displacement_reached",
             "velocity_limit",
+            "max_force_reached",
+            "timeout",
+            "duration_completed",
+            "safety_abort",
+        } <= values
+        assert values == {
+            "displacement_reached",
+            "velocity_limit",
+            "at_rest",
             "max_force_reached",
             "timeout",
             "duration_completed",

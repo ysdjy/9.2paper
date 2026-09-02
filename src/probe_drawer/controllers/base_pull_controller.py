@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import math
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -271,6 +271,7 @@ class BasePullController(ABC):
         timeout_reason: TerminationReason,
         settle_steps: int = 0,
         force_scale: torch.Tensor | None = None,
+        on_step: Callable[[int, float, torch.Tensor], None] | None = None,
     ) -> PullOutcome:
         """Drive the environment with ``profile`` until every environment stops.
 
@@ -282,6 +283,10 @@ class BasePullController(ABC):
                 ``TIMEOUT`` for a probe, ``DURATION_COMPLETED`` for an execution.
             settle_steps: Steps of zero-force pose holding before the pull, so grasp
                 contact transients do not contaminate the measurement.
+            on_step: Called after every step as ``(step, elapsed, commanded)``. For observing
+                a run without reimplementing its loop -- the diagnostic video recorder uses it
+                to capture a frame per step. It must not modify anything; it is given the
+                commanded force by value and the controller does not read it back.
             force_scale: Per-environment multiplier on the profile, shape ``(num_envs,)``.
                 Defaults to ones. This is how several force candidates are compared from the
                 same starting state: every environment follows the *same* normalised shape
@@ -325,6 +330,9 @@ class BasePullController(ABC):
             measured = self.reader.measured_pull_force
             self._record_step(recorder, elapsed, accumulator.active, commanded, displacement, measured)
             accumulator.note_peaks(commanded, measured, self.reader.drawer_velocity)
+
+            if on_step is not None:
+                on_step(step, elapsed, commanded)
 
             for reason, mask in self._all_stop_conditions(step, max_steps, elapsed, commanded):
                 accumulator.stop(

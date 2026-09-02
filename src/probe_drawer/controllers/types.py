@@ -37,11 +37,16 @@ class TerminationReason(str, Enum):
     stop conditions (see :mod:`probe_drawer.controllers.probe_pull_controller`).
     ``DURATION_COMPLETED`` is the *only* nominal Execution outcome -- the execution
     controller runs the full commanded duration and never stops on task progress.
+    ``AT_REST`` is the response-triggered probe's nominal outcome: its coast phase ended
+    because the drawer had slowed below ``coast_end_velocity``. It is distinct from
+    ``VELOCITY_LIMIT``, which means the *opposite* -- a probe stopped because the drawer got
+    too fast.
     ``SAFETY_ABORT`` may end either.
     """
 
     DISPLACEMENT_REACHED = "displacement_reached"
     VELOCITY_LIMIT = "velocity_limit"
+    AT_REST = "at_rest"
     MAX_FORCE_REACHED = "max_force_reached"
     TIMEOUT = "timeout"
     DURATION_COMPLETED = "duration_completed"

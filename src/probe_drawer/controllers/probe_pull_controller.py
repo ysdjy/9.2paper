@@ -16,7 +16,7 @@ standardised measurement and probe histories would not be comparable.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -124,6 +124,7 @@ class ProbePullController(BasePullController):
         max_force: float,
         target_displacement: float,
         max_velocity: float,
+        on_step: Callable[[int, float, torch.Tensor], None] | None = None,
     ) -> ProbeResult:
         """Apply the standardised force ramp and stop at the first stop condition.
 
@@ -167,6 +168,7 @@ class ProbePullController(BasePullController):
             profile=profile,
             max_steps=self.steps_for(self.cfg.max_probe_duration),
             timeout_reason=TerminationReason.TIMEOUT,
+            on_step=on_step,
             settle_steps=self.cfg.settle_steps,
         )
 
