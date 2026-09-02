@@ -36,6 +36,16 @@ parser.add_argument("--dataset", type=str, required=True, help="Dataset the mode
 parser.add_argument("--seed", type=int, default=0, help="Which trained seed to deploy.")
 parser.add_argument("--num-xi", type=int, default=64, help="Test hidden states to evaluate (0 = all).")
 parser.add_argument("--num_envs", type=int, default=32, help="Drawers in parallel.")
+parser.add_argument(
+    "--comparison",
+    type=str,
+    default="comparison.json",
+    help=(
+        "Which comparison file in the run directory supplies the channel list, the fitted "
+        "scaler and the fixed-force baseline. Overridable so a run can be deployed before "
+        "every seed has finished, or from an alternative comparison."
+    ),
+)
 parser.add_argument("--output", type=str, default=None)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
@@ -133,7 +143,7 @@ def main() -> None:
     if not dataset_root.is_absolute():
         dataset_root = project_root() / dataset_root
 
-    comparison = json.loads((run_root / "comparison.json").read_text())
+    comparison = json.loads((run_root / args_cli.comparison).read_text())
     channels = tuple(comparison["channels"])
     scaler = FeatureScaler.from_dict(comparison["scaler"])
     psp = PspCfg()

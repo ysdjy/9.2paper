@@ -1,0 +1,60 @@
+{
+  "channels": [
+    "commanded_force",
+    "drawer_position",
+    "drawer_velocity",
+    "drawer_acceleration",
+    "tcp_pull_axis_position",
+    "tcp_pull_axis_velocity",
+    "tcp_pull_axis_acceleration"
+  ],
+  "scaler": {
+    "channels": [
+      "commanded_force",
+      "drawer_position",
+      "drawer_velocity",
+      "drawer_acceleration",
+      "tcp_pull_axis_position",
+      "tcp_pull_axis_velocity",
+      "tcp_pull_axis_acceleration"
+    ],
+    "mean": [
+      2.2453307927912443,
+      0.0007824351275884408,
+      0.006226871136091254,
+      0.037537977235511825,
+      0.0007775248955784119,
+      0.005878297357728004,
+      0.03296379869621016
+    ],
+    "std": [
+      0.821702951247532,
+      0.0009393276037383734,
+      0.00649302255658154,
+      0.040529517741858964,
+      0.0010108994306016938,
+      0.008523726522180782,
+      0.10393539346917718
+    ],
+    "force_mean": 2.3244923119777163,
+    "force_std": 1.2555310239919808,
+    "post_probe_mean": [
+      0.007510054227293421,
+      0.004289803329046345
+    ],
+    "post_probe_std": [
+      0.0028824872034145274,
+      0.005722348467102688
+    ],
+    "fitted_on": 34464
+  },
+  "results": {
+    "fixed force": [
+      {
+        "split": "test",
+        "force": 1.3140480000000003
+      }
+    ]
+  },
+  "note": "partial: written to unblock the closed-loop run while train_models.py is still going"
+}
