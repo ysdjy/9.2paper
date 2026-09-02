@@ -3,9 +3,9 @@ requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "rma2-direct"
+name = "rma2-baseline"
 version = "0.1.0"
-description = "RMA2-inspired Direct Adaptation baseline for single-probe drawer-pull parameter adaptation."
+description = "RMA2-inspired Direct Adaptation: a baseline for single-probe drawer-pull skill-parameter adaptation."
 requires-python = ">=3.11"
 # Deliberately empty. `probe_drawer`, `torch` and `numpy` are supplied by the conda
 # environment `env_isaaclab`; resolving them here would risk changing an environment that

@@ -7,16 +7,20 @@ Sim.
 
 Usage::
 
-    python baseline/rma2_direct/scripts/audit_adaptation_premise.py
-    python baseline/rma2_direct/scripts/audit_adaptation_premise.py \
+    python baselines/rma2/scripts/audit_adaptation_premise.py
+    python baselines/rma2/scripts/audit_adaptation_premise.py \\
         --sweep outputs/logs/sequential_oracle_fall030.json
 
-Paths are resolved against the **main project** root, not this baseline: the sweep it reads
-and the report it writes are project-level artefacts, and ``docs/TRAINING_V0.md`` already
-cites ``outputs/logs/adaptation_premise.json`` by that name.
+Defaults come from ``baselines/rma2/configs/adaptation_premise.yaml``; command-line arguments
+override it, and the resolved settings are recorded in the report so a number can always be
+traced back to how it was asked for.
+
+Paths in that config are resolved against the **project** root, not this baseline: the sweep
+it reads and the report it writes are project-level artefacts, and ``docs/TRAINING_V0.md``
+already cites ``outputs/logs/adaptation_premise.json`` by that name.
 
 Reasoning and the interpretation of every number:
-``baseline/rma2_direct/docs/RMA2_TO_DRAWER_MAPPING.md`` §19.
+``baselines/rma2/docs/RMA2_TO_DRAWER_MAPPING.md`` §19.
 """
 
 from __future__ import annotations
@@ -26,46 +30,53 @@ import json
 import sys
 from pathlib import Path
 
+import yaml
+
 # Importable without installing this baseline, so a reader can run it straight from a clone.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from probe_drawer.analysis.sweep import SweepDataset
 from probe_drawer.experiment_plan import MAIN_TASK
 from probe_drawer.utils import project_root
-from rma2_direct.adaptation_premise import audit
+from rma2.adaptation_premise import audit
+
+#: This baseline's own root, which is where its config lives.
+BASELINE_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_CONFIG = BASELINE_ROOT / "configs" / "adaptation_premise.yaml"
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
-        "--sweep",
-        type=str,
-        default="outputs/logs/sequential_oracle_fall035.json",
-        help="Sweep to audit, relative to the project root. Must be a sequential Oracle.",
+        "--config", type=Path, default=DEFAULT_CONFIG, help="Settings file. Defaults to this baseline's."
     )
-    parser.add_argument(
-        "--output",
-        type=str,
-        default="outputs/logs/adaptation_premise.json",
-        help="Where to write the report, relative to the project root.",
-    )
+    parser.add_argument("--sweep", type=str, default=None, help="Override the sweep path (project-relative).")
+    parser.add_argument("--output", type=str, default=None, help="Override the report path (project-relative).")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    cfg = yaml.safe_load(args.config.read_text())
+    sweep = args.sweep or cfg["sweep"]
+    output = args.output or cfg["output"]
+    radii = tuple(float(radius) for radius in cfg["ambiguity_radii"])
+    neighbours = int(cfg["knn_neighbours"])
+
     root = project_root()
-    dataset = SweepDataset.load(root / args.sweep)
+    dataset = SweepDataset.load(root / sweep)
 
     report = audit(
         dataset=dataset,
         criteria=MAIN_TASK.criteria,
         duration=MAIN_TASK.duration,
-        source=args.sweep,
+        source=sweep,
+        radii=radii,
+        neighbours=neighbours,
     )
     structure, ambiguity, ident = report.structure, report.ambiguity, report.identifiability
 
-    print(f"\n=== Adaptation premise: {args.sweep} ===")
+    print(f"\n=== Adaptation premise: {sweep} ===")
     print(f"{len(dataset)} rows, {dataset.validity_rate():.3f} valid, "
           f"task d_goal={MAIN_TASK.goal_displacement * 1e3:.0f} mm "
           f"eps_d={MAIN_TASK.displacement_tolerance * 1e3:.1f} mm "
@@ -79,7 +90,7 @@ def main() -> None:
           f"median {force['median']:.2f} N, {force['ratio']:.1f}x range")
     print(f"  best constant force     {best['force']:.2f} N succeeds on "
           f"{best['successes']}/{structure['total_hidden_states']} = {best['success_rate']:.3f}")
-    print(f"  runners-up              {best['runners_up']}")
+    print(f"  runners-up              {[(round(f, 2), n) for f, n in best['runners_up']]}")
 
     print("\n-- 2. is the answer a point or a set?")
     width = structure["band_width"]
@@ -117,7 +128,7 @@ def main() -> None:
             print(f"    {source:<8} {readout:<10} {scores['r2']:>+8.3f} {scores['rmse']:>10.3f} "
                   f"{scores['in_band_rate']:>10.3f}")
 
-    destination = root / args.output
+    destination = root / output
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(report.as_dict(), indent=2))
     print(f"\nreport -> {destination}")

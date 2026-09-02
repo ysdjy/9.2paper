@@ -4,6 +4,61 @@ One entry per work session. Newest first.
 
 ---
 
+## 2026-09-02 — `agent/rma2-baseline-isolation` — RMA² baseline isolation
+
+**Agent / task.** Claude Opus 5 — move the RMA² baseline to `baselines/rma2/` under the
+project's standard baseline layout, confirm the main project is untouched, and report the
+integration plan. Migration only; no model code was written.
+
+**What changed.** `baseline/rma2_direct/` → **`baselines/rma2/`**, package `rma2_direct` →
+`rma2`, plus the two directories the layout asks for and that now have real content:
+
+* `configs/adaptation_premise.yaml` — the audit's tunables (sweep, report path, ambiguity
+  radii, `k`), **read by its script** rather than left as a placeholder. The resolved settings
+  are now recorded in the report, because the ambiguity radii change the answer a great deal
+  and a number without them is misleading.
+* `checkpoints/` — with the main project's own rule applied: weights git-ignored, `config.yaml`
+  / `manifest.json` / `metrics.json` tracked, so a result traces back to a config, a split and
+  a commit without the bulk.
+
+**The main project's code was not touched.** Only three docs changed, and only where this move
+would have left a dangling path: `API.md` (the `baselines/` pointer, plus a note distinguishing
+it from `probe_drawer.models.baselines`, which is a different thing), `DECISIONS.md` (D034's
+two file references), and this log's previous entry.
+
+**The isolation invariant is checkable, and holds:**
+
+```bash
+grep -rn "baselines" src/probe_drawer/ --include="*.py"   # no import
+```
+
+**Tests.** `tests/unit` **371 passed**, unchanged by the move. `baselines/rma2/tests` **13
+passed** (12 + one new: the report must record how the question was asked). The audit script
+runs end to end and reproduces its previous numbers. The official RMA² clone was reinstalled
+at the new path in the separate `rma2` env and still steps `PegInsertionSide-v1` with all
+three patches applied.
+
+**What this baseline may and may not take from the main project** is now written down in
+`baselines/rma2/README.md` §4. Shared, by import: the environment, `DynamicsRandomizer`, the
+probe and pull controllers, `SequentialPullProtocol`, `MAIN_TASK` and the success definition,
+`dataset/` including the `xi_id` split, and `training/{dataloader,metrics}`. Owned here,
+because they *are* the method: `PrivilegedEncoder`, the temporal-CNN `AdaptationEncoder`,
+`ParameterHead`, and the Stage A/B trainer. The `xi_id` split needs no coordination — `SplitCfg`
+assigns groups by hashing the key rather than by shuffling with a seed, so both methods get the
+same drawers by construction.
+
+**Still blocked, and not by this baseline.** Stage A cannot start until the three project-level
+tasks in D034 are done: re-sweep the Oracle over `(F_peak, T)`, re-select `MAIN_TASK`, and
+generalise the premise audit from bands to regions. The third produces the number that decides
+whether the comparison is worth running — how many hidden states have a *disconnected* success
+region. Everything in the design contract is written so the parameter space is a config value
+rather than an architectural assumption, so 1-D → 2-D changes data, not code.
+
+**Next.** Those three, in that order, as project work; then Stage A on 10–50 hidden states as a
+tiny overfit test.
+
+---
+
 ## 2026-09-02 — RMA² reproduction and baseline design (uncommitted; see "Git state")
 
 **Agent / task.** Claude Opus 5 — reproduce the official RMA² implementation, understand it
@@ -12,14 +67,14 @@ No baseline code was written this round; that was deliberate (the commission's �
 
 **What was added.**
 
-Everything is under **`baseline/rma2_direct/`**, a self-contained folder that imports
+Everything is under **`baselines/rma2/`**, a self-contained folder that imports
 `probe_drawer` and never modifies it. Nothing outside it was added.
 
 * `docs/RMA2_REPRODUCTION_REPORT.md` — the official code, read line by line, and how far it
   ran here.
 * `docs/RMA2_TO_DRAWER_MAPPING.md` — what transfers, what does not, and the design contract
   the implementation must satisfy.
-* `src/rma2_direct/adaptation_premise.py` + `scripts/audit_adaptation_premise.py` +
+* `src/rma2/adaptation_premise.py` + `scripts/audit_adaptation_premise.py` +
   `tests/test_adaptation_premise.py` (12 tests) — whether the adaptation problem is well
   posed, answered from the Oracle already on disk. Offline, no Isaac Sim.
 * `patches/rma4rma/` — the four fixes the official code needed, plus the install script.
@@ -67,7 +122,7 @@ transfers to our probe **unchanged** if the window is the 1.5 s probe budget (90
 60 Hz); at the median probe length of 28 steps it is arithmetically invalid.
 
 **What was measured about our own task, before writing any model.**
-`baseline/rma2_direct/scripts/audit_adaptation_premise.py` on `sequential_oracle_fall035.json`
+`baselines/rma2/scripts/audit_adaptation_premise.py` on `sequential_oracle_fall035.json`
 at `MAIN_TASK`:
 
 * **Adaptation is necessary.** The best single fixed force (0.70 N) succeeds on 20/108 =
@@ -99,7 +154,7 @@ carries `duration` as an axis), and it is the cheapest way to make the paper's c
 
 This blocks the next round on three things, in order: re-sweep the Oracle over a
 `(F_peak, T)` grid; re-select `MAIN_TASK` against it with the existing scored rule (D024);
-generalise `baseline/rma2_direct/src/rma2_direct/adaptation_premise.py` from bands to regions
+generalise `baselines/rma2/src/rma2/adaptation_premise.py` from bands to regions
 and re-run it. That last one
 produces the number the paper actually needs — the count of hidden states whose success region
 is **disconnected**. If the 2-D regions turn out to be convex blobs, the framing has to change
@@ -125,7 +180,7 @@ throughout — `protocols/simulation_snapshot.py`, `scripts/validate_branching.p
 `protocols/__init__.py` — so creating a branch or a commit would have moved shared git state
 under a live session. This round's files are:
 
-* new: everything under `baseline/rma2_direct/`;
+* new: everything under `baselines/rma2/`;
 * modified: `README.md` (§7 table, test counts), `docs/API.md` (a pointer to `baseline/`),
   `docs/DECISIONS.md` (D034), `.gitignore` (`third_party/`, later moved into the baseline's
   own `.gitignore`).

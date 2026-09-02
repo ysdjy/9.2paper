@@ -12,7 +12,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from rma2_direct.adaptation_premise import (
+from rma2.adaptation_premise import (
     audit,
     band_structure,
     collect_bands,
@@ -206,4 +206,14 @@ def test_audit_bundles_all_three_and_serialises() -> None:
     payload = report.as_dict()
     assert payload["source"] == "synthetic"
     assert payload["criteria"]["goal_displacement"] == CRITERIA.goal_displacement
-    assert set(payload) == {"source", "duration", "criteria", "structure", "ambiguity", "identifiability"}
+    assert set(payload) == {
+        "source", "duration", "criteria", "settings", "structure", "ambiguity", "identifiability"
+    }
+
+
+def test_the_report_records_how_the_question_was_asked() -> None:
+    """The ambiguity radii change the answer a lot, so a report without them is misleading."""
+    report = audit(marching_landscape(), CRITERIA, DURATION, radii=(0.4,), neighbours=5)
+    assert report.settings == {"ambiguity_radii": [0.4], "knn_neighbours": 5}
+    assert set(report.ambiguity["radii"]) == {0.4}
+    assert "knn_5" in report.identifiability["force_from_probe"]

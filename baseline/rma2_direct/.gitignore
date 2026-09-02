@@ -1,7 +1,0 @@
-# The official RMA² code and its two forks: cloned, never vendored. Reproduce with
-# patches/rma4rma/install_rma2.sh; provenance is in docs/RMA2_REPRODUCTION_REPORT.md §1.
-third_party/
-
-# This baseline's own experiment outputs. Project-level artefacts (the Oracle sweeps, and
-# outputs/logs/adaptation_premise.json) live under the repository root's outputs/ instead.
-outputs/

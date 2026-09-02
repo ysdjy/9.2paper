@@ -1,0 +1,16 @@
+# The official RMA² code and its two forks: cloned, never vendored. Reproduce with
+# patches/rma4rma/install_rma2.sh; provenance is in docs/RMA2_REPRODUCTION_REPORT.md §1.
+third_party/
+
+# Trained weights: regenerable from the code plus a config plus a dataset version, and too
+# large for git. The small artefacts that say what a run *was* stay tracked, so a result can
+# be traced back to a config, a split and a commit without the bulk.
+checkpoints/**
+!checkpoints/.gitkeep
+!checkpoints/**/config.yaml
+!checkpoints/**/metrics.json
+!checkpoints/**/manifest.json
+
+# This baseline's own scratch outputs. Project-level artefacts -- the Oracle sweeps and
+# outputs/logs/adaptation_premise.json -- live under the repository root's outputs/ instead.
+outputs/

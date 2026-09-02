@@ -417,12 +417,22 @@ values that compare equal and can be merged. Raises on `step <= 0` or `high < lo
 ## Baselines live outside this API
 
 Method implementations are **not** part of `probe_drawer`. Each lives in its own folder under
-`baseline/`, imports this package, and never modifies it — the benchmark has to be identical
-across methods for the comparison to mean anything.
+`baselines/`, imports this package, and never modifies it — the benchmark has to be identical
+across methods for the comparison to mean anything. The dependency is one-directional and the
+invariant is checkable:
+
+```bash
+grep -rn "baselines" src/probe_drawer/ --include="*.py"   # must find no import
+```
 
 | Baseline | Folder | What it is |
 |---|---|---|
-| RMA²-inspired Direct Adaptation | `baseline/rma2_direct/` | `Probe -> privileged-style latent -> directly predict p*`. Includes the official RMA² reproduction, the module mapping, and `adaptation_premise` — the offline audit of whether the adaptation problem is well posed. See that folder's `README.md`. |
+| RMA²-inspired Direct Adaptation | `baselines/rma2/` | `Probe -> privileged-style latent -> directly predict p*`. Also holds the official RMA² reproduction and `adaptation_premise`, the offline audit of whether the adaptation problem is well posed. See that folder's `README.md`. |
+
+Note that `probe_drawer.models.baselines` is a *different* thing: those are the in-project
+reference predictors (fixed force, feature regression, MLP and GRU direct regression) that
+share the main method's training stack. A baseline gets its own folder under `baselines/` when
+it has its own architecture, objective or training schedule.
 
 If a baseline needs something that every method would need — a shared parameter space, an
 oracle target, a metric — it belongs here in `probe_drawer`, not in one method's folder.

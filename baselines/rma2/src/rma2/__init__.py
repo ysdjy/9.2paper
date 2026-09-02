@@ -11,8 +11,9 @@ modifies it: the benchmark has to be identical across methods or the comparison 
 `src/probe_drawer/`, that change belongs to the project and to every method, not to this
 baseline.
 
-Design contract: ``docs/RMA2_TO_DRAWER_MAPPING.md``.
-What the official implementation actually does: ``docs/RMA2_REPRODUCTION_REPORT.md``.
+Design contract: ``baselines/rma2/docs/RMA2_TO_DRAWER_MAPPING.md``.
+What the official implementation actually does:
+``baselines/rma2/docs/RMA2_REPRODUCTION_REPORT.md``.
 """
 
 from __future__ import annotations

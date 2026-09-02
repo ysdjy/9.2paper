@@ -331,11 +331,17 @@ def identifiability(
 
 @dataclass(frozen=True)
 class AdaptationPremise:
-    """The three audits together, with the dataset they were computed from."""
+    """The three audits together, with the dataset and the settings they were computed from.
+
+    ``settings`` is recorded rather than assumed so that a number in the report can always be
+    traced back to how the question was asked -- the ambiguity radii in particular change the
+    answer a great deal, and reporting one without the other would be misleading.
+    """
 
     source: str
     duration: float
     criteria: dict
+    settings: dict = field(default_factory=dict)
     structure: dict = field(default_factory=dict)
     ambiguity: dict = field(default_factory=dict)
     identifiability: dict = field(default_factory=dict)
@@ -345,6 +351,7 @@ class AdaptationPremise:
             "source": self.source,
             "duration": self.duration,
             "criteria": self.criteria,
+            "settings": self.settings,
             "structure": self.structure,
             "ambiguity": self.ambiguity,
             "identifiability": self.identifiability,
@@ -357,15 +364,17 @@ def audit(
     duration: float,
     source: str = "",
     radii: tuple[float, ...] = DEFAULT_AMBIGUITY_RADII,
+    neighbours: int = 3,
 ) -> AdaptationPremise:
     """Run all three audits against one sweep."""
     return AdaptationPremise(
         source=source,
         duration=duration,
         criteria=criteria.as_dict() if hasattr(criteria, "as_dict") else {},
+        settings={"ambiguity_radii": list(radii), "knn_neighbours": neighbours},
         structure=band_structure(dataset, criteria, duration),
         ambiguity=probe_ambiguity(dataset, criteria, duration, radii),
-        identifiability=identifiability(dataset, criteria, duration),
+        identifiability=identifiability(dataset, criteria, duration, neighbours),
     )
 
 

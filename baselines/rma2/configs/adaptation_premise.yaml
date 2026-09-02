@@ -1,0 +1,30 @@
+# Is the adaptation problem well posed? -- the audit's tunables.
+#
+# Read by scripts/audit_adaptation_premise.py. Every value here is a choice about how the
+# question is asked, not a physical constant, which is why it is data rather than a literal
+# in the module (CLAUDE.md: no magic numbers).
+#
+# Interpretation of every output number: docs/RMA2_TO_DRAWER_MAPPING.md section 19.
+
+# Which sweep to read, relative to the *project* root. Must be a sequential Oracle: a reset
+# row is preliminary physical verification, not the task's ground truth (D026).
+sweep: outputs/logs/sequential_oracle_fall035.json
+
+# Where the report goes, relative to the project root. Deliberately a project-level path and
+# not baselines/rma2/outputs/: docs/TRAINING_V0.md already cites this file by name, and the
+# audit answers a question about the benchmark rather than about this baseline.
+output: outputs/logs/adaptation_premise.json
+
+# Radii, in standardised probe-feature units, at which probe ambiguity is measured.
+#
+# A radius stands in for how finely an encoder resolves the probe: everything inside it is
+# treated as indistinguishable, and the question is whether averaging over that neighbourhood
+# still lands in the success band. The three values bracket the interesting range -- at 0.25
+# the hidden states are essentially separated, at 1.0 they are not. Reported for all three
+# rather than one, because which regime a learned encoder reaches is exactly what is unknown.
+ambiguity_radii: [0.25, 0.5, 1.0]
+
+# k for the k-nearest-neighbour readout. The readouts here are deliberately simple -- they
+# establish what is achievable *without* a learned model, so a learned model's number has
+# something to beat. k = 1 memorises the grid; k = 3 is the smallest k that does not.
+knn_neighbours: 3
