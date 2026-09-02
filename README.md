@@ -41,6 +41,14 @@ Probe——用已知的递增力输入去"试探"抽屉，并记录完整的力�
 [x] Phase 10C Sequential Oracle (5616 rows, 97.2 % valid) -- the authoritative ground truth
 [x] Phase 10D Reset vs sequential comparison: required force x0.80 median, ranking preserved
 [x] Phase 10E Formal dataset schema with leak-free grouped splits
+[x] Phase 11A Repository baseline re-validation
+[x] Phase 11B Counterfactual post-Probe branching: validated, two bugs found
+[x] Phase 11C Sobol xi sampling, label-independent force strata, normalised storage
+[x] Phase 11D/E Smoke + pilot datasets, nine-gate audit
+[x] Phase 11F Dataset v0: 512 xi x 3 probes x 32 candidates
+[x] Phase 11G DataLoader with dynamic padding, train-only normalisation
+[x] Phase 11H/I/J Baselines, privileged teacher, ACE + PSP
+[x] Phase 11K/L Offline comparison, ablation, closed-loop Isaac Sim deployment
 [ ]          Training-data generation
 [ ]          ACE
 [ ]          PSP
@@ -168,6 +176,30 @@ python scripts/compare_reset_vs_sequential.py                 # no Isaac Sim
 # Phase 10 figures A-G (no Isaac Sim)
 python scripts/plot_phase10.py
 
+# Phase 11B -- is one probe allowed to answer many candidate forces? (the gate)
+python scripts/validate_branching.py --headless --preset medium --drift-force 2.5 \
+    --branch-forces 2.5 --bias-force 2.5 --branch-repeats 2
+
+# Phase 11D -- a smoke dataset first; it must pass the audit before the full run
+python scripts/generate_dataset.py --headless --num-xi 8 --repeats 2 --candidates 6 \
+    --num_envs 8 --dataset-version smoke --output outputs/dataset_smoke
+python scripts/audit_dataset.py --dataset outputs/dataset_smoke        # no Isaac Sim
+
+# Phase 11F -- Dataset v0 (about 40 min)
+python scripts/generate_dataset.py --headless --num-xi 512 --repeats 3 --candidates 32 \
+    --num_envs 32 --dataset-version v0 --output outputs/dataset_v0
+python scripts/audit_dataset.py --dataset outputs/dataset_v0           # no Isaac Sim
+
+# Phase 11H-K -- baselines, teacher, student, ablation (no Isaac Sim)
+python scripts/train_models.py --dataset outputs/dataset_v0 --seeds 0 1 2 --ablation
+
+# Phase 11L -- closed-loop deployment on unseen hidden states
+python scripts/evaluate_closed_loop.py --headless --run outputs/training/run_XXXX \
+    --dataset outputs/dataset_v0
+
+# Phase 11 figures A-I (no Isaac Sim)
+python scripts/plot_phase11.py --dataset outputs/dataset_v0 --run outputs/training/run_XXXX
+
 # Plots (no Isaac Sim needed)
 python scripts/visualize_response.py --all --profile-invariance
 
@@ -250,6 +282,9 @@ except through its public packages. Isaac Lab itself is never edited.
 | [docs/ORACLE_LANDSCAPE.md](docs/ORACLE_LANDSCAPE.md) | the Oracle success landscape and how the task was chosen |
 | [docs/SEQUENTIAL_PROTOCOL.md](docs/SEQUENTIAL_PROTOCOL.md) | the protocol the paper runs: probe, gap, execution, no reset |
 | [docs/DATASET_SCHEMA.md](docs/DATASET_SCHEMA.md) | one training sample, and how to split without leaking |
+| [docs/COUNTERFACTUAL_BRANCHING.md](docs/COUNTERFACTUAL_BRANCHING.md) | whether one probe may answer many candidate forces, and the evidence |
+| [docs/DATASET_V0.md](docs/DATASET_V0.md) | what Dataset v0 contains, and its audit |
+| [docs/TRAINING_V0.md](docs/TRAINING_V0.md) | the first training round: baselines, teacher, ACE + PSP |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | design decisions that are settled, and why |
 | [docs/SESSION_LOG.md](docs/SESSION_LOG.md) | what each work session changed |
 | [docs/CHANGELOG.md](docs/CHANGELOG.md) | released state |
