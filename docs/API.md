@@ -439,3 +439,108 @@ the second.
 Every model estimate is leave-one-out, and the readouts are deliberately simple (linear,
 quadratic, `k`-NN): they establish what is achievable *without* a learned model, so a learned
 model's number has something to beat.
+
+---
+
+## Snapshot and restore
+
+`probe_drawer.protocols` — a **dataset-generation device**, not part of any deployment
+protocol. Evidence and limits: `docs/COUNTERFACTUAL_BRANCHING.md`.
+
+```python
+from probe_drawer.protocols import capture_snapshot, restore_snapshot
+
+snapshot = capture_snapshot(system, label="post-probe")
+for force in candidate_forces:
+    restore_snapshot(system, snapshot)
+    result = system.execution.run(peak_force=force, duration=T)
+```
+
+| Captured | Not captured |
+|---|---|
+| both articulations' root pose/velocity and joint position/velocity | PhysX contact manifolds and friction anchors |
+| the OSC's pose reference | per-joint static/dynamic friction regime |
+| the reader's four causal-derivative filter histories | solver iteration residuals |
+| `env.episode_length_buf` | articulation sleep state |
+
+`restore_snapshot` refreshes the derived buffers (`sim.forward()`, then each articulation and
+each sensor at `dt = 0`) because writing joint positions does not move the links and the TCP
+pose comes from a `FrameTransformer`. Without it the execution's pose reference came from the
+previous branch, 34 mm away.
+
+Joint *targets* are deliberately untouched: `InteractiveScene.reset_to` would overwrite the
+per-finger grip command.
+
+---
+
+## The dataset pipeline
+
+`probe_drawer.dataset` — samplers, normalised storage, grouped splits, audit. No Isaac Lab
+import. Reference: `docs/DATASET_SCHEMA.md`, `docs/DATASET_V0.md`.
+
+```python
+from probe_drawer.dataset import build_plan, DatasetWriter, DatasetStore, ProbeRecord
+from probe_drawer.dataset.audit import audit_dataset
+
+plan = build_plan(repeats=3, xi_cfg=XiSamplerCfg(num_states=512), force_cfg=ForceSamplerCfg(count=32))
+with DatasetWriter(root, manifest) as writer:
+    writer.add_hidden_state(xi_id(state), index, state, oracle_feasible=None)
+    writer.add_probe(ProbeRecord(...))     # before its candidates, or the writer refuses
+    writer.add_candidate({...})
+report = audit_dataset(DatasetStore(root), split)
+```
+
+| Symbol | Purpose |
+|---|---|
+| `sample_hidden_states`, `XiSamplerCfg` | Scrambled Sobol over `[m, µ_s, ratio, b]`; index-stable as the dataset grows. |
+| `candidate_forces`, `ForceSamplerCfg` | Label-independent stratified forces, jittered from `xi_id`. |
+| `branch_order` | Deterministic per-probe shuffle, so drift cannot align with force. |
+| `build_plan`, `SamplingPlan` | The whole plan, decided before the simulator starts. |
+| `DatasetWriter` | Streams to disk; refuses dangling references, duplicates, ragged or privileged histories; writes the manifest last. |
+| `DatasetStore` | Reads and joins the three levels into `TrainingSample`s that share one history object per probe. |
+| `audit_dataset` | Nine gates plus the distributions. Never modifies the dataset. |
+
+---
+
+## Training and models
+
+`probe_drawer.training`, `probe_drawer.models` — no simulator, no dataset paths.
+
+```python
+from probe_drawer.training import FeatureScaler, SampleDataset, TrainCfg, train_teacher, train_student
+
+scaler = FeatureScaler.fit(split.train, channels)          # training subset only
+teacher = train_teacher(train, val, TrainCfg(seed=0))
+student = train_student(train, val, TrainCfg(seed=0, distillation_weight=0.5),
+                        num_channels=len(channels), teacher=teacher.model)
+```
+
+| Symbol | Purpose |
+|---|---|
+| `FeatureScaler` | Per-channel standardisation. Fitting on anything but the training split leaks. |
+| `SampleDataset` | Applies the scaler; drops invalid rows and reports how many. |
+| `collate_samples` | Pads a batch to its own longest history; returns `lengths` **and** `mask`. |
+| `TeacherModel` | `E_priv + PSP`. The only module that accepts `xi`. |
+| `StudentModel` | `ACE + PSP`. No path to `xi` — asserted by corrupting `batch.xi`. |
+| `classification_metrics` | AUROC, AUPRC, BCE, Brier, ECE and the reliability curve. |
+| `selection_metrics` | Pick one force per probe; rates over all and over feasible probes. |
+| `FeatureRegression`, `MlpForceRegressor`, `GruForceRegressor`, `FixedForceBaseline` | Baselines A–D and the floor. |
+
+---
+
+## Force selection
+
+`probe_drawer.evaluation.select_forces` — a grid search over predicted success, run *outside*
+the controller. The execution controller still takes only `(peak_force, duration)` (D004).
+
+```python
+from probe_drawer.evaluation import SelectionCfg, select_forces, select_nearest
+
+selection = select_forces(score_fn, num_envs, SelectionCfg(force_range=(0.15, 4.5), step=0.05))
+selection.force            # (num_envs,) chosen forces
+selection.landscape        # (num_envs, grid) scores, kept for figures and future abstention
+selection.low_confidence   # flagged, not acted on
+```
+
+`select_nearest` snaps a directly regressed force onto the same grid, so a regressor and a
+landscape model are compared on the same executable forces.

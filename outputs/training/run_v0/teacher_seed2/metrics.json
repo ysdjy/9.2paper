@@ -1,0 +1,191 @@
+{
+  "best_epoch": 37,
+  "best_score": 0.9497206703910615,
+  "monitor": "selected_success_rate_feasible_only",
+  "label_distribution": {
+    "rows": 34193,
+    "positives": 2242,
+    "negatives": 31951,
+    "positive_fraction": 0.06556897610622058,
+    "pos_weight": 14.251115075825156,
+    "resampled": false
+  },
+  "val": {
+    "split": "val",
+    "seed": 2,
+    "rows": 6145,
+    "positive_fraction": 0.0662327095199349,
+    "auroc": 0.9902713322023186,
+    "auprc": 0.8712898593882766,
+    "bce": 0.1319517868455984,
+    "brier": 0.0423583803678684,
+    "ece": 0.055446023138415824,
+    "curve": [
+      {
+        "low": 0.0,
+        "high": 0.1,
+        "count": 5120,
+        "confidence": 0.002627703052118956,
+        "accuracy": 0.0001953125
+      },
+      {
+        "low": 0.1,
+        "high": 0.2,
+        "count": 96,
+        "confidence": 0.1481623501996753,
+        "accuracy": 0.0
+      },
+      {
+        "low": 0.2,
+        "high": 0.30000000000000004,
+        "count": 55,
+        "confidence": 0.24554713239224607,
+        "accuracy": 0.0
+      },
+      {
+        "low": 0.30000000000000004,
+        "high": 0.4,
+        "count": 68,
+        "confidence": 0.34387687903891256,
+        "accuracy": 0.014705882352941176
+      },
+      {
+        "low": 0.4,
+        "high": 0.5,
+        "count": 50,
+        "confidence": 0.44671218140380586,
+        "accuracy": 0.04
+      },
+      {
+        "low": 0.5,
+        "high": 0.6000000000000001,
+        "count": 49,
+        "confidence": 0.5553395778105532,
+        "accuracy": 0.04081632653061224
+      },
+      {
+        "low": 0.6000000000000001,
+        "high": 0.7000000000000001,
+        "count": 59,
+        "confidence": 0.6538753803930836,
+        "accuracy": 0.11864406779661017
+      },
+      {
+        "low": 0.7000000000000001,
+        "high": 0.8,
+        "count": 75,
+        "confidence": 0.7552635676726,
+        "accuracy": 0.22666666666666666
+      },
+      {
+        "low": 0.8,
+        "high": 0.9,
+        "count": 126,
+        "confidence": 0.8533424673935058,
+        "accuracy": 0.31746031746031744
+      },
+      {
+        "low": 0.9,
+        "high": 1.0,
+        "count": 447,
+        "confidence": 0.9638878134008986,
+        "accuracy": 0.7539149888143176
+      }
+    ],
+    "probes": 193,
+    "feasible_probes": 179,
+    "selected_success_rate": 0.8808290155440415,
+    "selected_success_rate_feasible_only": 0.9497206703910615,
+    "force_mae": 0.06176722797927462,
+    "force_median_error": 0.0
+  },
+  "test": {
+    "split": "test",
+    "seed": 2,
+    "rows": 8380,
+    "positive_fraction": 0.06730310262529833,
+    "auroc": 0.9896704432442635,
+    "auprc": 0.8585268367775998,
+    "bce": 0.1302599873425774,
+    "brier": 0.041397116342235335,
+    "ece": 0.052635746659900874,
+    "curve": [
+      {
+        "low": 0.0,
+        "high": 0.1,
+        "count": 7029,
+        "confidence": 0.0023167901274864793,
+        "accuracy": 0.0
+      },
+      {
+        "low": 0.1,
+        "high": 0.2,
+        "count": 115,
+        "confidence": 0.14209214174688115,
+        "accuracy": 0.0
+      },
+      {
+        "low": 0.2,
+        "high": 0.30000000000000004,
+        "count": 74,
+        "confidence": 0.2487274418027938,
+        "accuracy": 0.013513513513513514
+      },
+      {
+        "low": 0.30000000000000004,
+        "high": 0.4,
+        "count": 66,
+        "confidence": 0.346183680235691,
+        "accuracy": 0.0
+      },
+      {
+        "low": 0.4,
+        "high": 0.5,
+        "count": 72,
+        "confidence": 0.45033560191425576,
+        "accuracy": 0.05555555555555555
+      },
+      {
+        "low": 0.5,
+        "high": 0.6000000000000001,
+        "count": 65,
+        "confidence": 0.5534225431992811,
+        "accuracy": 0.15384615384615385
+      },
+      {
+        "low": 0.6000000000000001,
+        "high": 0.7000000000000001,
+        "count": 75,
+        "confidence": 0.6502933229179041,
+        "accuracy": 0.14666666666666667
+      },
+      {
+        "low": 0.7000000000000001,
+        "high": 0.8,
+        "count": 101,
+        "confidence": 0.7530633950059756,
+        "accuracy": 0.22772277227722773
+      },
+      {
+        "low": 0.8,
+        "high": 0.9,
+        "count": 169,
+        "confidence": 0.8525851099090599,
+        "accuracy": 0.3254437869822485
+      },
+      {
+        "low": 0.9,
+        "high": 1.0,
+        "count": 614,
+        "confidence": 0.9672530537119804,
+        "accuracy": 0.749185667752443
+      }
+    ],
+    "probes": 263,
+    "feasible_probes": 251,
+    "selected_success_rate": 0.8593155893536122,
+    "selected_success_rate_feasible_only": 0.900398406374502,
+    "force_mae": 0.07468150570342205,
+    "force_median_error": 0.0
+  }
+}

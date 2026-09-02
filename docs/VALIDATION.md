@@ -670,3 +670,121 @@ said 0.972.
 The **selection was not affected** (candidates are scored per dataset, and the merged file won
 on coverage), but figure D was wrong and contradicted the selection, which is how it was
 caught. Fixed with an exact-match regex; re-running left the selection identical.
+
+---
+
+## Phase 11 — dataset generation, training, deployment
+
+All numbers are observed values from the runs named. Reports:
+`outputs/logs/branching_*.json`, `outputs/dataset_v0/audit.json`,
+`outputs/training/run_v0/{comparison.json,closed_loop_seed0.json}`.
+
+### P11 Test 1 — snapshot restore fidelity
+
+`scripts/validate_branching.py --headless`, presets `medium` and `hard`. After a full 4 N
+execution had moved the drawer 34–36 mm, restoring left, on every readable quantity:
+
+| quantity | error |
+|---|---|
+| `drawer_position`, `drawer_velocity` | **0.0** |
+| `arm_joint_position`, `arm_joint_velocity` | **0.0** |
+| `finger_joint_position` | **0.0** |
+| `tcp_pose` (derived, forward kinematics) | 0.0 – 2.4 × 10⁻⁷ |
+| `tcp_pull_axis_velocity` (derived) | 0.0 – 2.4 × 10⁻⁶ |
+
+Identical in float32 for everything the snapshot writes; one float32 ULP for what is computed
+from it. **Pass.**
+
+### P11 Test 2 — branch drift over a full candidate sweep
+
+24 branches from one snapshot against 24 fresh full episodes at the same force:
+
+| preset | F (N) | branch spread | fresh spread | ratio | drift over the sweep |
+|---|---|---|---|---|---|
+| medium | 1.0 | **23 µm** | 398–681 µm | 0.03 | +2 µm |
+| medium | 2.5 | 2 892 µm | 2 070 µm | 1.40 | **−1 312 µm** (−57 µm/branch) |
+| hard | 3.5 | 2 739 µm | 7 997 µm | 0.34 | −369 µm (−16 µm/branch) |
+
+Branching is between comparable and 30× more reproducible than re-probing. The systematic
+drift is real and is why the branch order is shuffled. **Pass** on both presets, all six
+checks.
+
+### P11 Test 3 — two bugs the validation caught
+
+Before the fix, a restore left the TCP pose stale by **34.45 mm** (the execution reads its
+pose reference from it), giving 22 134 µm of branch spread at 4 N and 14 511 µm of order
+dependence. After: 1 901 µm and 811 µm. And 24 branches of 1.5 s exceed the 30 s episode
+(38.5 s), so the environment would have auto-reset partway through every sweep. Both fixed and
+regression-tested.
+
+### P11 Test 4 — candidate budget, measured before committing
+
+32-hidden-state pilots:
+
+| | 24 candidates | 32 candidates |
+|---|---|---|
+| probes with ≥1 positive | 85.4 % | **93.8 %** |
+| probes with ≥2 | 54.2 % | **72.9 %** |
+| hidden states with no positive | 2/32 | **0/32** |
+
+The two failures at 24 were grid-resolution misses, not infeasibility: one reached 40.1 mm at
+2.61 N and failed only on `|v(T)| = 0.032` against 0.03, with its neighbour at 2.42 N giving
+31.7 mm at a compliant 0.023 m/s. Raised to 32 (D038).
+
+### P11 Test 5 — Dataset v0 audit
+
+`scripts/audit_dataset.py --dataset outputs/dataset_v0`. **Nine gates, all passed.**
+
+49 152 rows / 1 536 probes / 512 hidden states; 6.54 % positive; 0.88 % invalid; histories
+6–56 steps over 41 distinct lengths; `µ_d ≤ µ_s` for all 512. Splits 359/65/88 hidden states
+with positive rates 6.51 / 6.52 / 6.68 %. Force against branch position: mean correlation
+**−0.0005 = 0.11 σ** over 1 536 probes.
+
+Per hidden state, **5 of 512 (0.98 %)** have no positive in any of three repeats; 447 (87.3 %)
+have one in all three.
+
+### P11 Test 6 — padding does not change the encoder
+
+`tests/unit/test_training_dataloader.py`. A padded batch's encoder output equals the
+one-sequence-at-a-time output to `atol = 1e-6`, in any batch order, and adding a longer
+sequence to the batch does not perturb the shorter ones. **Pass.**
+
+### P11 Test 7 — the student cannot see `xi`
+
+Corrupting `batch.xi` with `randn * 100` leaves the student's output **bit-identical** and
+changes the teacher's. Structural, not conventional. **Pass.**
+
+### P11 Test 8 — the teacher gate
+
+Privileged `E_priv + PSP`, test split: AUROC **0.9934 / 0.9940** across seeds, AUPRC
+0.914 / 0.926, selecting a succeeding force for **92.0 % / 90.8 %** of feasible probes, force
+MAE 0.064 / 0.067 N. The success landscape is learnable from `xi`. **Pass** — training the
+student was licensed.
+
+### P11 Test 9 — closed-loop deployment on unseen drawers
+
+64 test hidden states, none seen in any split. All methods share one probe via the snapshot.
+
+| method | physical success | median `|d−goal|` | forces chosen |
+|---|---|---|---|
+| teacher (privileged) | **89.1 %** | 1.85 mm | 0.50–3.35 N, sd 0.71 |
+| ACE + PSP | **87.5 %** | 2.25 mm | 0.45–3.30 N, sd 0.70 |
+| D GRU (history → force) | 81.2 % | 1.72 mm | 0.45–3.40 N, sd 0.74 |
+| A linear (one feature) | 18.8 % | 14.28 mm | 0.95–2.60 N, sd 0.45 |
+| fixed force (1.31 N) | 14.1 % | 24.09 mm | — |
+
+No invalid episodes. ACE + PSP chose 41 distinct forces across 64 drawers.
+
+### P11 Test 10 — test suite
+
+`python -m pytest tests/unit -q` → **383 passed** (~5 s).
+`python -m pytest tests/integration -q` → **84 passed** (297 s, launches Isaac Sim).
+
+### An error I made and corrected
+
+Reading the two zero-positive pilot hidden states, I first concluded they were physically
+infeasible — their displacement jumped from 6.6 mm to 140 mm between adjacent candidates.
+Looking at the force-sorted rows instead of the summary showed one of them reaching 40.1 mm
+inside the position tolerance and failing only on terminal velocity by 0.002 m/s. The claim
+was wrong and the correction is recorded as D038: "no positive was observed" is not "no force
+exists", and only a dense sweep can establish the latter.

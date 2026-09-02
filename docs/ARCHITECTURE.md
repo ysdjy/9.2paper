@@ -205,3 +205,84 @@ evaluation/task_evaluator.py  --->  analysis/sweep.py  --->  analysis/oracle.py
                                             v
                                     dataset/{schema,splits}.py   (no simulator)
 ```
+
+---
+
+## Phase 11 additions
+
+Three packages, and one addition to `protocols/` that breaks its own rule on purpose.
+
+### `dataset/` gains sampling, storage and audit
+
+```
+sampling.py  --> what to record, and what the samplers may not see
+storage.py   --> the normalised on-disk layout
+audit.py     --> nine gates plus the distributions
+schema.py    --> one sample, three nested identifiers
+splits.py    --> grouped splitting, and the check that it holds
+```
+
+Still no Isaac Lab import anywhere in the package, so the whole data side runs on a machine
+with no simulator.
+
+| Must | Must never |
+|---|---|
+| decide the plan before the simulator starts | read an outcome while sampling |
+| refuse a dangling reference at write time | modify a dataset while auditing it |
+| survive the breakage the audit detects | drop invalid rows (the training script's visible call) |
+
+### `models/` and `training/`
+
+```
+models/psp.py         --> PrivilegedEncoder, AdaptationContextEncoder, SuccessPredictor
+models/baselines.py   --> baselines A-D and the fixed-force floor
+training/dataloader.py --> dynamic padding, train-only normalisation
+training/metrics.py   --> classification and selection metrics
+training/trainer.py   --> teacher phase, student phase, checkpoints
+```
+
+The privileged/deployable boundary is **structural**, not conventional: `StudentModel` has no
+parameter that could carry `xi`, and the test suite corrupts `batch.xi` and asserts the
+student's output is bit-identical while the teacher's is not.
+
+| Must | Must never |
+|---|---|
+| fit any statistic on the training split alone | start a simulator |
+| use `lengths`/`mask` so padding is never consumed | pad or resample a history on disk |
+| record the label distribution it trained on | resample the evaluation set |
+
+### `evaluation/force_selection.py`
+
+The search that turns a predicted landscape into one force. It lives here rather than in a
+controller because the execution controller must never learn what a goal is (D004); a deployed
+system runs the search between the probe and the pull, and so does this.
+
+### `protocols/simulation_snapshot.py` — the deliberate exception
+
+`protocols/` otherwise only sequences things. This module reaches into the simulator to freeze
+and restore an instant, which is a real violation of that boundary and is why it carries the
+longest docstring in the package. It exists because 32 counterfactual labels per probe cannot
+be produced any other way, it is used **only** by dataset generation, and
+`docs/COUNTERFACTUAL_BRANCHING.md` records exactly what it does and does not capture.
+
+### The whole Phase 11 flow
+
+```
+scripts/generate_dataset.py
+   |  protocols/{sequential_pull_protocol, simulation_snapshot}
+   |  controllers/{probe,execution}_pull_controller
+   v
+outputs/dataset_v0/            <-- dataset/storage.py   (no simulator beyond this line)
+   |
+   +--> scripts/audit_dataset.py      --> dataset/audit.py + dataset/splits.py
+   |
+   +--> scripts/train_models.py       --> training/* + models/*
+   |          |
+   |          v
+   |    outputs/training/run_v0/
+   |          |
+   +----------+--> scripts/evaluate_closed_loop.py   <-- back into Isaac Sim, once
+                       |  evaluation/force_selection.py
+                       v
+                  closed_loop.json --> scripts/plot_phase11.py
+```
