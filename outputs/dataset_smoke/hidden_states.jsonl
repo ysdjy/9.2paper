@@ -1,8 +1,0 @@
-{"xi_id": "2e824b8f4ee0", "index": 0, "xi": {"mass": 5.0433430671691895, "static_friction": 1.511747494339943, "dynamic_friction": 1.497766979082759, "damping": 2.7616655826568604}, "oracle_feasible": null}
-{"xi_id": "1330578213b3", "index": 1, "xi": {"mass": 11.273625373840332, "static_friction": 2.6679960191249847, "dynamic_friction": 1.5856095753432766, "damping": 7.559286117553711}, "oracle_feasible": null}
-{"xi_id": "3816783c26aa", "index": 2, "xi": {"mass": 9.307068824768066, "static_friction": 0.8230235725641251, "dynamic_friction": 0.5609810238212772, "damping": 4.65971565246582}, "oracle_feasible": null}
-{"xi_id": "8461b506ceeb", "index": 3, "xi": {"mass": 7.013805866241455, "static_friction": 1.9896085858345032, "dynamic_friction": 0.7529658178328129, "damping": 9.895305633544922}, "oracle_feasible": null}
-{"xi_id": "2a90a2c750a4", "index": 4, "xi": {"mass": 6.033122539520264, "static_friction": 0.6557511370629072, "dynamic_friction": 0.34729954110214023, "damping": 8.236668109893799}, "oracle_feasible": null}
-{"xi_id": "53b032b4ca5b", "index": 5, "xi": {"mass": 8.271217346191406, "static_friction": 2.281311184167862, "dynamic_friction": 1.9118597633505574, "damping": 5.442499876022339}, "oracle_feasible": null}
-{"xi_id": "50b24374f7c5", "index": 6, "xi": {"mass": 10.30466079711914, "static_friction": 1.2175983488559723, "dynamic_friction": 0.48816072650714554, "damping": 6.33804178237915}, "oracle_feasible": null}
-{"xi_id": "427972f1d064", "index": 7, "xi": {"mass": 4.003585398197174, "static_friction": 2.852352738380432, "dynamic_friction": 2.2583576306351176, "damping": 3.1068121194839478}, "oracle_feasible": null}

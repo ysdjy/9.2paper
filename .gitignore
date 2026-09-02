@@ -32,3 +32,13 @@ backups/**
 
 # Official third-party code, cloned not vendored (see docs/rma2_reproduction_report.md)
 third_party/
+
+# Datasets and checkpoints are regenerable from the code plus the manifest, and too large
+# for git. The small artefacts that say what a run *was* stay tracked, so a result can always
+# be traced back to a dataset version, a split and a commit without the bulk.
+outputs/dataset_*/*
+!outputs/dataset_*/manifest.json
+!outputs/dataset_*/audit.json
+!outputs/dataset_*/splits.json
+outputs/training/*/*/best.pt
+outputs/training/*/*/predictions.npz
