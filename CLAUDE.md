@@ -68,9 +68,13 @@ subclass suffices, make the smallest possible addition on our side, and record i
 |---|---|---|
 | `envs/` | scene configuration, reset state, dynamics randomisation | control the robot |
 | `controllers/` | force profiles, hybrid OSC, Probe and Execution | modify the environment or randomise anything |
-| `sensors/` | read-only accessors | write to the simulation, or decide anything |
+| `sensors/` | read-only accessors, pull axis, causal differentiation | write to the simulation, or decide anything |
+| `evaluation/` | validity and success labelling | touch the simulation or the controllers |
+| `analysis/` | offline audits, sweeps, the Oracle, probe features | be imported by anything that runs control |
 | `logging/` | writing episodes to disk | be imported by `controllers/` or `envs/` |
 | `state_machines/` | approach-and-grasp | be used during a probe or an execution |
+| `observations.py` | the channel registry | import Isaac Lab |
+| `experiment_plan.py` | the selected parameters | be read by a controller |
 | `pull_system.py` | wiring the above together | contain physics or control logic |
 
 No circular imports. `envs`, `controllers` and `logging` must not import each other
@@ -86,6 +90,16 @@ except through `sensors` and `controllers.types`.
   signal, name its physical source in the docstring.
 * **No magic numbers in scripts or controllers.** Every tunable lives in a dataclass under
   `envs/`, `controllers/` or `sensors/`, and is mirrored into `configs/` (see D011).
+* **`xi` is exactly four dimensional** (D015) and **`mu_d <= mu_s`** is a PhysX requirement,
+  not a preference (D016). Read dynamics back from `root_physx_view`, never from
+  `Articulation.data`, which mirrors the request.
+* **Never feed a `SIM_ONLY_PRIVILEGED` channel to a model.** Call
+  `observations.validate_model_input()` wherever an observation vector is assembled (D017).
+* **Every derivative must be causal** and must record its filter (D025). A non-causal filter
+  cannot run on a robot.
+* **Experimental parameters come from a sweep, not from judgement.** If you change one,
+  change the scored rule in `analysis/oracle.py` and re-derive it, then update
+  `experiment_plan.py` and `docs/EXPERIMENT_SPACE.md` together (D024).
 * **No debug `print` in `src/`.** Scripts print reports; library code does not.
 * **Type-hint and docstring every public class and method.**
 * Modules under `controllers/`, `sensors/`, `envs/initialization.py`,
@@ -131,3 +145,10 @@ These cost real debugging time; do not rediscover them.
   environment and starts/stops the recorder explicitly.
 * This machine has ROS 2 Humble on `PYTHONPATH`; its pytest plugins break under Python
   3.11. `pyproject.toml` disables them via `addopts`.
+* **One simulation context per process.** `PullSystem.build` cannot be called twice; a script
+  that needs two configurations must reuse one system or run twice.
+* `Articulation.data.joint_friction_coeff` and friends report what you *asked for*. After a
+  write PhysX rejected, they disagree with the simulator. Always read back from
+  `root_physx_view` (D016).
+* The environment holds the last action it was given. After an episode ends, command zero
+  explicitly, outside the recorded window (D022).

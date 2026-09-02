@@ -139,9 +139,48 @@ class TestEvaluationSnapshot:
         assert region.max_peak_velocity < limits.max_drawer_velocity
 
 
+class TestExperimentPlanSnapshot:
+    """The selected experiment parameters, mirrored for review."""
+
+    def test_every_section_matches_the_plan(self) -> None:
+        from probe_drawer.experiment_plan import (  # noqa: PLC0415
+            MAIN_TASK,
+            OOD_XI_RANGES,
+            RECOMMENDED_EXECUTION_CFG,
+            RECOMMENDED_PROBE_CFG,
+            RECOMMENDED_PROBE_TASK,
+            TRAINING_XI_RANGES,
+        )
+
+        snapshot = _snapshot("experiment_plan.yaml")
+        for section, expected in (
+            ("main_task", MAIN_TASK.as_dict()),
+            ("probe_task", RECOMMENDED_PROBE_TASK.as_dict()),
+            ("probe_controller", RECOMMENDED_PROBE_CFG.as_dict()),
+            ("execution_controller", RECOMMENDED_EXECUTION_CFG.as_dict()),
+            ("training_xi", TRAINING_XI_RANGES.as_dict()),
+            ("ood_xi", OOD_XI_RANGES.as_dict()),
+        ):
+            _assert_section(snapshot, section, expected, "experiment_plan.yaml")
+
+    def test_provenance_is_recorded(self) -> None:
+        """A selected parameter with no cited sweep is a guess by another name."""
+        provenance = _snapshot("experiment_plan.yaml")["_provenance"]
+        for key in ("main_task", "probe", "xi_ranges"):
+            assert "scripts/" in provenance[key]
+
+
 class TestEverySnapshotNamesItsSource:
     @pytest.mark.parametrize(
-        "name", ["controller.yaml", "probe.yaml", "execution.yaml", "dynamics.yaml", "evaluation.yaml"]
+        "name",
+        [
+            "controller.yaml",
+            "probe.yaml",
+            "execution.yaml",
+            "dynamics.yaml",
+            "evaluation.yaml",
+            "experiment_plan.yaml",
+        ],
     )
     def test_source_is_declared_and_importable(self, name: str) -> None:
         import importlib  # noqa: PLC0415
@@ -161,6 +200,7 @@ class TestEverySnapshotNamesItsSource:
             "execution.yaml",
             "dynamics.yaml",
             "evaluation.yaml",
+            "experiment_plan.yaml",
             "grasp_pose.yaml",
         }
         found = {path.name for path in (project_root() / "configs").glob("*.yaml")}

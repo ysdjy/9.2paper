@@ -4,6 +4,90 @@ One entry per work session. Newest first.
 
 ---
 
+## 2026-09-02 — `agent/phase9-oracle-audit` — Phase 9A through 9M
+
+**Agent / task.** Claude Opus 5 — fix the hidden state at four dimensions, expand and
+classify the observations, audit the force channels, correct the execution's post-`T`
+behaviour, then sweep the experiment space and select every experimental parameter from the
+data rather than by hand. No learning components; this phase establishes the physics.
+
+**Modified.**
+
+* `envs/dynamics_randomization.py` rewritten: `xi` is now
+  `[m, mu_s, mu_d, b]`; readback comes from `root_physx_view`, not Isaac Lab's mirror.
+* `sensors/`: new `causal_derivative.py`; `drawer_state.py` gained acceleration channels,
+  TCP pull-axis velocity/acceleration, orientation, and the two privileged drawer force
+  channels.
+* `controllers/`: `PullHistory` 16 -> 25 channels with a generic recorder; `ExecutionResult`
+  gained `peak_velocity`; the execution controller now snapshots at `T` and releases the
+  pull force afterwards.
+* New: `observations.py`, `experiment_plan.py`, `evaluation/` (2 modules), `analysis/`
+  (5 modules).
+* New scripts: `audit_hidden_states.py`, `audit_force_channels.py`,
+  `sweep_execution_space.py`, `build_oracle_landscape.py`, `calibrate_probe.py`,
+  `plot_experiment_space.py`, `plot_probe_identifiability.py`.
+* New docs: `HIDDEN_STATE_AUDIT.md`, `FORCE_CHANNEL_AUDIT.md`, `EXPERIMENT_SPACE.md`,
+  `ORACLE_LANDSCAPE.md`. Existing docs updated; 11 new decisions (D015-D025).
+* New configs: `evaluation.yaml`, `experiment_plan.yaml`, both drift-tested.
+* Isaac Lab's own source tree: **unmodified**.
+
+**API introduced.**
+
+```python
+DynamicsParameters(drawer_mass, joint_static_friction, joint_dynamic_friction, joint_damping)
+assess_validity(result, OperatingRegionCfg()) -> ValidityReport
+evaluate_execution(result, SuccessCriteria(...)) -> EvaluationReport
+observations.validate_model_input(channels)
+experiment_plan.MAIN_TASK / RECOMMENDED_PROBE_TASK / TRAINING_XI_RANGES / OOD_XI_RANGES
+```
+
+`ProbePullController.run` and `ExecutionPullController.run` are unchanged, and `d_goal` still
+does not appear anywhere near the execution controller.
+
+**Verification.** 248 tests pass (196 unit, 52 integration), up from 124. 23 175 simulated
+episodes across six sweeps. Full table in `docs/VALIDATION.md`.
+
+**Headline results.**
+
+* At the selected task the required peak force spans **1.00-4.50 N across the hidden-state
+  grid — a 4.5x range — with success bands 0.50 N wide**, and 106 of 108 hidden states are
+  achievable. One force cannot serve every drawer.
+* A single standardised probe's best feature correlates with the required force at
+  **|rho| = 0.969**, using deployable channels only.
+* Selected: `T = 1.5 s`, `d_goal = 50 mm`, `eps_d = 15 mm`, `eps_v = 0.08 m/s`, execution
+  ramp-down 20 %, probe 1.0 -> 6.0 N over 1.0 s stopping at 3 mm.
+
+**Simulator findings that changed the design.**
+
+1. **PhysX requires `mu_s >= mu_d` and silently discards violating writes**, while Isaac
+   Lab's `data` buffers report the request. The previous readback check could have passed on
+   a write that never landed (D016).
+2. **`get_dof_projected_joint_forces` is the drawer's internal resistance**,
+   `-(mu_d*sign(v) + b*v)`, verified to 0.0099 N. The joint reaction wrench is structurally
+   zero along a prismatic joint's own axis, so it cannot give the drawer-axis force.
+3. **The Phase 8 17-23 N wrist force is the mechanical end stop**: a deliberate episode
+   reached 59.2 N, 9.87x the command, at 84.4 % of travel.
+4. **A 10 % force ramp-down cannot bring the drawer to rest.** With the terminal-velocity
+   requirement, the reachable-at-rest distance at `T = 1.5 s` was 49 mm at `fall = 0.10`
+   against 65 mm at 0.20 (D023).
+5. **The Phase 8 held-axis drift was the operating point, not the controller.** Drift stays
+   under 1 mm across the whole force range at moderate displacement and speed.
+
+**Commit.** See `git log` on `agent/phase9-oracle-audit`; SHA recorded below after push.
+
+**Remaining issues.** See "Outstanding" in `docs/VALIDATION.md`. The one that matters most
+for the next phase: **the calibrated probe does not identify damping** — sweeping `b` from 2
+to 11 N s/m leaves the probe response unchanged, because the probe stops before the drawer
+reaches speeds where viscous drag matters. The required force also depends weakly on `b`, so
+the task stays predictable, but any claim that one probe identifies all four dimensions
+would be false.
+
+**Next.** Dataset generation at the selected operating point: sample `xi` from
+`TRAINING_XI_RANGES`, run the calibrated probe, then the execution at a grid of `F_peak`, and
+store paired `(probe history, F_peak, d(T), v(T), success, xi)`. The APIs need no change.
+
+---
+
 ## 2026-09-02 — `agent/phase0-8-bootstrap` — Phases 0 through 8
 
 **Agent / task.** Claude Opus 5 — bootstrap the project, validate the official Isaac Lab

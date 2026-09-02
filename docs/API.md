@@ -162,9 +162,18 @@ The only permitted early stop is an absolute safety violation, and it is impleme
 | Field | Default | Meaning |
 |---|---|---|
 | `rise_fraction` | `0.1` | fraction of the duration spent rising |
-| `fall_fraction` | `0.1` | fraction of the duration spent falling |
+| `fall_fraction` | `0.1` | fraction of the duration spent falling. **The paper uses 0.20**; see `probe_drawer.experiment_plan.RECOMMENDED_EXECUTION_CFG` and `docs/DECISIONS.md` D023 |
 | `shape` | `"smoothstep"` | interpolation of rise and fall |
 | `settle_steps` | `30` | zero-force pose-hold steps before the profile starts |
+| `zero_force_cleanup_steps` | `2` | zero-force steps sent **after** `T`, excluded from the result |
+| `post_execution_settle_steps` | `0` | further steps, also outside `T` |
+
+### What happens after `T`
+
+The result is snapshotted at `t = T`. Zero pull force is then commanded for the cleanup
+steps, which appear nowhere in the history, the duration, `d(T)`, `v(T)` or the success
+evaluation — they exist only so no residual command is left standing (`docs/DECISIONS.md`
+D022).
 
 ### `ExecutionResult`
 
@@ -199,21 +208,33 @@ print(result.summary(0))
 `time` has shape `(T,)`; scalar per-environment signals `(T, num_envs)`; Cartesian
 signals `(T, num_envs, 3)`; joint signals `(T, num_envs, 7)`.
 
-| Signal | Provenance |
-|---|---|
-| `active` | whether that environment was still being driven at that step |
-| `commanded_force` | what the controller asked for (N) |
-| `measured_force` | pull-axis component of the **wrist joint reaction wrench** (N) |
-| `drawer_position` | drawer opening **relative to the start of the pull** (m) |
-| `drawer_velocity` | moving average of the position finite difference (m/s) |
-| `drawer_velocity_raw` | PhysX's own `joint_vel`, logged for transparency only |
-| `tcp_position`, `tcp_linear_velocity`, `tcp_angular_velocity` | TCP state, world frame |
-| `tcp_pull_axis_position` | TCP travel along the pull axis since the reference (m) |
-| `tcp_lateral_error` | TCP drift orthogonal to the pull axis (m) |
-| `tcp_orientation_error` | TCP orientation drift from the reference (rad) |
-| `handle_contact_force_w` | net contact force on the handle body (N), a grip-load witness |
-| `joint_position`, `joint_velocity` | arm joint state |
-| `joint_applied_effort` | effort PhysX was *asked* to apply — a command, not a measurement |
+25 channels. Rather than repeat them here, every one carries its unit, source, filtering and
+deployability in `probe_drawer.observations.OBSERVATION_SPECS`, which is the authoritative
+list and is asserted to match `PullHistory` field for field. The classes are:
+
+| Class | Meaning | Channels |
+|---|---|---|
+| `DEPLOYABLE` | a real Franka pulling a real drawer could produce it | commanded force, drawer position / velocity / acceleration, TCP pose, velocity, pull-axis projections and accelerations, held-axis errors, arm joint state |
+| `DIAGNOSTIC` | obtainable on hardware, not needed by the first model | `measured_force` (wrist wrench), `handle_contact_force_w`, `drawer_velocity_raw` |
+| `SIM_ONLY_PRIVILEGED` | **never** a deployed-model input | `drawer_resistance_force`, `drawer_external_force` |
+
+Distinctions worth repeating:
+
+* `commanded_force` vs `measured_force` — what was asked for, versus what the wrist sensor
+  reports. Never conflated (D006).
+* `drawer_velocity` vs `drawer_velocity_raw` — the causally filtered finite difference every
+  decision uses, versus PhysX's own aliased reading, kept for audit (D009).
+* every derivative is **causal** and its filter window and lag are recorded with the episode
+  (D025). A non-causal filter cannot run on a robot.
+* `drawer_position` is displacement **relative to the start of the pull**, not the absolute
+  joint coordinate.
+
+```python
+from probe_drawer.observations import DEFAULT_ACE_INPUT, validate_model_input
+
+validate_model_input(DEFAULT_ACE_INPUT)          # passes
+validate_model_input(["drawer_external_force"])  # raises: privileged channel
+```
 
 A controller keeps stepping until every environment has stopped and zeroes the command of
 those that already have, so mask a single environment with
@@ -234,14 +255,54 @@ applied = randomizer.apply(env, preset("hard"))  # one preset broadcast to every
 randomizer.get_current_params()                  # the privileged state xi, for logging
 ```
 
-`DynamicsParameters` is `xi`: `drawer_mass` (kg, the `drawer_top` body),
-`joint_friction` (Coulomb coefficient of `drawer_top_joint`, written to both the static and
-the dynamic channel), `joint_damping` (N s/m, the joint drive), and `joint_stiffness`
-(N/m, held at 0 — see D008).
+`DynamicsParameters` is `xi`, and it is exactly four dimensional (D015):
 
-`AppliedDynamics.consistent` is `True` only if every requested value read back out of PhysX.
-Presets: `nominal`, `easy`, `medium`, `hard` — values and their calibration in
-`docs/VALIDATION.md`.
+| Field | Unit | Simulator quantity |
+|---|---|---|
+| `drawer_mass` | kg | mass of the `drawer_top` body, with inertia scaled to match |
+| `joint_static_friction` | N | static Coulomb effort of `drawer_top_joint` |
+| `joint_dynamic_friction` | N | dynamic Coulomb effort of the same joint |
+| `joint_damping` | N s/m | viscous damping of the joint drive |
+
+**PhysX requires `mu_d <= mu_s`** and silently discards writes that violate it, so
+`DynamicsParameters` refuses such a combination and `sample()` draws `mu_d` as a fraction of
+`mu_s` (D016). `AppliedDynamics.consistent` compares against the **simulator's own**
+readback, and `mirror_agrees` reports whether Isaac Lab's buffers agree with it.
+
+Presets: `nominal`, `easy`, `medium`, `hard`, `sticky`, `slippery`. All provisional; the
+paper's ranges are in `probe_drawer.experiment_plan`.
+
+---
+
+## Evaluation
+
+```python
+from probe_drawer.evaluation import OperatingRegionCfg, SuccessCriteria, assess_validity, evaluate_execution
+
+validity = assess_validity(result, OperatingRegionCfg())          # is this usable evidence?
+report = evaluate_execution(result, criteria)                     # did it succeed?
+report.success            # (num_envs,) bool
+report.verdicts[0].invalid_reasons
+```
+
+`success = |d(T) - d_goal| <= eps_d AND |v(T)| <= eps_v AND valid` (D020). Validity subsumes
+safety: a safety-aborted episode is never valid. Neither function can reach the controllers
+or the environment, which is what keeps `d_goal` out of the control loop (D004).
+
+---
+
+## Experiment plan
+
+```python
+from probe_drawer.experiment_plan import MAIN_TASK, RECOMMENDED_PROBE_TASK, TRAINING_XI_RANGES
+
+MAIN_TASK.criteria                       # SuccessCriteria for the paper's task
+RECOMMENDED_PROBE_TASK.as_kwargs()       # splat straight into ProbePullController.run
+TRAINING_XI_RANGES.as_randomizer_cfg()   # DynamicsRandomizerCfg for sampling xi
+```
+
+Every value is the output of a sweep, with its provenance recorded. Nothing here is loaded
+by the controllers: this is the *experiment* definition, which is a separate thing.
 
 ---
 

@@ -36,9 +36,20 @@
                  |                                     |
                  +------------------+------------------+
                                     |
-                            EpisodeLogger
-                   metadata.json + trajectory.npz
+                 +------------------+------------------+
+                 |                                     |
+          EpisodeLogger                    evaluation/  (offline, no control)
+   metadata.json + trajectory.npz          assess_validity -> is this usable?
+                                           evaluate_execution -> did it succeed?
+                                                     |
+                                            analysis/  (offline, pure)
+                                    sweeps, Oracle landscape, probe features,
+                                    force-channel and hidden-state audits
 ```
+
+Note the direction of the arrows into `evaluation/` and `analysis/`. Nothing flows back:
+neither package can reach the controllers or the environment, which is what keeps the goal
+displacement out of the control loop.
 
 Randomisation is a separate path that only ever writes to the environment:
 
@@ -82,7 +93,17 @@ they differ in *force profile* and *stop conditions*, and in nothing else.
 | `controllers/execution_pull_controller.py` | the full-duration execution; no task stop condition |
 | `controllers/types.py` | `ProbeResult`, `ExecutionResult`, `PullHistory`, `TerminationReason` |
 | `sensors/pull_axis.py` | the signed axis the drawer opens along |
-| `sensors/drawer_state.py` | read-only access to drawer, TCP, joints and the measured pull force |
+| `sensors/causal_derivative.py` | the one differentiator every derived channel goes through |
+| `sensors/drawer_state.py` | read-only access to drawer, TCP, joints and every force channel |
+| `observations.py` | what each of the 25 logged channels is, and who may consume it |
+| `evaluation/operating_region.py` | whether an episode is usable evidence at all |
+| `evaluation/task_evaluator.py` | position, terminal velocity and validity -> success |
+| `analysis/hidden_state_audit.py` | what else the simulator would let us hide |
+| `analysis/force_channel_analysis.py` | the force channels against the equation of motion |
+| `analysis/sweep.py` | the sweep record format and the queries the selection needs |
+| `analysis/oracle.py` | the acceptance conditions and the task recommendation |
+| `analysis/probe_features.py` | probe summary features and their correlation with the answer |
+| `experiment_plan.py` | the parameters Phase 9 selected, each citing its sweep |
 | `state_machines/pull_state_machine.py` | approach and grasp; used to *record* the grasp pose, not during experiments |
 | `logging/episode_logger.py` | writing an episode to disk |
 | `pull_system.py` | wiring |
@@ -104,6 +125,17 @@ controller.run(...)
     -> ProbeResult / ExecutionResult
 EpisodeLogger.save(id, result, xi)  -> metadata.json + trajectory.npz
 ```
+
+## Three data contracts
+
+The project has more channels than any model will read, so three registries keep them
+honest, and each is enforced by a unit test rather than by convention:
+
+| Registry | Guarantees |
+|---|---|
+| `controllers.types.HISTORY_CHANNELS` | the dataclass, the `.npz` layout and the recorder describe the same 25 channels |
+| `observations.OBSERVATION_SPECS` | every channel has a unit, a source, a filter description and a deployability class |
+| `observations.DEFAULT_ACE_INPUT` | the model's inputs are deployable, causal, and include `commanded_force` |
 
 ## What is deliberately not here yet
 

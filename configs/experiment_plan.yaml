@@ -1,0 +1,70 @@
+# GENERATED SNAPSHOT -- do not edit by hand and do not load this file at runtime.
+#
+# The authoritative values live in the dataclass named under `_source` below; this file
+# exists so the current configuration can be read and reviewed without opening the code.
+# tests/unit/test_config_snapshots.py fails if the two ever disagree, and prints the
+# corrected contents when it does.
+_source:
+  main_task: probe_drawer.experiment_plan:MAIN_TASK
+  probe_task: probe_drawer.experiment_plan:RECOMMENDED_PROBE_TASK
+  probe_controller: probe_drawer.experiment_plan:RECOMMENDED_PROBE_CFG
+  execution_controller: probe_drawer.experiment_plan:RECOMMENDED_EXECUTION_CFG
+  training_xi: probe_drawer.experiment_plan:TRAINING_XI_RANGES
+  ood_xi: probe_drawer.experiment_plan:OOD_XI_RANGES
+_provenance:
+  main_task: scripts/build_oracle_landscape.py -> outputs/logs/oracle_landscape.json
+  probe: scripts/calibrate_probe.py -> outputs/logs/probe_calibration.json
+  xi_ranges: scripts/sweep_execution_space.py -> outputs/logs/sweep_fine_fall*.json
+  note: Every number is the output of a sweep. See docs/EXPERIMENT_SPACE.md.
+main_task:
+  duration: 1.5
+  goal_displacement: 0.05
+  displacement_tolerance: 0.015
+  velocity_tolerance: 0.08
+  peak_force_range:
+  - 1.0
+  - 5.0
+probe_task:
+  initial_force: 1.0
+  max_force: 6.0
+  target_displacement: 0.003
+  max_velocity: 0.08
+probe_controller:
+  ramp_duration: 1.0
+  ramp_shape: linear
+  hold_after_max_force: 0.0
+  max_probe_duration: 1.5
+  settle_steps: 30
+execution_controller:
+  rise_fraction: 0.1
+  fall_fraction: 0.2
+  shape: smoothstep
+  settle_steps: 30
+  zero_force_cleanup_steps: 2
+  post_execution_settle_steps: 0
+training_xi:
+  mass:
+  - 4.0
+  - 12.0
+  static_friction:
+  - 0.5
+  - 3.0
+  dynamic_friction_ratio:
+  - 0.3
+  - 1.0
+  damping:
+  - 2.0
+  - 10.0
+ood_xi:
+  mass:
+  - 2.0
+  - 18.0
+  static_friction:
+  - 0.25
+  - 4.5
+  dynamic_friction_ratio:
+  - 0.15
+  - 1.0
+  damping:
+  - 1.0
+  - 16.0

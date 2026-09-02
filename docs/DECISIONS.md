@@ -278,3 +278,206 @@ environment silently bypassed `RecordVideo`, which is why the first probe and ex
 recordings were a single frame long. Centralising the call makes both impossible to forget.
 
 **Date.** 2026-09-02
+
+---
+
+### D015 — The main paper's hidden state is exactly four dimensional
+
+**Decision.** `xi = [drawer_mass, joint_static_friction, joint_dynamic_friction, joint_damping]`.
+Joint stiffness, per-DOF viscous friction, armature, centre of mass, inertia tensor, contact
+materials, restitution, joint limits and every robot-side parameter are held at fixed,
+documented values.
+
+**Reason.** All fifteen candidates examined are writable and read back correctly
+(`docs/HIDDEN_STATE_AUDIT.md`), so this is a modelling choice rather than a limitation. The
+four selected are the ones that are simultaneously invisible to the robot, physically
+independent of one another along a single prismatic degree of freedom, and individually
+observable in a pull: mass in the acceleration transient, static friction in the breakaway,
+dynamic friction in the drag once sliding, damping in the velocity-dependent part of it.
+
+**Alternatives considered.** Adding viscous friction or armature was rejected as
+*unidentifiable*: along one translational DOF they have the same signature as damping and
+mass respectively, so no probe could ever separate them. Adding handle contact friction was
+rejected as *confounding*: it changes the grasp, not the drawer, and would make a failed
+pull ambiguous between a stiff drawer and a slipping grip. Joint stiffness and centre of
+mass were deferred to out-of-distribution testing.
+
+**Date.** 2026-09-02
+
+---
+
+### D016 — PhysX requires `mu_s >= mu_d`, and discards violating writes silently
+
+**Decision.** `DynamicsParameters` refuses `joint_dynamic_friction > joint_static_friction`,
+and `DynamicsRandomizer.sample` draws `mu_d` as a *fraction* of `mu_s` so every sample is
+valid by construction.
+
+**Reason.** Measured: writing `static = 1, dynamic = 5` makes PhysX log
+`Static friction effort must be greater than or equal to dynamic friction effort` and keep
+the previous values, while Isaac Lab's `Articulation.data` buffers report the requested ones.
+`data` shows `(1.0, 5.0)`; the simulator holds `(5.0, 1.0)`. A silently discarded write is
+indistinguishable from a successful one unless the readback comes from the simulator.
+
+**Consequences.** Every readback in `dynamics_randomization.py` now comes from
+`root_physx_view`, and the Isaac Lab mirror is reported separately as `mirror_agrees` so a
+disagreement is visible. The previous `consistent` check compared against the mirror and
+could therefore have passed on a write that never landed.
+
+The constraint is also physically correct -- real Coulomb friction has `mu_s >= mu_d` -- so
+the requirement in the original task description for a "low static, high dynamic" case
+cannot be met and should not be.
+
+**Date.** 2026-09-02
+
+---
+
+### D017 — Every logged channel is classified deployable, diagnostic, or sim-only
+
+**Decision.** `probe_drawer.observations.OBSERVATION_SPECS` names, for all 25 channels, the
+unit, the source, any filtering, and one of three deployability classes.
+`validate_model_input()` raises if a non-deployable channel is proposed as a model input.
+
+**Reason.** "The simulator can read it" is not the same as "the robot will have it". Without
+an explicit classification, a future agent wiring up the adaptation model could reach for a
+privileged channel and produce something that cannot be deployed -- and the mistake would be
+invisible, because the training numbers would look fine.
+
+**Date.** 2026-09-02
+
+---
+
+### D018 — `commanded_force` is a mandatory model input
+
+**Decision.** The first adaptation model's observation vector always contains
+`commanded_force`. It is `DEFAULT_ACE_INPUT[0]`, and a unit test asserts it.
+
+**Reason.** A robot always knows the force it asked its controller for; withholding it would
+be an artificial handicap. It is also load-bearing information: two drawers that both move
+5 mm, one under 4 N and one under 8 N, have very different dynamics, and without the command
+the two histories are nearly identical.
+
+**Date.** 2026-09-02
+
+---
+
+### D019 — Rich logging, selective model input
+
+**Decision.** Log every channel every episode; feed the model a documented subset. The
+subset is `DEFAULT_ACE_INPUT`, and the ablation ladder ACE-1 through ACE-5 is expressible
+from the logged channels without recollecting data.
+
+**Reason.** Recollecting a sweep costs hours; storing a few more arrays costs megabytes. The
+risk this creates -- someone using a channel they should not -- is handled by D017 rather
+than by logging less.
+
+**Date.** 2026-09-02
+
+---
+
+### D020 — Success requires the drawer to be at rest, not merely at the goal
+
+**Decision.** `success = |d(T) - d_goal| <= eps_d AND |v(T)| <= eps_v AND valid`.
+
+**Reason.** Position alone is not task completion. Measured: at `T = 1.5 s` with the
+original profile, every episode that landed within 10 mm of 100 mm was still moving at
+0.16-0.22 m/s -- passing through the goal, not placed at it. Requiring a small terminal
+speed is what makes the label mean what it says.
+
+**Consequence.** This is what forced the ramp-down redesign (D023): the criterion is
+unsatisfiable at large distances with a 10 % ramp-down, and the honest response was to change
+the profile rather than to drop the criterion.
+
+**Date.** 2026-09-02
+
+---
+
+### D021 — The earlier 2 N / 10 N / 5 mm / 100 mm / 2 s / 5 N figures were provisional
+
+**Decision.** Those numbers are labelled a *provisional validation operating point*
+throughout the code and documentation. The paper's parameters come from the Phase 9 sweeps
+and live in `probe_drawer.experiment_plan`.
+
+**Reason.** They were chosen during development to make the pipeline exercise its own code
+paths, not by any experiment-design criterion. Presenting them as final would misrepresent
+how they were obtained. None survived unchanged: `T` moved from 2.0 to 1.5 s, `d_goal` from
+100 to 50 mm, the probe target from 5 to 3 mm, and the probe's force range from 2-10 N to
+1-6 N.
+
+**Date.** 2026-09-02
+
+---
+
+### D022 — The execution result is snapshotted at `T`, before the zero-force cleanup
+
+**Decision.** `ExecutionResult` is captured at `t = T`. Zero pull force is then commanded
+for `zero_force_cleanup_steps` (default 2) plus `post_execution_settle_steps` (default 0)
+further steps, which appear nowhere in the history, the duration, `d(T)`, `v(T)`, or the
+success evaluation.
+
+**Reason.** The profile satisfies `phi(1) = 0`, but a command is held for a whole control
+step, so the last command of the episode is the one issued at `T - dt`: about 2 % of the peak
+with a 10 % smoothstep fall. That command is *correct* for the interval it covers, and
+`d(T)` is right. What would be wrong is leaving it standing after `T`, because the
+environment holds the last action it was given until something replaces it.
+
+**Verification.** Integration tests assert that the pull force is zero after the run, that
+without cleanup a residual command *does* remain (so the cleanup is what zeroes it), that
+the history contains exactly `T / dt` steps, and that `d(T)` predates the cleanup -- the
+drawer has visibly coasted further by the time the run returns.
+
+**Date.** 2026-09-02
+
+---
+
+### D023 — The execution profile's ramp-down is 20 % of the duration
+
+**Decision.** `ExecutionControllerCfg.fall_fraction = 0.20` for the paper's experiments, up
+from 0.10.
+
+**Reason.** Measured over the 108-point hidden-state grid, the largest `d(T)` reachable with
+`|v(T)| <= 0.05 m/s` at `T = 1.5 s`: 49.4 mm at `fall = 0.10`, 54.9 at 0.15, **65.2 at
+0.20**, 71.3 at 0.30, 79.4 at 0.35. A 10 % ramp-down lasts 0.15 s, and a low-resistance
+drawer cannot decelerate in that time, so D020's terminal-velocity requirement made larger
+goals unreachable. 0.20 produced the highest-discrimination accepted task of the five
+(1.568) with coverage 0.98.
+
+**Note.** The normalised profile `phi(t/T)` is still identical across every experiment, which
+is what the design requires; what changed is which fixed shape is used, once, on the basis
+of a sweep.
+
+**Date.** 2026-09-02
+
+---
+
+### D024 — Task parameters are selected by a scored rule, not by judgement
+
+**Decision.** `probe_drawer.analysis.oracle` scores every candidate task definition against
+eight explicit conditions and recommends the accepted candidate with the greatest spread of
+required force. The probe is chosen the same way: the least intrusive of the candidates whose
+predictive power is within 0.02 of the best.
+
+**Reason.** A parameter chosen by eye is a parameter that cannot be defended or reproduced.
+Encoding the preference makes the choice re-derivable from the datasets, and makes a
+rejection reviewable: when nothing is accepted the report says which condition eliminated
+what, so the response is to change the experiment rather than to lower the bar.
+
+**Also.** Discrimination is the tie-breaker rather than coverage or precision because it is
+the property the research question depends on. A task every drawer solves at the same force
+would be a well-behaved task and a worthless one.
+
+**Date.** 2026-09-02
+
+---
+
+### D025 — Drawer velocity, acceleration and every other derivative are causal
+
+**Decision.** All derivatives come from `probe_drawer.sensors.CausalDerivative`: a moving
+average of one-step finite differences, using only current and past samples. Both the
+smoothed and the unsmoothed value are exposed, and the method, window and lag are recorded
+with every episode.
+
+**Reason.** A filter that looks ahead cannot run on a robot, so a model trained on
+non-causally smoothed observations would not transfer. Keeping the raw channel alongside
+makes the filter's effect auditable after the fact rather than a matter of trust.
+
+**Date.** 2026-09-02
