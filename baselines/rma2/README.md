@@ -35,7 +35,7 @@ is in [docs/RMA2_TO_DRAWER_MAPPING.md](docs/RMA2_TO_DRAWER_MAPPING.md) §4 and �
 [x] Setting V1 design audit                    (docs/SETTING_V1_DESIGN_AUDIT.md)
 [x] Stage A: privileged direct adaptation      (xi -> z_priv -> ParameterHead -> F_peak*)
 [x] Stage B: latent distillation               (tau_p -> z_probe ~= z_priv)
-[x] Deployment + evaluation on the shared protocol (in-distribution)
+[x] Deployment + evaluation on the shared protocol (in-distribution and OOD)
 ```
 
 **§2 below is obsolete and has not yet been rewritten.** Its blocker -- that a
@@ -57,7 +57,13 @@ Deployed in one session on 88 unseen drawers with three seeds:
 
 So of ACE + PSP's +14.8 pp over Direct GRU, **latent distillation accounts for +12.9 pp (87 %)
 and the success landscape for +1.9 pp (13 %)** -- and at the privileged level the landscape is
-worth nothing at all (-0.4 pp). [docs/STAGE_A_RESULTS.md](docs/STAGE_A_RESULTS.md),
+worth nothing at all (-0.4 pp).
+
+**Out of distribution the landscape's advantage does not grow.** Over the 64 genuine OOD states
+it is +2.1 pp overall, +3.5 pp where the probe responds, and **-2.0 pp where the probe is
+silent** -- largest where the input is informative, gone where it is not, because with a silent
+probe all three probe-based methods lose the tracking signal together (rho falls from +0.96 to
+about 0.0 while the teacher keeps +0.88). [docs/STAGE_A_RESULTS.md](docs/STAGE_A_RESULTS.md),
 [docs/STAGE_B_RESULTS.md](docs/STAGE_B_RESULTS.md).
 
 ## 2. What blocks Stage A, and why it is not this baseline's to unblock

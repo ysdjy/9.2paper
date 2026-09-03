@@ -92,7 +92,14 @@ being worth something *specifically when the latent is uncertain*, because scori
 marginalises over that uncertainty in a way a single output cannot. Those two are precisely what
 Stage B separates.
 
-**Stage A therefore strengthens the case for Stage B rather than settling it.** Note the caveat:
+**Stage A therefore strengthens the case for Stage B rather than settling it.**
+
+> **Both legs have since been tested, and the second one was wrong.** Stage B attributed 87 % of
+> the gap to distillation ([STAGE_B_RESULTS.md](STAGE_B_RESULTS.md) §1), and the
+> out-of-distribution evaluation refuted the "landscape helps when the latent is uncertain"
+> hypothesis directly: the landscape's advantage is *largest* where the probe is informative and
+> reverses where it is silent (§5 there). The speculation below is kept as written; it did not
+> survive measurement. Note the caveat:
 ACE + PSP was not deployed in this session, so its 91.3 % from the main table is not
 within-run-comparable to the numbers above. Direct GRU landed on 81.4 % in both, which is
 reassuring, and the teacher moved 98.1 → 95.8 %, which is the D047 session sensitivity.

@@ -32,6 +32,27 @@ parser.add_argument("--dataset", type=str, default="outputs/dataset_v1")
 parser.add_argument("--seeds", type=int, nargs="+", default=(0, 1, 2))
 parser.add_argument("--num-xi", type=int, default=0, help="0 = every test hidden state.")
 parser.add_argument("--num_envs", type=int, default=32)
+parser.add_argument(
+    "--ood-report",
+    type=str,
+    default=None,
+    help=(
+        "Deploy on the hidden states from an OOD feasibility sweep instead of the dataset's "
+        "test split, carrying that sweep's feasibility and breakaway flags into the rows so "
+        "the report can stratify on them (docs/OOD_FEASIBILITY.md)."
+    ),
+)
+parser.add_argument(
+    "--methods",
+    nargs="+",
+    default=("stage_a", "stage_b", "teacher", "student", "gru"),
+    choices=("stage_a", "stage_b", "teacher", "student", "gru"),
+    help=(
+        "Which methods to deploy. Fewer methods means fewer branches per batch, which shifts "
+        "the absolute rates (D047) -- so a run's method set is part of its identity and is "
+        "recorded in the report."
+    ),
+)
 parser.add_argument("--output", type=str, default="baselines/rma2/checkpoints/stage_a/closed_loop.json")
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
@@ -52,7 +73,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from probe_drawer.controllers import ProbeControllerCfg  # noqa: E402
 from probe_drawer.dataset import DatasetStore, SplitCfg, split_samples  # noqa: E402
-from probe_drawer.dataset.schema import XI_DIMENSIONS  # noqa: E402
+from probe_drawer.dataset.schema import XI_DIMENSIONS, xi_id  # noqa: E402
 from probe_drawer.envs import DynamicsParameters, DynamicsRandomizer  # noqa: E402
 from probe_drawer.evaluation import (  # noqa: E402
     OperatingRegionCfg,
@@ -157,8 +178,30 @@ def main() -> None:
         **{**manifest["main_task"], "peak_force_range": tuple(manifest["main_task"]["peak_force_range"])}
     )
     split = split_samples(store.load_samples(), SplitCfg(**store.read_splits()["cfg"]))
-    xi_by_id = {row["xi_id"]: row["xi"] for row in store.hidden_states}
-    test_ids = sorted({sample.xi_id for sample in split.test})
+
+    oracle_by_id: dict[str, dict] = {}
+    if args_cli.ood_report:
+        ood = json.loads(absolute(args_cli.ood_report).read_text())
+        # Content-addressed, so an OOD state's identity is its four values and joins back to
+        # the sweep without depending on row order.
+        xi_by_id = {xi_id(row["hidden_state"]): row["hidden_state"] for row in ood["rows"]}
+        oracle_by_id = {
+            xi_id(row["hidden_state"]): {
+                "reach_any_force": row["reach_any_force"],
+                "reach_within_task_range": row["reach_within_task_range"],
+                "oracle_required_force": row["required_force"],
+                "oracle_band_width": row["band_width"],
+                "probe_moved_in_sweep": row["probe_moved"],
+                "novel_axes": row["novel_axes"],
+            }
+            for row in ood["rows"]
+        }
+        population = f"out-of-distribution ({Path(args_cli.ood_report).name})"
+        test_ids = list(xi_by_id)
+    else:
+        xi_by_id = {row["xi_id"]: row["xi"] for row in store.hidden_states}
+        population = "in-distribution test split"
+        test_ids = sorted({sample.xi_id for sample in split.test})
     if args_cli.num_xi:
         test_ids = test_ids[: args_cli.num_xi]
 
@@ -179,7 +222,8 @@ def main() -> None:
         model.load_state_dict(torch.load(path, weights_only=True)["state_dict"])
         return model.eval()
 
-    stage_a = {
+    wanted = set(args_cli.methods)
+    stage_a = {} if "stage_a" not in wanted else {
         seed: load(
             lambda: build_stage_a(
                 StageACfg(latent_dim=summary["cfg"]["latent_dim"]),
@@ -192,12 +236,21 @@ def main() -> None:
         )
         for seed in seeds
     }
-    teachers = {seed: load(lambda: build_teacher(psp), run_root, "teacher", seed) for seed in seeds}
-    students = {seed: load(lambda: build_student(len(channels), psp), run_root, "student", seed) for seed in seeds}
-    grus = {
-        seed: load(lambda: GruForceRegressor(len(channels), psp), run_root, "gru", seed)
-        for seed in seeds
-    }
+    teachers = (
+        {seed: load(lambda: build_teacher(psp), run_root, "teacher", seed) for seed in seeds}
+        if "teacher" in wanted
+        else {}
+    )
+    students = (
+        {seed: load(lambda: build_student(len(channels), psp), run_root, "student", seed) for seed in seeds}
+        if "student" in wanted
+        else {}
+    )
+    grus = (
+        {seed: load(lambda: GruForceRegressor(len(channels), psp), run_root, "gru", seed) for seed in seeds}
+        if "gru" in wanted
+        else {}
+    )
 
     def stage_b_for(seed: int):
         """Stage B seed ``k`` is the adapter distilled from Stage A seed ``k``."""
@@ -216,7 +269,7 @@ def main() -> None:
         scaffold.load_state_dict(torch.load(path, weights_only=True)["state_dict"])
         return scaffold.eval()
 
-    stage_b = {seed: stage_b_for(seed) for seed in seeds}
+    stage_b = {seed: stage_b_for(seed) for seed in seeds} if "stage_b" in wanted else {}
 
     selection = SelectionCfg(force_range=task.peak_force_range, step=0.05)
     region = OperatingRegionCfg()
@@ -227,7 +280,8 @@ def main() -> None:
     print(f"[rma2] stage A   : {stage_a_root}")
     print(f"[rma2] stage B   : {stage_b_root}")
     print(f"[rma2] reference : {run_root} (teacher, Direct GRU -- read only)")
-    print(f"[rma2] test xi   : {len(test_ids)} in-distribution hidden states, unseen in any split")
+    print(f"[rma2] test xi   : {len(test_ids)} hidden states -- {population}")
+    print(f"[rma2] methods   : {list(args_cli.methods)}")
     print(f"[rma2] seeds     : {list(seeds)}, all deployed in ONE session from shared snapshots")
     print(f"[rma2] task      : d_goal={task.goal_displacement * 1000:g} mm T={task.duration:g} s")
 
@@ -289,29 +343,38 @@ def main() -> None:
 
             choices: list[tuple[str, int, np.ndarray]] = []
             for seed in seeds:
-                with torch.no_grad():
-                    raw = stage_a[seed](batch).numpy()
                 # Both Stage A and Stage B emit a force already inside the allowed range;
                 # snapping it to the shared 0.05 N grid is what the other point regressors
                 # get, so it is applied here too rather than giving them a continuous edge.
-                choices.append(("RMA2 Stage A (xi -> point)", seed, select_nearest(raw, selection).force))
-                with torch.no_grad():
-                    distilled = stage_b[seed](batch).numpy()
-                choices.append(("RMA2 Stage B (probe -> latent -> point)", seed, select_nearest(distilled, selection).force))
-                with torch.no_grad():
-                    teacher_context = teachers[seed].encoder(batch.xi)
-                    student_context = students[seed].encoder(batch.history, batch.lengths)
-                choices.append(
-                    ("teacher (xi -> landscape)", seed,
-                     landscape_choice(teachers[seed].head, teacher_context, batch, scaler, num_envs, selection))
-                )
-                choices.append(
-                    ("ACE + PSP (probe -> landscape)", seed,
-                     landscape_choice(students[seed].head, student_context, batch, scaler, num_envs, selection))
-                )
-                with torch.no_grad():
-                    predicted = grus[seed](batch).numpy()
-                choices.append(("D GRU (probe -> point)", seed, select_nearest(predicted, selection).force))
+                if seed in stage_a:
+                    with torch.no_grad():
+                        raw = stage_a[seed](batch).numpy()
+                    choices.append(("RMA2 Stage A (xi -> point)", seed, select_nearest(raw, selection).force))
+                if seed in stage_b:
+                    with torch.no_grad():
+                        distilled = stage_b[seed](batch).numpy()
+                    choices.append(
+                        ("RMA2 Stage B (probe -> latent -> point)", seed,
+                         select_nearest(distilled, selection).force)
+                    )
+                if seed in teachers:
+                    with torch.no_grad():
+                        teacher_context = teachers[seed].encoder(batch.xi)
+                    choices.append(
+                        ("teacher (xi -> landscape)", seed,
+                         landscape_choice(teachers[seed].head, teacher_context, batch, scaler, num_envs, selection))
+                    )
+                if seed in students:
+                    with torch.no_grad():
+                        student_context = students[seed].encoder(batch.history, batch.lengths)
+                    choices.append(
+                        ("ACE + PSP (probe -> landscape)", seed,
+                         landscape_choice(students[seed].head, student_context, batch, scaler, num_envs, selection))
+                    )
+                if seed in grus:
+                    with torch.no_grad():
+                        predicted = grus[seed](batch).numpy()
+                    choices.append(("D GRU (probe -> point)", seed, select_nearest(predicted, selection).force))
 
             for method, seed, forces in choices:
                 restore_snapshot(system, snapshot)
@@ -329,7 +392,15 @@ def main() -> None:
                             "seed": seed,
                             "xi_id": state_id,
                             "chosen_force": float(forces[index]),
-                            "reference_force": reference_by_state.get(state_id),
+                            # In distribution this is the mean reference force over that
+                            # state's dataset probes; out of distribution those probes do not
+                            # exist, so it comes from the OOD sweep's own Oracle instead.
+                            # Falling through to the ID dictionary would leave it None and
+                            # silently drop every force metric.
+                            "reference_force": reference_by_state.get(
+                                state_id, oracle_by_id.get(state_id, {}).get("oracle_required_force")
+                            ),
+                            **oracle_by_id.get(state_id, {}),
                             "total_displacement": verdict.total_displacement,
                             "final_velocity": verdict.terminal_velocity,
                             "reach_success": bool(verdict.reach_success),
@@ -375,7 +446,9 @@ def main() -> None:
         }
 
     payload = {
-        "population": "in-distribution test split",
+        "population": population,
+        "ood_report": args_cli.ood_report,
+        "methods_deployed": list(args_cli.methods),
         "num_test_states": len(test_ids),
         "seeds": list(seeds),
         "task": task.as_dict(),
@@ -401,8 +474,10 @@ def main() -> None:
     print(f"[rma2] {'method':>38} {'reach':>8} {'+-sd':>6} {'|d-goal| med':>13} "
           f"{'|F-ref| MAE':>12} {'F med':>8} {'invalid':>8} {'abort':>7}")
     for method, v in sorted(methods.items(), key=lambda i: -i[1]["reach_pp"]):
+        mae = v["closed_loop_force_mae"]
         print(f"[rma2] {method:>38} {v['reach_pp']:7.1f}% {v['reach_sd_across_seeds']:5.1f} "
-              f"{v['median_position_error_mm']:12.2f}mm {v['closed_loop_force_mae']:11.3f}N "
+              f"{v['median_position_error_mm']:12.2f}mm "
+              f"{('n/a' if mae is None else f'{mae:11.3f}N')} "
               f"{v['median_chosen_force']:7.2f}N {v['invalid_rate'] * 100:7.1f}% "
               f"{v['safety_abort_rate'] * 100:6.1f}%")
     print("[rma2]")

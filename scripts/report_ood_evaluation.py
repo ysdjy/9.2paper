@@ -20,16 +20,28 @@ from pathlib import Path
 from probe_drawer.analysis.ood_evaluation import summarise_ood_evaluation
 from probe_drawer.utils import enable_unbuffered_stdout, git_commit, project_root
 
+#: Gap definitions, tried in order. A report that carries only some of the method names simply
+#: yields the gaps it can compute, so one script serves the main project's deployment and the
+#: RMA2 baseline's, whose method labels differ.
 GAPS = (
     ("teacher - ACE", "teacher (privileged)", "ACE + PSP"),
     ("ACE - GRU", "ACE + PSP", "D GRU (history)"),
     ("ACE - ridge", "ACE + PSP", "B ridge (summary)"),
+    ("teacher - ACE", "teacher (xi -> landscape)", "ACE + PSP (probe -> landscape)"),
+    ("ACE - StageB", "ACE + PSP (probe -> landscape)", "RMA2 Stage B (probe -> latent -> point)"),
+    ("StageB - GRU", "RMA2 Stage B (probe -> latent -> point)", "D GRU (probe -> point)"),
+    ("ACE - GRU", "ACE + PSP (probe -> landscape)", "D GRU (probe -> point)"),
 )
 
 ORDER = (
     "teacher (privileged)",
+    "teacher (xi -> landscape)",
+    "RMA2 Stage A (xi -> point)",
     "ACE + PSP",
+    "ACE + PSP (probe -> landscape)",
+    "RMA2 Stage B (probe -> latent -> point)",
     "D GRU (history)",
+    "D GRU (probe -> point)",
     "B ridge (summary)",
     "A linear (1 feature)",
     "fixed force",
@@ -60,21 +72,25 @@ def main() -> None:
             continue
         print("[oodeval]")
         print(f"[oodeval] === {name}  (n = {stratum['states']} states) -- {stratum['description']}")
-        print(f"[oodeval] {'method':>22} {'reach':>8} {'+-sd':>6} {'|d-goal| med':>13} "
-              f"{'F chosen med':>13} {'F bias med':>11} {'under-forced':>13}")
+        print(f"[oodeval] {'method':>38} {'reach':>8} {'+-sd':>6} {'|d-goal| med':>13} "
+              f"{'F MAE':>9} {'rho(F,req)':>11} {'F chosen med':>13} {'F bias med':>11}")
         for method in ORDER:
             values = stratum["methods"].get(method)
             if not values or not values.get("episodes"):
                 continue
-            bias = values["median_force_bias"]
-            under = values["under_forced_fraction"]
+            bias, mae, rho = (
+                values["median_force_bias"],
+                values.get("force_mae"),
+                values.get("force_vs_required_rho"),
+            )
             print(
-                f"[oodeval] {method:>22} {values['reach_pp']:7.1f}% "
+                f"[oodeval] {method:>38} {values['reach_pp']:7.1f}% "
                 f"{values['reach_sd_across_seeds']:5.1f} "
                 f"{values['median_position_error_mm']:12.2f}mm "
+                f"{('n/a' if mae is None else f'{mae:8.3f}N')} "
+                f"{('n/a' if rho is None else f'{rho:+11.3f}')} "
                 f"{values['median_chosen_force']:12.2f}N "
-                f"{('n/a' if bias is None else f'{bias:+10.2f}N')} "
-                f"{('n/a' if under is None else f'{under * 100:12.0f}%')}"
+                f"{('n/a' if bias is None else f'{bias:+10.2f}N')}"
             )
         if stratum["gaps"]:
             print("[oodeval] " + "   ".join(f"{label} {value:+.1f} pp" for label, value in stratum["gaps"].items()))

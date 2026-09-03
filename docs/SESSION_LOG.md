@@ -4,6 +4,65 @@ One entry per work session. Newest first.
 
 ---
 
+## 2026-09-03 — `agent/phase13-freeze-v1` — RMA² Stage B out of distribution
+
+**Agent / task.** Claude Opus 5 — evaluate the already-trained Stage B on the fixed 64 genuine
+OOD states, against the privileged teacher, ACE + PSP and Direct GRU. Nothing retrained;
+Setting V1, the probe, `OOD_XI_RANGES` and the dataset untouched.
+
+Four methods, three seeds, **one session from shared probe snapshots**, with the strata taken
+from the feasibility pilot, which fixed them before any model was evaluated.
+
+| stratum | teacher | ACE + PSP | Stage B | D GRU | **ACE − Stage B** |
+|---|---|---|---|---|---|
+| all, n=64 | 59.4 % | 47.4 % | 45.3 % | 33.9 % | **+2.1 ± 0.7** |
+| oracle-feasible, n=61 | 62.3 % | 49.7 % | 47.5 % | 35.5 % | **+2.2 ± 0.8** |
+| responsive, n=47 | 68.1 % | 61.0 % | 57.4 % | 44.0 % | **+3.5 ± 1.0** |
+| no-breakaway, n=17 | 35.3 % | 9.8 % | 11.8 % | 5.9 % | **−2.0 ± 2.8** |
+| silent+feasible, n=14 | 42.9 % | 11.9 % | 14.3 % | 7.1 % | **−2.4 ± 3.4** |
+
+Median position error / force MAE: ACE 7.92 mm / 0.400 N vs Stage B 8.67 mm / 0.423 N on the
+full set; 20.41 / 0.732 vs 19.39 / 0.664 on silent+feasible, where Stage B is marginally better
+on both. `Stage B − D GRU` stays large everywhere (+11.5 / +12.0 / +13.5 / +5.9 / +7.1 pp).
+
+### The answer, and a hypothesis of mine that it refutes
+
+**The landscape's advantage does not grow out of distribution or under information scarcity —
+it shrinks.** Largest where the probe informs (+3.5 pp, positive on all three seeds under
+pairing), reversing where the probe is silent, and identical out of distribution (+2.1 pp) to in
+distribution (+1.9 pp).
+
+That contradicts the speculation I recorded after Stage A — that the landscape might be worth
+something *specifically* when the latent is uncertain. `STAGE_A_RESULTS.md` §3 now carries a
+note saying so; the speculation is kept as written because it did not survive measurement.
+
+The mechanism is in the tracking correlation. `rho(chosen, required)` on responsive states is
++0.991 / +0.969 / +0.962 / +0.966 for teacher / ACE / Stage B / GRU; on silent+feasible it is
+**+0.876 / +0.035 / −0.075 / +0.000**. All three probe-based methods collapse together while the
+teacher keeps its signal. A landscape can only marginalise over uncertainty it can *represent*;
+with a silent probe the latent carries nothing about which force is needed, so a distribution
+over forces is exactly as uninformative as a point.
+
+Read carefully, the silent-stratum reversal is **no difference** rather than a Stage B win:
+paired per seed the gaps are −5.9/0.0/0.0 and −7.1/0.0/0.0.
+
+Every stratum's gap sits in the **1–3 pp** band agreed in advance as "report honestly and stop",
+so that is what was done — no tuning, and no search for a setting that would favour the
+landscape. The large effects in this project belong to the privileged teacher and to the probe's
+own coverage, not to the output form.
+
+### Git state
+
+`agent/phase13-freeze-v1`. The baseline's eval script gained `--ood-report` and `--methods`
+(fewer methods means fewer branches, which shifts absolute rates under D047, so the method set
+is recorded in the report). `analysis.ood_evaluation` gained `force_mae` and
+`force_vs_required_rho`, computed per seed over one point per state so repeated drawers cannot
+inflate the correlation. One real bug fixed: on an OOD population the reference force was being
+looked up in the in-distribution test split, so every force metric came back `None`. 578 main
+unit tests and 65 baseline tests pass.
+
+---
+
 ## 2026-09-03 — `agent/phase13-freeze-v1` — affine-in-goal baseline: one slope is enough
 
 **Agent / task.** Claude Opus 5 — test the caveat the previous audit raised: if the goal→force

@@ -28,6 +28,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from probe_drawer.analysis.probe_features import rank_correlation
+
 __all__ = ["STRATA", "summarise_ood_evaluation"]
 
 #: The strata, as ``(name, predicate, description)``. Membership comes from the feasibility
@@ -69,11 +71,20 @@ def _method_stats(rows: list[dict], goal: float) -> dict:
         return {"states": 0}
     errors = [abs(row["total_displacement"] - goal) * 1000 for row in rows]
     forces = [row["chosen_force"] for row in rows]
-    biases = [
-        row["chosen_force"] - row["oracle_required_force"]
-        for row in rows
-        if row.get("oracle_required_force") is not None
-    ]
+    paired = [row for row in rows if row.get("oracle_required_force") is not None]
+    biases = [row["chosen_force"] - row["oracle_required_force"] for row in paired]
+
+    # Does the chosen force still *track* what is needed, or has it collapsed to a constant?
+    # Computed per seed over one point per hidden state -- pooling seeds would let three
+    # measurements of the same drawer inflate the sample, and a method whose choice is
+    # near-constant would still look correlated if the states were repeated.
+    correlations = []
+    for seed in sorted({row["seed"] for row in paired}, key=lambda value: (value is None, value)):
+        subset = {row["xi_id"]: row for row in paired if row["seed"] == seed}
+        chosen = [row["chosen_force"] for row in subset.values()]
+        required = [row["oracle_required_force"] for row in subset.values()]
+        if len(chosen) > 2 and len(set(chosen)) > 1:
+            correlations.append(rank_correlation(chosen, required))
     per_seed: dict = {}
     for seed in sorted({row["seed"] for row in rows if row["seed"] is not None}):
         subset = [row for row in rows if row["seed"] == seed]
@@ -92,8 +103,15 @@ def _method_stats(rows: list[dict], goal: float) -> dict:
         # Negative means the model asked for less than the state needed -- under-forcing.
         "median_force_bias": float(np.median(biases)) if biases else None,
         "mean_force_bias": float(np.mean(biases)) if biases else None,
+        # Mean absolute error against the force the Oracle says that state needs.
+        "force_mae": float(np.mean(np.abs(biases))) if biases else None,
         "under_forced_fraction": (
             float(np.mean([bias < 0 for bias in biases])) if biases else None
+        ),
+        "force_vs_required_rho": float(np.mean(correlations)) if correlations else None,
+        "force_vs_required_rho_sd": float(np.std(correlations)) if len(correlations) > 1 else 0.0,
+        "chosen_force_spread": (
+            [float(np.min(forces)), float(np.max(forces))] if forces else None
         ),
     }
 

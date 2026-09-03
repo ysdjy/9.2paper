@@ -1,0 +1,612 @@
+{
+  "source": "/home/zbh/Downloads/IsaacLab/9.2paper/baselines/rma2/checkpoints/stage_b/ood_closed_loop.json",
+  "git_commit": "5b201731268a82dd0affc9f18002e33a15739875",
+  "strata": {
+    "all": {
+      "description": "every out-of-distribution state, whatever the Oracle says",
+      "states": 64,
+      "methods": {
+        "ACE + PSP (probe -> landscape)": {
+          "episodes": 192,
+          "states": 64,
+          "reach_pp": 47.39583333333333,
+          "reach_sd_across_seeds": 3.8975597778895223,
+          "reach_per_seed": {
+            "0": 48.4375,
+            "1": 51.5625,
+            "2": 42.1875
+          },
+          "median_position_error_mm": 7.9185118898749405,
+          "median_chosen_force": 4.324999999999999,
+          "chosen_force_range": [
+            0.8,
+            6.0
+          ],
+          "median_force_bias": 0.10000000000000009,
+          "mean_force_bias": 0.21015625000000002,
+          "force_mae": 0.3997395833333333,
+          "under_forced_fraction": 0.3125,
+          "force_vs_required_rho": 0.9215525398952442,
+          "force_vs_required_rho_sd": 0.007986621615100078,
+          "chosen_force_spread": [
+            0.8,
+            6.0
+          ]
+        },
+        "D GRU (probe -> point)": {
+          "episodes": 192,
+          "states": 64,
+          "reach_pp": 33.85416666666667,
+          "reach_sd_across_seeds": 4.101045767714485,
+          "reach_per_seed": {
+            "0": 35.9375,
+            "1": 28.125,
+            "2": 37.5
+          },
+          "median_position_error_mm": 10.74345109518618,
+          "median_chosen_force": 4.275,
+          "chosen_force_range": [
+            0.5,
+            5.75
+          ],
+          "median_force_bias": -0.04999999999999982,
+          "mean_force_bias": 0.062239583333333355,
+          "force_mae": 0.3929687499999999,
+          "under_forced_fraction": 0.5208333333333334,
+          "force_vs_required_rho": 0.9147933110326137,
+          "force_vs_required_rho_sd": 0.006305645455012269,
+          "chosen_force_spread": [
+            0.5,
+            5.75
+          ]
+        },
+        "RMA2 Stage B (probe -> latent -> point)": {
+          "episodes": 192,
+          "states": 64,
+          "reach_pp": 45.3125,
+          "reach_sd_across_seeds": 4.59987545121242,
+          "reach_per_seed": {
+            "0": 46.875,
+            "1": 50.0,
+            "2": 39.0625
+          },
+          "median_position_error_mm": 8.665187284350395,
+          "median_chosen_force": 4.45,
+          "chosen_force_range": [
+            0.95,
+            5.7
+          ],
+          "median_force_bias": 0.10000000000000053,
+          "mean_force_bias": 0.20130208333333335,
+          "force_mae": 0.42265625,
+          "under_forced_fraction": 0.2916666666666667,
+          "force_vs_required_rho": 0.914679127899225,
+          "force_vs_required_rho_sd": 0.010748819023387087,
+          "chosen_force_spread": [
+            0.95,
+            5.7
+          ]
+        },
+        "teacher (xi -> landscape)": {
+          "episodes": 192,
+          "states": 64,
+          "reach_pp": 59.375,
+          "reach_sd_across_seeds": 5.560978256266308,
+          "reach_per_seed": {
+            "0": 62.5,
+            "1": 51.5625,
+            "2": 64.0625
+          },
+          "median_position_error_mm": 5.845845729345461,
+          "median_chosen_force": 3.8,
+          "chosen_force_range": [
+            1.05,
+            6.5
+          ],
+          "median_force_bias": 0.050000000000000266,
+          "mean_force_bias": 0.02500000000000004,
+          "force_mae": 0.1802083333333334,
+          "under_forced_fraction": 0.359375,
+          "force_vs_required_rho": 0.9883504959680162,
+          "force_vs_required_rho_sd": 0.001190691469647881,
+          "chosen_force_spread": [
+            1.05,
+            6.5
+          ]
+        }
+      },
+      "gaps": {
+        "teacher - ACE": 11.979166666666671,
+        "ACE - StageB": 2.0833333333333286,
+        "StageB - GRU": 11.458333333333329,
+        "ACE - GRU": 13.541666666666657
+      }
+    },
+    "oracle_feasible": {
+      "description": "solvable by some force inside the frozen action range",
+      "states": 61,
+      "methods": {
+        "ACE + PSP (probe -> landscape)": {
+          "episodes": 183,
+          "states": 61,
+          "reach_pp": 49.72677595628415,
+          "reach_sd_across_seeds": 4.089243045654583,
+          "reach_per_seed": {
+            "0": 50.81967213114754,
+            "1": 54.09836065573771,
+            "2": 44.26229508196721
+          },
+          "median_position_error_mm": 7.619232311844831,
+          "median_chosen_force": 3.95,
+          "chosen_force_range": [
+            0.8,
+            5.95
+          ],
+          "median_force_bias": 0.10000000000000009,
+          "mean_force_bias": 0.2647540983606558,
+          "force_mae": 0.37513661202185794,
+          "under_forced_fraction": 0.2786885245901639,
+          "force_vs_required_rho": 0.9126359944427733,
+          "force_vs_required_rho_sd": 0.01072520253120586,
+          "chosen_force_spread": [
+            0.8,
+            5.95
+          ]
+        },
+        "D GRU (probe -> point)": {
+          "episodes": 183,
+          "states": 61,
+          "reach_pp": 35.51912568306011,
+          "reach_sd_across_seeds": 4.302736543175854,
+          "reach_per_seed": {
+            "0": 37.704918032786885,
+            "1": 29.508196721311474,
+            "2": 39.34426229508197
+          },
+          "median_position_error_mm": 10.313418251462286,
+          "median_chosen_force": 3.85,
+          "chosen_force_range": [
+            0.5,
+            5.75
+          ],
+          "median_force_bias": 0.0,
+          "mean_force_bias": 0.11748633879781421,
+          "force_mae": 0.3601092896174864,
+          "under_forced_fraction": 0.4972677595628415,
+          "force_vs_required_rho": 0.9059773091495051,
+          "force_vs_required_rho_sd": 0.005830268342032297,
+          "chosen_force_spread": [
+            0.5,
+            5.75
+          ]
+        },
+        "RMA2 Stage B (probe -> latent -> point)": {
+          "episodes": 183,
+          "states": 61,
+          "reach_pp": 47.540983606557376,
+          "reach_sd_across_seeds": 4.826098834058932,
+          "reach_per_seed": {
+            "0": 49.18032786885246,
+            "1": 52.459016393442624,
+            "2": 40.98360655737705
+          },
+          "median_position_error_mm": 8.0611883662641,
+          "median_chosen_force": 4.0,
+          "chosen_force_range": [
+            0.95,
+            5.65
+          ],
+          "median_force_bias": 0.1499999999999999,
+          "mean_force_bias": 0.2663934426229508,
+          "force_mae": 0.38825136612021854,
+          "under_forced_fraction": 0.2568306010928962,
+          "force_vs_required_rho": 0.905411104562857,
+          "force_vs_required_rho_sd": 0.010906929873945034,
+          "chosen_force_spread": [
+            0.95,
+            5.65
+          ]
+        },
+        "teacher (xi -> landscape)": {
+          "episodes": 183,
+          "states": 61,
+          "reach_pp": 62.295081967213115,
+          "reach_sd_across_seeds": 5.8344689901810405,
+          "reach_per_seed": {
+            "0": 65.57377049180327,
+            "1": 54.09836065573771,
+            "2": 67.21311475409836
+          },
+          "median_position_error_mm": 5.260989908128982,
+          "median_chosen_force": 3.7,
+          "chosen_force_range": [
+            1.05,
+            6.2
+          ],
+          "median_force_bias": 0.05000000000000071,
+          "mean_force_bias": 0.041530054644808766,
+          "force_mae": 0.17377049180327875,
+          "under_forced_fraction": 0.32786885245901637,
+          "force_vs_required_rho": 0.9865443891305244,
+          "force_vs_required_rho_sd": 0.0013753161750240082,
+          "chosen_force_spread": [
+            1.05,
+            6.2
+          ]
+        }
+      },
+      "gaps": {
+        "teacher - ACE": 12.568306010928964,
+        "ACE - StageB": 2.185792349726775,
+        "StageB - GRU": 12.021857923497265,
+        "ACE - GRU": 14.20765027322404
+      }
+    },
+    "responsive": {
+      "description": "the probe broke the drawer away",
+      "states": 47,
+      "methods": {
+        "ACE + PSP (probe -> landscape)": {
+          "episodes": 141,
+          "states": 47,
+          "reach_pp": 60.99290780141844,
+          "reach_sd_across_seeds": 5.584402747526108,
+          "reach_per_seed": {
+            "0": 63.829787234042556,
+            "1": 65.95744680851064,
+            "2": 53.191489361702125
+          },
+          "median_position_error_mm": 6.2929954379797035,
+          "median_chosen_force": 3.25,
+          "chosen_force_range": [
+            0.8,
+            5.7
+          ],
+          "median_force_bias": 0.10000000000000009,
+          "mean_force_bias": 0.17588652482269504,
+          "force_mae": 0.2687943262411348,
+          "under_forced_fraction": 0.2695035460992908,
+          "force_vs_required_rho": 0.9685684897637908,
+          "force_vs_required_rho_sd": 0.005963634533986853,
+          "chosen_force_spread": [
+            0.8,
+            5.7
+          ]
+        },
+        "D GRU (probe -> point)": {
+          "episodes": 141,
+          "states": 47,
+          "reach_pp": 43.97163120567376,
+          "reach_sd_across_seeds": 5.584402747526106,
+          "reach_per_seed": {
+            "0": 46.808510638297875,
+            "1": 36.17021276595745,
+            "2": 48.93617021276596
+          },
+          "median_position_error_mm": 8.689687727019196,
+          "median_chosen_force": 3.2,
+          "chosen_force_range": [
+            0.5,
+            5.5
+          ],
+          "median_force_bias": -0.04999999999999982,
+          "mean_force_bias": 0.029432624113475185,
+          "force_mae": 0.2613475177304965,
+          "under_forced_fraction": 0.524822695035461,
+          "force_vs_required_rho": 0.9663858927439951,
+          "force_vs_required_rho_sd": 0.0033896915970293975,
+          "chosen_force_spread": [
+            0.5,
+            5.5
+          ]
+        },
+        "RMA2 Stage B (probe -> latent -> point)": {
+          "episodes": 141,
+          "states": 47,
+          "reach_pp": 57.446808510638306,
+          "reach_sd_across_seeds": 6.263660188884998,
+          "reach_per_seed": {
+            "0": 59.57446808510638,
+            "1": 63.829787234042556,
+            "2": 48.93617021276596
+          },
+          "median_position_error_mm": 6.415815185755486,
+          "median_chosen_force": 3.3,
+          "chosen_force_range": [
+            0.95,
+            5.55
+          ],
+          "median_force_bias": 0.1499999999999999,
+          "mean_force_bias": 0.2166666666666667,
+          "force_mae": 0.30602836879432627,
+          "under_forced_fraction": 0.22695035460992907,
+          "force_vs_required_rho": 0.9618488598271989,
+          "force_vs_required_rho_sd": 0.006177202625744108,
+          "chosen_force_spread": [
+            0.95,
+            5.55
+          ]
+        },
+        "teacher (xi -> landscape)": {
+          "episodes": 141,
+          "states": 47,
+          "reach_pp": 68.08510638297872,
+          "reach_sd_across_seeds": 5.211680303793994,
+          "reach_per_seed": {
+            "0": 68.08510638297872,
+            "1": 61.702127659574465,
+            "2": 74.46808510638297
+          },
+          "median_position_error_mm": 4.602323379367585,
+          "median_chosen_force": 3.25,
+          "chosen_force_range": [
+            1.05,
+            6.15
+          ],
+          "median_force_bias": 0.09999999999999964,
+          "mean_force_bias": 0.07340425531914896,
+          "force_mae": 0.14858156028368796,
+          "under_forced_fraction": 0.24822695035460993,
+          "force_vs_required_rho": 0.9908746945555462,
+          "force_vs_required_rho_sd": 0.0020083599279458074,
+          "chosen_force_spread": [
+            1.05,
+            6.15
+          ]
+        }
+      },
+      "gaps": {
+        "teacher - ACE": 7.092198581560282,
+        "ACE - StageB": 3.546099290780134,
+        "StageB - GRU": 13.475177304964546,
+        "ACE - GRU": 17.02127659574468
+      }
+    },
+    "no_breakaway": {
+      "description": "the probe did not break the drawer away",
+      "states": 17,
+      "methods": {
+        "ACE + PSP (probe -> landscape)": {
+          "episodes": 51,
+          "states": 17,
+          "reach_pp": 9.803921568627452,
+          "reach_sd_across_seeds": 2.77296776935901,
+          "reach_per_seed": {
+            "0": 5.88235294117647,
+            "1": 11.76470588235294,
+            "2": 11.76470588235294
+          },
+          "median_position_error_mm": 24.47391753084957,
+          "median_chosen_force": 5.75,
+          "chosen_force_range": [
+            3.95,
+            6.0
+          ],
+          "median_force_bias": 0.20000000000000018,
+          "mean_force_bias": 0.30490196078431375,
+          "force_mae": 0.7617647058823527,
+          "under_forced_fraction": 0.43137254901960786,
+          "force_vs_required_rho": 0.38487051314819154,
+          "force_vs_required_rho_sd": 0.03317246826861368,
+          "chosen_force_spread": [
+            3.95,
+            6.0
+          ]
+        },
+        "D GRU (probe -> point)": {
+          "episodes": 51,
+          "states": 17,
+          "reach_pp": 5.88235294117647,
+          "reach_sd_across_seeds": 0.0,
+          "reach_per_seed": {
+            "0": 5.88235294117647,
+            "1": 5.88235294117647,
+            "2": 5.88235294117647
+          },
+          "median_position_error_mm": 22.680539137218155,
+          "median_chosen_force": 5.6,
+          "chosen_force_range": [
+            3.7,
+            5.75
+          ],
+          "median_force_bias": -0.04999999999999982,
+          "mean_force_bias": 0.15294117647058827,
+          "force_mae": 0.7568627450980391,
+          "under_forced_fraction": 0.5098039215686274,
+          "force_vs_required_rho": 0.3402818945169818,
+          "force_vs_required_rho_sd": 0.07321157495669156,
+          "chosen_force_spread": [
+            3.7,
+            5.75
+          ]
+        },
+        "RMA2 Stage B (probe -> latent -> point)": {
+          "episodes": 51,
+          "states": 17,
+          "reach_pp": 11.76470588235294,
+          "reach_sd_across_seeds": 0.0,
+          "reach_per_seed": {
+            "0": 11.76470588235294,
+            "1": 11.76470588235294,
+            "2": 11.76470588235294
+          },
+          "median_position_error_mm": 22.77786671184004,
+          "median_chosen_force": 5.55,
+          "chosen_force_range": [
+            4.0,
+            5.7
+          ],
+          "median_force_bias": 0.04999999999999982,
+          "mean_force_bias": 0.15882352941176472,
+          "force_mae": 0.7450980392156862,
+          "under_forced_fraction": 0.47058823529411764,
+          "force_vs_required_rho": 0.3225278113005808,
+          "force_vs_required_rho_sd": 0.12251325019796652,
+          "chosen_force_spread": [
+            4.0,
+            5.7
+          ]
+        },
+        "teacher (xi -> landscape)": {
+          "episodes": 51,
+          "states": 17,
+          "reach_pp": 35.294117647058826,
+          "reach_sd_across_seeds": 9.605842128561482,
+          "reach_per_seed": {
+            "0": 47.05882352941176,
+            "1": 23.52941176470588,
+            "2": 35.294117647058826
+          },
+          "median_position_error_mm": 10.294455476105218,
+          "median_chosen_force": 5.3,
+          "chosen_force_range": [
+            3.65,
+            6.5
+          ],
+          "median_force_bias": -0.15000000000000036,
+          "mean_force_bias": -0.10882352941176464,
+          "force_mae": 0.26764705882352946,
+          "under_forced_fraction": 0.6666666666666666,
+          "force_vs_required_rho": 0.9311308560525613,
+          "force_vs_required_rho_sd": 0.0030821628095991384,
+          "chosen_force_spread": [
+            3.65,
+            6.5
+          ]
+        }
+      },
+      "gaps": {
+        "teacher - ACE": 25.490196078431374,
+        "ACE - StageB": -1.9607843137254886,
+        "StageB - GRU": 5.88235294117647,
+        "ACE - GRU": 3.9215686274509816
+      }
+    },
+    "no_breakaway_feasible": {
+      "description": "probe silent, but the task is still solvable in range",
+      "states": 14,
+      "methods": {
+        "ACE + PSP (probe -> landscape)": {
+          "episodes": 42,
+          "states": 14,
+          "reach_pp": 11.904761904761903,
+          "reach_sd_across_seeds": 3.367175148507369,
+          "reach_per_seed": {
+            "0": 7.142857142857142,
+            "1": 14.285714285714285,
+            "2": 14.285714285714285
+          },
+          "median_position_error_mm": 20.408096577739343,
+          "median_chosen_force": 5.7,
+          "chosen_force_range": [
+            3.95,
+            5.95
+          ],
+          "median_force_bias": 0.5500000000000003,
+          "mean_force_bias": 0.5630952380952381,
+          "force_mae": 0.7321428571428572,
+          "under_forced_fraction": 0.30952380952380953,
+          "force_vs_required_rho": 0.03533836764464813,
+          "force_vs_required_rho_sd": 0.07264904020742359,
+          "chosen_force_spread": [
+            3.95,
+            5.95
+          ]
+        },
+        "D GRU (probe -> point)": {
+          "episodes": 42,
+          "states": 14,
+          "reach_pp": 7.142857142857142,
+          "reach_sd_across_seeds": 0.0,
+          "reach_per_seed": {
+            "0": 7.142857142857142,
+            "1": 7.142857142857142,
+            "2": 7.142857142857142
+          },
+          "median_position_error_mm": 21.061069861752905,
+          "median_chosen_force": 5.525,
+          "chosen_force_range": [
+            3.7,
+            5.75
+          ],
+          "median_force_bias": 0.375,
+          "mean_force_bias": 0.4130952380952381,
+          "force_mae": 0.6916666666666667,
+          "under_forced_fraction": 0.40476190476190477,
+          "force_vs_required_rho": 0.0003141235501411636,
+          "force_vs_required_rho_sd": 0.06521680993572018,
+          "chosen_force_spread": [
+            3.7,
+            5.75
+          ]
+        },
+        "RMA2 Stage B (probe -> latent -> point)": {
+          "episodes": 42,
+          "states": 14,
+          "reach_pp": 14.285714285714285,
+          "reach_sd_across_seeds": 0.0,
+          "reach_per_seed": {
+            "0": 14.285714285714285,
+            "1": 14.285714285714285,
+            "2": 14.285714285714285
+          },
+          "median_position_error_mm": 19.391641166293994,
+          "median_chosen_force": 5.55,
+          "chosen_force_range": [
+            4.0,
+            5.65
+          ],
+          "median_force_bias": 0.3999999999999999,
+          "mean_force_bias": 0.43333333333333324,
+          "force_mae": 0.6642857142857143,
+          "under_forced_fraction": 0.35714285714285715,
+          "force_vs_required_rho": -0.07521218696057987,
+          "force_vs_required_rho_sd": 0.18817063943071322,
+          "chosen_force_spread": [
+            4.0,
+            5.65
+          ]
+        },
+        "teacher (xi -> landscape)": {
+          "episodes": 42,
+          "states": 14,
+          "reach_pp": 42.857142857142854,
+          "reach_sd_across_seeds": 11.664236870396085,
+          "reach_per_seed": {
+            "0": 57.14285714285714,
+            "1": 28.57142857142857,
+            "2": 42.857142857142854
+          },
+          "median_position_error_mm": 8.505558589240541,
+          "median_chosen_force": 4.85,
+          "chosen_force_range": [
+            3.65,
+            6.2
+          ],
+          "median_force_bias": -0.10000000000000053,
+          "mean_force_bias": -0.06547619047619048,
+          "force_mae": 0.25833333333333347,
+          "under_forced_fraction": 0.5952380952380952,
+          "force_vs_required_rho": 0.8764165761591175,
+          "force_vs_required_rho_sd": 0.005630554907545219,
+          "chosen_force_spread": [
+            3.65,
+            6.2
+          ]
+        }
+      },
+      "gaps": {
+        "teacher - ACE": 30.95238095238095,
+        "ACE - StageB": -2.3809523809523814,
+        "StageB - GRU": 7.142857142857142,
+        "ACE - GRU": 4.761904761904761
+      }
+    }
+  },
+  "methods": [
+    "ACE + PSP (probe -> landscape)",
+    "D GRU (probe -> point)",
+    "RMA2 Stage B (probe -> latent -> point)",
+    "teacher (xi -> landscape)"
+  ]
+}

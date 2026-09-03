@@ -20,6 +20,8 @@ checkpoints/**
 !checkpoints/**/history.csv
 !checkpoints/**/summary.json
 !checkpoints/**/closed_loop.json
+!checkpoints/**/ood_closed_loop.json
+!checkpoints/**/ood_evaluation_summary.json
 
 # This baseline's own scratch outputs. Project-level artefacts -- the Oracle sweeps and
 # outputs/logs/adaptation_premise.json -- live under the repository root's outputs/ instead.

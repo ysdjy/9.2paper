@@ -97,13 +97,90 @@ Direct GRU reads 79.2 % here against 81.4 % there, the teacher 97.0 % against 98
 93.9 % against 91.3 %. **Every comparison above is within this one session and therefore exact;
 none of the absolute values should be quoted against another run.**
 
-## 5. Reproducing
+## 5. Out of distribution: the landscape's advantage does **not** grow
+
+The 64 genuine out-of-distribution states from [OOD_FEASIBILITY.md](../../../docs/OOD_FEASIBILITY.md),
+with the strata that document fixed **before any model was evaluated**. Four methods, three
+seeds, one session, shared probe snapshots. Nothing retrained.
+
+| stratum | teacher | ACE + PSP | Stage B | D GRU | **ACE − Stage B** |
+|---|---|---|---|---|---|
+| all, n = 64 | 59.4 % | 47.4 % | 45.3 % | 33.9 % | **+2.1 ± 0.7** |
+| oracle-feasible, n = 61 | 62.3 % | 49.7 % | 47.5 % | 35.5 % | **+2.2 ± 0.8** |
+| responsive, n = 47 | 68.1 % | 61.0 % | 57.4 % | 44.0 % | **+3.5 ± 1.0** |
+| no-breakaway, n = 17 | 35.3 % | 9.8 % | 11.8 % | 5.9 % | **−2.0 ± 2.8** |
+| silent + feasible, n = 14 | 42.9 % | 11.9 % | 14.3 % | 7.1 % | **−2.4 ± 3.4** |
+
+Median position error and force MAE track it: ACE 7.92 mm / 0.400 N against Stage B's 8.67 mm /
+0.423 N on the full set, and 20.41 mm / 0.732 N against 19.39 mm / 0.664 N on silent+feasible —
+where Stage B is marginally *better* on both.
+
+`Stage B − D GRU` stays large everywhere: **+11.5 / +12.0 / +13.5 / +5.9 / +7.1 pp**. Latent
+distillation is again the mechanism doing the work, exactly as in distribution.
+
+### Answering the question
+
+> Does a success landscape plus search show a clearer advantage over RMA²-style latent
+> distillation with a point output when out of distribution, or when the probe is uninformative?
+
+**No — the opposite, and this refutes a hypothesis stated in
+[STAGE_A_RESULTS.md](STAGE_A_RESULTS.md) §3.**
+
+The landscape's advantage is **largest where the probe is informative** (+3.5 pp on responsive,
+positive on all three seeds under pairing) and **reverses where the probe is silent**
+(−2.0 and −2.4 pp). Its size out of distribution (+2.1 pp) is indistinguishable from its size in
+distribution (+1.9 pp). It does not grow with distribution shift and it does not grow with
+information scarcity.
+
+Read carefully, the silent-stratum reversal is better described as **no difference** than as
+Stage B winning: paired per seed the gaps are −5.9 / 0.0 / 0.0 and −7.1 / 0.0 / 0.0, so one seed
+favours Stage B and two are exactly tied. Either way there is no landscape advantage to find.
+
+### Why, from the tracking correlation
+
+`ρ(chosen force, required force)`, per stratum:
+
+| stratum | teacher | ACE + PSP | Stage B | D GRU |
+|---|---|---|---|---|
+| responsive | +0.991 | +0.969 | +0.962 | +0.966 |
+| no-breakaway | +0.931 | +0.385 | +0.323 | +0.340 |
+| **silent + feasible** | **+0.876** | **+0.035** | **−0.075** | **+0.000** |
+
+Where the probe informs, all three probe-based methods track the requirement almost as well as
+the teacher. Where the probe is silent, **all three collapse to zero tracking together** while
+the teacher keeps +0.876.
+
+That is the explanation. A landscape can only marginalise over uncertainty it can *represent*;
+with a silent probe the latent carries no information about which force this drawer needs, so a
+distribution over candidate forces is exactly as uninformative as a single number. The output
+form cannot recover a signal the input never contained.
+
+### Where that leaves the comparison
+
+Across every stratum, in and out of distribution, `ACE − Stage B` sits in the **1–3 pp** band —
+the range agreed in advance as "report honestly and stop". So the landscape formulation is a
+small, consistent, information-dependent improvement over an RMA²-style point output, and not a
+mechanism that comes into its own under shift. The large effects in this project belong to the
+privileged teacher (Stage B − GRU, +12 pp) and to the probe's own coverage (teacher − ACE,
++12 pp raw, +31 pp on silent states).
+
+**Stopped here.** No tuning, and no search for a setting that would favour the landscape.
+
+## 6. Reproducing
 
 ```bash
 python baselines/rma2/scripts/train_rma2_privileged.py --seeds 0 1 2 --device cuda
 python baselines/rma2/scripts/train_rma2_adapter.py    --seeds 0 1 2 --device cuda
 python baselines/rma2/scripts/eval_rma2_closed_loop.py --headless --seeds 0 1 2 --num-xi 0
 python -m pytest baselines/rma2/tests -q          # 65 tests, ~4 s, no Isaac Sim
+
+# the out-of-distribution evaluation (section 5)
+python baselines/rma2/scripts/eval_rma2_closed_loop.py --headless --seeds 0 1 2 --num-xi 0 \
+    --methods teacher student stage_b gru --ood-report outputs/logs/ood_feasibility.json \
+    --output baselines/rma2/checkpoints/stage_b/ood_closed_loop.json
+python scripts/report_ood_evaluation.py \
+    --report baselines/rma2/checkpoints/stage_b/ood_closed_loop.json \
+    --output baselines/rma2/checkpoints/stage_b/ood_evaluation_summary.json
 ```
 
 The joint five-method deployment report is written to
