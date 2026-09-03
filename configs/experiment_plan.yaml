@@ -6,6 +6,9 @@
 # corrected contents when it does.
 _source:
   main_task: probe_drawer.experiment_plan:MAIN_TASK
+  setting_v1_task: probe_drawer.experiment_plan:SETTING_V1_TASK
+  setting_v1_probe: probe_drawer.experiment_plan:SETTING_V1_PROBE
+  setting_v1_probe_controller: probe_drawer.experiment_plan:SETTING_V1_PROBE_CFG
   probe_task: probe_drawer.experiment_plan:RECOMMENDED_PROBE_TASK
   probe_controller: probe_drawer.experiment_plan:RECOMMENDED_PROBE_CFG
   execution_controller: probe_drawer.experiment_plan:RECOMMENDED_EXECUTION_CFG
@@ -18,6 +21,12 @@ _provenance:
     Oracle)
   transition: scripts/validate_sequential_protocol.py -> outputs/logs/sequential_protocol_validation.json
   probe: scripts/calibrate_probe.py -> outputs/logs/probe_calibration.json
+  setting_v1_probe: scripts/calibrate_fixed_probe.py -> outputs/logs/fixed_probe_calibration_short.json
+    (selection rule in probe_drawer.analysis.fixed_probe_calibration; re-seed check in
+    fixed_probe_calibration_reseed.json)
+  setting_v1_task: scripts/calibrate_fixed_probe.py -> outputs/logs/setting_v1_T1.5.json vs
+    setting_v1_T2.0.json (T_goal comparison; d_goal fixed at 0.10 m by decision, see
+    docs/GOAL_DISTANCE.md)
   xi_ranges: scripts/build_sequential_oracle.py -> outputs/logs/sequential_oracle_fall*.json
   note: Every number is the output of a sweep. See docs/EXPERIMENT_SPACE.md and docs/SEQUENTIAL_PROTOCOL.md.
 main_task:
@@ -28,6 +37,26 @@ main_task:
   peak_force_range:
   - 0.15
   - 4.5
+setting_v1_task:
+  duration: 1.5
+  goal_displacement: 0.1
+  displacement_tolerance: 0.0075
+  velocity_tolerance: 0.03
+  peak_force_range:
+  - 0.5
+  - 6.5
+setting_v1_probe:
+  peak_force: 3.5
+  duration: 0.3
+setting_v1_probe_controller:
+  ramp_duration: 1.0
+  ramp_shape: linear
+  hold_after_max_force: 0.0
+  max_probe_duration: 1.5
+  settle_steps: 30
+  fixed_rise_fraction: 0.1
+  fixed_fall_fraction: 0.35
+  fixed_shape: smoothstep
 probe_task:
   initial_force: 1.0
   max_force: 6.0
@@ -39,6 +68,9 @@ probe_controller:
   hold_after_max_force: 0.0
   max_probe_duration: 1.5
   settle_steps: 30
+  fixed_rise_fraction: 0.1
+  fixed_fall_fraction: 0.35
+  fixed_shape: smoothstep
 execution_controller:
   rise_fraction: 0.1
   fall_fraction: 0.35

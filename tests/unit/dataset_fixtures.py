@@ -73,7 +73,13 @@ def write_dataset(
                         "goal_displacement": 0.04,
                         "final_total_displacement": 0.04 + 0.001 * choice,
                         "final_velocity": 0.01,
+                        "position_error": 0.001 * choice,
+                        # A Setting V1 fixture: reach is the wider label, stable the nested
+                        # one, and ``success`` is stable under its original name (D046).
                         "success": choice == 1,
+                        "reach_success": choice in (1, 2),
+                        "stable_success": choice == 1,
+                        "termination_reason": "duration_completed",
                         "valid": True,
                         "invalid_reasons": [],
                     }

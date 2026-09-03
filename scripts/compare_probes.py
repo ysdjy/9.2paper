@@ -58,6 +58,7 @@ import numpy as np  # noqa: E402
 
 from probe_drawer.dataset.sampling import representative_hidden_states, success_mask  # noqa: E402
 from probe_drawer.analysis.probe_features import PROBE_FEATURES, extract_features  # noqa: E402
+from probe_drawer.analysis.readout import RIDGE_PENALTY, leave_one_out  # noqa: E402
 from probe_drawer.experimental.response_probe_features import (  # noqa: E402
     RESPONSE_PROBE_FEATURES,
     extract_response_features,
@@ -75,54 +76,6 @@ from probe_drawer.utils import (  # noqa: E402
 )
 
 XI_NAMES = ("mass", "static_friction", "dynamic_friction", "damping")
-
-
-#: Ridge penalty for the leave-one-out readouts.
-#:
-#: Not optional, and not a tuning knob. The two probes produce 9 and 18 features from the same
-#: ~64 probes, so an unregularised fit is far better conditioned for the old probe than for
-#: the new one and the comparison would measure feature count rather than information -- the
-#: first run of this script produced leave-one-out R-squared values of -82 and -50 for the
-#: 18-feature configurations, which is a numerically exploded fit rather than a bad probe.
-#: A single fixed penalty applied to both makes the comparison about what each probe measured.
-RIDGE_PENALTY = 1.0
-
-
-def leave_one_out(features: np.ndarray, target: np.ndarray) -> dict:
-    """Leave-one-out ridge readout, reported as both R-squared and RMSE.
-
-    Rows with a non-finite feature are dropped rather than imputed: a probe that aborted
-    before it could measure something has not measured it, and filling in a mean would let
-    the fit borrow information the probe never had.
-    """
-    finite = np.isfinite(features).all(axis=1) & np.isfinite(target)
-    features, target = features[finite], target[finite]
-    if len(features) < 8:
-        return {"r2": float("nan"), "rmse": float("nan"), "n": int(len(features))}
-
-    standardised = (features - features.mean(axis=0)) / np.maximum(features.std(axis=0), 1e-9)
-    width = standardised.shape[1]
-    # Penalise the coefficients but not the intercept: shrinking the intercept would bias
-    # every prediction toward zero rather than toward the target's mean.
-    penalty = np.sqrt(RIDGE_PENALTY) * np.hstack([np.eye(width), np.zeros((width, 1))])
-    predictions = np.empty(len(target))
-    for index in range(len(target)):
-        keep = np.ones(len(target), dtype=bool)
-        keep[index] = False
-        centre = float(target[keep].mean())
-        design = np.hstack([standardised[keep], np.ones((int(keep.sum()), 1))])
-        augmented = np.vstack([design, penalty])
-        augmented_target = np.concatenate([target[keep] - centre, np.zeros(width)])
-        solution, *_ = np.linalg.lstsq(augmented, augmented_target, rcond=None)
-        predictions[index] = np.hstack([standardised[index], 1.0]) @ solution + centre
-    residual = predictions - target
-    variance = float(np.var(target))
-    return {
-        "r2": float(1.0 - np.mean(residual**2) / variance) if variance > 0 else float("nan"),
-        "rmse": float(np.sqrt(np.mean(residual**2))),
-        "n": int(len(target)),
-        "target_sd": float(np.sqrt(variance)),
-    }
 
 
 def oracle_targets(path: Path) -> dict[tuple[float, ...], dict]:

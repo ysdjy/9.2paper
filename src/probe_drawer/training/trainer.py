@@ -65,6 +65,15 @@ class TrainCfg:
             emphasises the landscape's shape over its confident extremes.
         latent_weight: Weight on ``||z_ace - z_priv||^2``. Zero by default -- see the module
             docstring.
+        label: Which label to train on. ``"reach_success"`` is the primary metric and the
+            Setting V1 default; ``"success"`` is the strict label Dataset v0 carries. A
+            dataset that does not record the requested label raises rather than substituting
+            the other (``docs/DECISIONS.md`` D046).
+        auxiliary_weight: Weight on regressing ``d_total(T)`` and ``v(T)`` from the same
+            trunk. Secondary to the task loss and **not tuned** -- 0.2 was chosen so the two
+            normalised terms contribute on the same order as the classification loss without
+            dominating it. ``0`` trains the classifier alone; the auxiliary head still exists
+            and simply receives no gradient.
         seed: Torch and numpy seed.
         device: ``"cpu"`` or ``"cuda"``.
         monitor: Validation key to select the best epoch on.
@@ -79,6 +88,8 @@ class TrainCfg:
     distillation_weight: float = 0.0
     distillation_temperature: float = 2.0
     latent_weight: float = 0.0
+    label: str = "reach_success"
+    auxiliary_weight: float = 0.2
     seed: int = 0
     device: str = "cpu"
     monitor: str = "selected_success_rate_feasible_only"
@@ -106,9 +117,42 @@ class TrainedModel:
         return self.model
 
 
+#: Scale the terminal-velocity residual is divided by before it enters the auxiliary loss.
+#:
+#: Fixed at 0.1 m/s rather than fitted, so the loss does not change meaning between datasets.
+#: It is roughly the spread of ``v(T)`` at Setting V1's operating point, which puts the
+#: normalised residual on the same order as the displacement one (normalised by ``d_goal``).
+AUXILIARY_VELOCITY_SCALE = 0.1
+
+
+def _sample_label(sample, name: str) -> float:
+    """One row's training label, refusing an absent one rather than falling back."""
+    value = getattr(sample, name)
+    if value is None:
+        raise ValueError(
+            f"this dataset does not record {name!r} (Dataset v0 predates it). Set "
+            f"TrainCfg(label='success'), or regenerate with --setting v1."
+        )
+    return float(value)
+
+
+def _auxiliary_loss(prediction, batch: ProbeBatch) -> torch.Tensor:
+    """Normalised regression of what the execution actually did.
+
+    Each residual is divided by a fixed scale -- the row's own ``d_goal`` for displacement,
+    :data:`AUXILIARY_VELOCITY_SCALE` for velocity -- so that a metre and a metre per second do
+    not enter the sum with wildly different weights, and so the loss means the same thing on a
+    dataset with a different goal distance.
+    """
+    goal = batch.task_condition[:, 0].clamp_min(1e-6)
+    displacement = (prediction.displacement - batch.final_displacement) / goal
+    velocity = (prediction.velocity - batch.final_velocity) / AUXILIARY_VELOCITY_SCALE
+    return 0.5 * (displacement.pow(2).mean() + velocity.pow(2).mean())
+
+
 def _resolve_pos_weight(dataset: SampleDataset, cfg: TrainCfg) -> tuple[torch.Tensor, dict]:
     """The positive-class multiplier, and the label distribution it came from."""
-    labels = np.array([float(sample.success) for sample in dataset.samples])
+    labels = np.array([_sample_label(sample, cfg.label) for sample in dataset.samples])
     positives = float(labels.sum())
     negatives = float(len(labels) - positives)
     weight = cfg.pos_weight if cfg.pos_weight is not None else (negatives / max(positives, 1.0))
@@ -120,12 +164,13 @@ def _resolve_pos_weight(dataset: SampleDataset, cfg: TrainCfg) -> tuple[torch.Te
             "negatives": int(negatives),
             "positive_fraction": float(labels.mean()) if len(labels) else 0.0,
             "pos_weight": float(weight),
+            "label": cfg.label,
             "resampled": False,
         },
     )
 
 
-def _predict(model: nn.Module, loader, device: str) -> dict:
+def _predict(model: nn.Module, loader, device: str, label: str = "success") -> dict:
     """Logits and the fields the metrics need, over a whole loader. No gradients, eval mode."""
     was_training = model.training
     model.eval()
@@ -134,7 +179,7 @@ def _predict(model: nn.Module, loader, device: str) -> dict:
         for batch in loader:
             moved = batch.to(device)
             logits.append(model(moved).cpu().numpy())
-            labels.append(batch.success.numpy())
+            labels.append(batch.label(label).numpy())
             forces.append(batch.candidate_force.numpy())
             probes.extend(batch.probe_ids)
             states.extend(batch.xi_ids)
@@ -157,7 +202,7 @@ def evaluate(model: nn.Module, dataset: SampleDataset, cfg: TrainCfg, batch_size
     comparable to anything.
     """
     loader = make_loader(dataset, batch_size=batch_size, shuffle=False)
-    predictions = _predict(model, loader, cfg.device)
+    predictions = _predict(model, loader, cfg.device, cfg.label)
     if not len(predictions["labels"]):
         return {"rows": 0}
 
@@ -239,7 +284,11 @@ def train_teacher(
     criterion = nn.BCEWithLogitsLoss(pos_weight=weight.to(cfg.device))
 
     def step(batch: ProbeBatch) -> torch.Tensor:
-        return criterion(model(batch), batch.success)
+        prediction = model.predict(batch)
+        loss = criterion(prediction.logit, batch.label(cfg.label))
+        if cfg.auxiliary_weight > 0.0:
+            loss = loss + cfg.auxiliary_weight * _auxiliary_loss(prediction, batch)
+        return loss
 
     return _run_epochs(model, train_dataset, val_dataset, cfg, step, distribution)
 
@@ -277,8 +326,11 @@ def train_student(
     temperature = max(cfg.distillation_temperature, 1e-6)
 
     def step(batch: ProbeBatch) -> torch.Tensor:
-        student_logit = model(batch)
-        loss = criterion(student_logit, batch.success)
+        prediction = model.predict(batch)
+        student_logit = prediction.logit
+        loss = criterion(student_logit, batch.label(cfg.label))
+        if cfg.auxiliary_weight > 0.0:
+            loss = loss + cfg.auxiliary_weight * _auxiliary_loss(prediction, batch)
         if teacher is None:
             return loss
         with torch.no_grad():

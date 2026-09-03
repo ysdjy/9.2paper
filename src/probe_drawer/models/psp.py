@@ -27,25 +27,46 @@ against a scalar baseline harder to interpret.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import NamedTuple
 
 import torch
 from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence
 
 __all__ = [
+    "CONDITION_DIM",
+    "CONDITION_FIELDS",
     "AdaptationContextEncoder",
     "PrivilegedEncoder",
-    "SuccessPredictor",
     "PspCfg",
+    "PspPrediction",
+    "SuccessPredictor",
     "build_student",
     "build_teacher",
 ]
 
-#: Number of conditioning inputs the head takes besides ``z``: the candidate force and the
-#: two post-probe state entries. ``T_goal`` and ``d_goal`` are fixed in this experiment, so
-#: they are stored in the dataset but not fed to the network -- a constant input contributes
-#: nothing but parameters.
-CONDITION_DIM = 3
+#: The head's conditioning inputs besides ``z``, in the order they are concatenated.
+#:
+#: The last two are the **task condition**. Setting V1 searches ``F_peak`` and nothing else --
+#: ``T_goal`` is something the task hands the robot, not something the model chooses
+#: (``docs/DECISIONS.md`` D044) -- and putting the condition in the input is what makes that
+#: distinction structural rather than a convention.
+#:
+#: **Honestly**: within Dataset v1 both are constant, so they contribute nothing the network
+#: can learn from; a constant input is 2 extra weights and no information. They are here so
+#: that the model's contract is "given *this* task, would this force work?" rather than
+#: "would this force work?", which is the contract a second task distance would need. Phase 11
+#: left them out for the opposite and equally defensible reason.
+CONDITION_FIELDS = (
+    "candidate_peak_force",
+    "post_probe_displacement",
+    "post_probe_velocity",
+    "goal_displacement",
+    "duration",
+)
+
+#: Width of the conditioning vector.
+CONDITION_DIM = len(CONDITION_FIELDS)
 
 
 @dataclass(frozen=True)
@@ -74,7 +95,28 @@ class PspCfg:
             "gru_layers": self.gru_layers,
             "dropout": self.dropout,
             "condition_dim": CONDITION_DIM,
+            "condition_fields": list(CONDITION_FIELDS),
         }
+
+
+class PspPrediction(NamedTuple):
+    """What the head produces for one batch.
+
+    ``logit`` is the task output and the only one used to select a force. The other two are
+    **auxiliary**: regressing what the execution will actually do gives the shared trunk a
+    dense target alongside a binary one, and gives a reader something to inspect when a
+    prediction is wrong -- a model that says "will fail" is less informative than one that
+    says "will stop 14 mm short".
+
+    Attributes:
+        logit: ``(batch,)`` logit of ``P(reach_success)``.
+        displacement: ``(batch,)`` predicted :math:`d_\text{total}(T)` (m).
+        velocity: ``(batch,)`` predicted :math:`v(T)` (m/s).
+    """
+
+    logit: torch.Tensor
+    displacement: torch.Tensor
+    velocity: torch.Tensor
 
 
 class PrivilegedEncoder(nn.Module):
@@ -143,38 +185,69 @@ class AdaptationContextEncoder(nn.Module):
 
 
 class SuccessPredictor(nn.Module):
-    """``(z, F_candidate, post_probe) -> logit P(success)``.
+    """``(z, F_candidate, post_probe, d_goal, T_goal) -> logit P(reach_success), d_hat, v_hat``.
 
     Takes a *logit* rather than a probability so the loss can be the numerically stable
     ``binary_cross_entropy_with_logits``, and so distillation can match logits directly.
+
+    One trunk, two heads. The auxiliary regression shares every parameter with the classifier
+    up to the last layer, which is the point: it is there to shape the representation, not to
+    be a second model.
     """
 
     def __init__(self, cfg: PspCfg | None = None) -> None:
         super().__init__()
         cfg = cfg or PspCfg()
         self.cfg = cfg
-        self.net = nn.Sequential(
+        self.trunk = nn.Sequential(
             nn.Linear(cfg.z_dim + CONDITION_DIM, cfg.hidden),
             nn.SiLU(),
             nn.Dropout(cfg.dropout),
             nn.Linear(cfg.hidden, cfg.hidden),
             nn.SiLU(),
-            nn.Linear(cfg.hidden, 1),
         )
+        self.classifier = nn.Linear(cfg.hidden, 1)
+        self.regressor = nn.Linear(cfg.hidden, 2)
 
-    def forward(
-        self, context: torch.Tensor, candidate_force: torch.Tensor, post_probe: torch.Tensor
-    ) -> torch.Tensor:
+    def predict(
+        self,
+        context: torch.Tensor,
+        candidate_force: torch.Tensor,
+        post_probe: torch.Tensor,
+        task_condition: torch.Tensor,
+    ) -> PspPrediction:
         """Args:
             context: ``(batch, z_dim)``.
             candidate_force: ``(batch,)``.
             post_probe: ``(batch, 2)`` -- displacement and velocity where the execution starts.
+            task_condition: ``(batch, 2)`` -- ``d_goal`` and ``T_goal``.
 
         Returns:
-            ``(batch,)`` logits.
+            A :class:`PspPrediction`.
         """
-        conditions = torch.cat([candidate_force.unsqueeze(-1), post_probe], dim=-1)
-        return self.net(torch.cat([context, conditions], dim=-1)).squeeze(-1)
+        conditions = torch.cat([candidate_force.unsqueeze(-1), post_probe, task_condition], dim=-1)
+        if conditions.shape[-1] != CONDITION_DIM:
+            raise ValueError(
+                f"expected {CONDITION_DIM} conditioning inputs {CONDITION_FIELDS}, "
+                f"got {conditions.shape[-1]}."
+            )
+        features = self.trunk(torch.cat([context, conditions], dim=-1))
+        auxiliary = self.regressor(features)
+        return PspPrediction(
+            logit=self.classifier(features).squeeze(-1),
+            displacement=auxiliary[..., 0],
+            velocity=auxiliary[..., 1],
+        )
+
+    def forward(
+        self,
+        context: torch.Tensor,
+        candidate_force: torch.Tensor,
+        post_probe: torch.Tensor,
+        task_condition: torch.Tensor,
+    ) -> torch.Tensor:
+        """The task output alone, ``(batch,)`` logits. See :meth:`predict` for the rest."""
+        return self.predict(context, candidate_force, post_probe, task_condition).logit
 
 
 class TeacherModel(nn.Module):
@@ -188,7 +261,12 @@ class TeacherModel(nn.Module):
         self.head = SuccessPredictor(cfg)
 
     def forward(self, batch) -> torch.Tensor:
-        return self.head(self.encoder(batch.xi), batch.candidate_force, batch.post_probe)
+        return self.predict(batch).logit
+
+    def predict(self, batch) -> PspPrediction:
+        return self.head.predict(
+            self.context(batch), batch.candidate_force, batch.post_probe, batch.task_condition
+        )
 
     def context(self, batch) -> torch.Tensor:
         return self.encoder(batch.xi)
@@ -198,8 +276,9 @@ class StudentModel(nn.Module):
     """``ACE + PSP``. Reads only the probe recording and the deployable post-probe state.
 
     ``forward`` takes the whole batch for symmetry with the teacher, but touches only
-    ``history``, ``lengths``, ``candidate_force`` and ``post_probe``. It has no path to
-    ``batch.xi``; the test suite asserts that a batch with corrupted ``xi`` produces
+    ``history``, ``lengths``, ``candidate_force``, ``post_probe`` and ``task_condition`` --
+    every one of them deployable, the last two being numbers the task itself hands the robot.
+    It has no path to ``batch.xi``; the test suite asserts that a batch with corrupted ``xi`` produces
     identical output.
     """
 
@@ -212,7 +291,12 @@ class StudentModel(nn.Module):
         self.head = SuccessPredictor(cfg)
 
     def forward(self, batch) -> torch.Tensor:
-        return self.head(self.context(batch), batch.candidate_force, batch.post_probe)
+        return self.predict(batch).logit
+
+    def predict(self, batch) -> PspPrediction:
+        return self.head.predict(
+            self.context(batch), batch.candidate_force, batch.post_probe, batch.task_condition
+        )
 
     def context(self, batch) -> torch.Tensor:
         return self.encoder(batch.history, batch.lengths)

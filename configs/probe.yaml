@@ -12,6 +12,9 @@ probe_controller:
   hold_after_max_force: 0.0
   max_probe_duration: 2.5
   settle_steps: 30
+  fixed_rise_fraction: 0.1
+  fixed_fall_fraction: 0.35
+  fixed_shape: smoothstep
 task_parameters_are_not_configuration: 'initial_force, max_force, target_displacement
   and max_velocity are arguments to ProbePullController.run, not configuration: they
   are the experiment''s task parameters. The values below are the documented example

@@ -14,16 +14,19 @@ from .force_channel_analysis import (
     analyse_force_channels,
 )
 from .hidden_state_audit import CANDIDATES, AuditVerdict, HiddenStateCandidate, PaperRole, run_hidden_state_audit
+from .readout import RIDGE_PENALTY, leave_one_out
 
 __all__ = [
     "AUDIT_CASES",
     "CANDIDATES",
     "END_STOP_CASE",
+    "RIDGE_PENALTY",
     "AuditVerdict",
     "ForceAuditCase",
     "HiddenStateCandidate",
     "PaperRole",
     "analyse_end_stop_episode",
     "analyse_force_channels",
+    "leave_one_out",
     "run_hidden_state_audit",
 ]

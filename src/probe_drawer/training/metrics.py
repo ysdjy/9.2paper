@@ -178,16 +178,34 @@ def reference_force_per_probe(samples: Sequence) -> dict[str, float]:
     return {probe: force for probe, (_, force) in best.items()}
 
 
-def success_forces_per_probe(samples: Sequence) -> dict[str, list[float]]:
-    """The forces that actually succeeded, per probe."""
+def _label(sample, name: str) -> bool:
+    """One row's label, refusing an absent one rather than falling back to the other."""
+    value = getattr(sample, name)
+    if value is None:
+        raise ValueError(
+            f"this dataset does not record {name!r}; Dataset v0 predates the reach/stable "
+            f"split (docs/DECISIONS.md D046). Pass label='success' or regenerate with "
+            f"--setting v1."
+        )
+    return bool(value)
+
+
+def success_forces_per_probe(samples: Sequence, label: str = "success") -> dict[str, list[float]]:
+    """The forces that actually succeeded, per probe.
+
+    Args:
+        samples: Rows to summarise.
+        label: Which success definition counts -- ``"reach_success"`` for Setting V1's primary
+            metric, ``"success"`` for the strict one Dataset v0 carries (D046).
+    """
     forces: dict[str, list[float]] = defaultdict(list)
     for sample in samples:
-        if sample.success:
+        if _label(sample, label):
             forces[sample.probe_id].append(sample.candidate_peak_force)
     return dict(forces)
 
 
-def empirical_success_probability(samples: Sequence) -> dict[tuple[str, float], float]:
+def empirical_success_probability(samples: Sequence, label: str = "success") -> dict[tuple[str, float], float]:
     """``(xi_id, force) -> fraction of repeats that succeeded``.
 
     The dataset stores binary labels, deliberately: a row records what happened, not an
@@ -196,5 +214,5 @@ def empirical_success_probability(samples: Sequence) -> dict[tuple[str, float], 
     """
     counts: dict[tuple[str, float], list[int]] = defaultdict(list)
     for sample in samples:
-        counts[(sample.xi_id, round(sample.candidate_peak_force, 6))].append(int(sample.success))
+        counts[(sample.xi_id, round(sample.candidate_peak_force, 6))].append(int(_label(sample, label)))
     return {key: float(np.mean(values)) for key, values in counts.items()}

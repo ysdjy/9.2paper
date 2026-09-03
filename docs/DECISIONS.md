@@ -933,3 +933,113 @@ informative feature exactly where it carries the most signal and biasing the dat
 doing it.
 
 **Date.** 2026-09-03
+
+---
+
+### D044 — The official probe is a fixed-budget excitation, not a response-triggered one
+
+**Decision.** Setting V1's probe applies one force profile — `F(t) = 3.5 N · φ(t/0.3 s)`, the
+execution's smoothstep trapezoid with a 10 % rise and a 35 % release — identically to every
+hidden state, and runs it to completion. It does not stop on displacement, does not read
+`d_goal`, does not wait for the drawer to stop, and only the absolute safety limits may end it
+early. The Phase 8–11 ramp probe and the Phase 12 response-triggered probe are both retained
+and reproducible; neither is the paper's setting.
+
+Implemented as `ProbePullController.run_fixed_budget`, a second entry point on the existing
+controller rather than a third controller class, so the public surface stays at two APIs
+(D045).
+
+**Reason.** Both earlier probes measured the drawer with their *own shape*, which is
+convenient and costs more than it looks.
+
+The ramp probe stopped when the drawer had moved 3 mm, so its duration was a measurement — and
+a strong one (Spearman +0.932 with `µ_s`, D043). But it also meant the probe's cost varied with
+what it was probing, from 0.10 s to 0.93 s, and that two hidden states were never excited the
+same way. The Phase 12 probe additionally scaled its trigger to `α·d_goal`, making the probe
+*task-dependent*: change the task and the context the model was trained on changes with it.
+
+A fixed excitation gives up the duration feature and buys three things. Every history has the
+same length, so the response at any instant is comparable across hidden states without
+conditioning on when the probe happened to stop. The probe is a property of the robot rather
+than of the task, which is what lets `d_goal` and `T_goal` be genuine task conditions in the
+PSP's input. And the cost is bounded and known in advance.
+
+**How 3.5 N and 0.3 s were chosen.** By `scripts/calibrate_fixed_probe.py` under the rule in
+`probe_drawer.analysis.fixed_probe_calibration`, which was written before the first run: four
+gates (no safety abort; every drawer breaks away; post-probe displacement ≤ 30 % of the goal;
+≥ 90 % of hidden states still solvable) and then the lowest leave-one-out RMSE of the required
+peak force, ties going to the shorter probe.
+
+The first candidate set (H = 0.4–0.6 s) was mis-centred — three of four failed the intrusion
+gate and the survivor passed at 0.2992. The set was widened downward **once**, to a 3×2
+factorial, which separates the two effects cleanly:
+
+| | H = 0.20 s | H = 0.30 s |
+|---|---|---|
+| F = 3.5 N | moved 22/24, median d 3.6 mm | **moved 24/24, median d 6.8 mm, RMSE 0.333 N** |
+| F = 4.5 N | moved 24/24, median d 5.5 mm, RMSE 0.448 N | moved 24/24, median d 10.7 mm, RMSE 0.486 N |
+| F = 5.5 N | moved 24/24, median d 7.6 mm, RMSE 0.570 N | moved 24/24, median d 14.3 mm, RMSE 0.590 N |
+
+**The budget sets intrusion and the amplitude sets breakaway.** F = 3.5 N with H = 0.3 s is the
+only cell that gets both from one point: the longer plateau breaks away every drawer at the
+lower amplitude, so nothing is paid in displacement for the coverage. On a second 24-state draw
+the ordering held (0.363 N against 0.403 N for the runner-up), with the gap narrowing — the
+margin is real but modest, and both candidates would serve.
+
+**Not done.** No separate large-displacement probe was added to identify damping. Damping is
+unidentifiable at probe speeds for a magnitude reason (D041), and a second probe segment would
+buy it at the cost of the standardisation this decision exists to get.
+
+**Date.** 2026-09-03
+
+---
+
+### D045 — `run_fixed_budget` is a mode, not a third controller
+
+**Decision.** The fixed-budget probe is a second method on `ProbePullController`. The public
+task-level API stays exactly two classes, `ProbePullController` and `ExecutionPullController`,
+enforced by `tests/unit/test_package_layering.py`.
+
+**Reason.** Phase 12 briefly had three, and the third (`ResponseProbeController`) was a whole
+class to express one different stopping rule. Two probe modes share the environment handle, the
+OSC, the safety limits, the history recorder, the pull axis and the profile validation; they
+differ in which stop conditions apply. That is a branch, not a type.
+
+The branch is honest rather than disguised: `_fixed_budget` is a flag that makes
+`_stop_conditions` return an empty tuple, so no task-level stop exists to fire. The alternative
+considered and rejected was to keep the four stop conditions and pass unreachable thresholds —
+an infinite target displacement, an infinite velocity limit. That would produce the same
+trajectories and would misreport why the probe ended, and a reader of the recorded parameters
+would see a probe that had a displacement target when it did not.
+
+The flag is restored in a `finally`, because leaving it set would silently disable the stop
+conditions of a later call to `run` in the same process.
+
+**Date.** 2026-09-03
+
+---
+
+### D046 — `reach_success` and `stable_success` are reported separately
+
+**Decision.** Two nested labels. `reach_success` is `|d(T) − d_goal| ≤ ε_d` **and** a valid
+operating point, and is the **primary** metric. `stable_success` is `reach_success` **and**
+`|v(T)| ≤ ε_v`, and is the **secondary** one. Both are derived properties of the same three
+booleans, so they cannot disagree. Every continuous quantity behind them — `displacement_error`,
+`terminal_velocity` — stays on the verdict. `success` keeps its original name and its original
+meaning, `stable_success`, because it is the label Dataset v0 was generated with.
+
+**Reason.** One combined number made a *positioning* failure and a *braking* failure
+indistinguishable, and they are not the same failure. The goal-distance sweep found that past
+roughly 100 mm the terminal-velocity term fails first while the position term is still
+comfortably met, so a falling combined success rate over distance was reporting two mechanisms
+as one.
+
+**What the split immediately showed.** At Setting V1's own operating point — `d_goal` = 0.10 m,
+`T_goal` = 1.5 s — `reach_success` is **24 of 24** and `stable_success` is **0 of 24**. The
+drawer arrives, at 0.048–0.077 m/s where `ε_v` is 0.03. Setting V1 therefore poses a *reaching*
+task and not a *placement* task, and that is stated as a limitation rather than tuned away: the
+ramp-down was deliberately not re-searched to make the drawer "just stop", because that search
+is what Phase 12 was paused to avoid continuing. The terminal velocity is kept on every row, so
+the threshold can be revisited from stored data without regenerating anything.
+
+**Date.** 2026-09-03

@@ -272,3 +272,75 @@ class TestSuccess:
         args.update(kwargs)
         with pytest.raises(ValueError, match=match):
             SuccessCriteria(**args)
+
+
+class TestTheTwoSuccessDefinitions:
+    """``reach_success`` and ``stable_success``, and the case that separates them (D046)."""
+
+    def test_a_drawer_that_arrives_but_does_not_stop_reaches_without_being_stable(self) -> None:
+        """The whole reason for the split.
+
+        Under one combined label this episode and one that stopped 3 cm short are the same
+        number, and the goal-distance sweep found that at 100 mm and beyond it is almost
+        always *this* one. Reporting them together hid which half was failing.
+        """
+        report = evaluate_execution(make_result(final_displacement=0.15, final_velocity=0.2), CRITERIA)
+        verdict = report.verdicts[0]
+        assert verdict.reach_success
+        assert not verdict.stable_success
+
+    def test_a_drawer_that_stops_short_achieves_neither(self) -> None:
+        verdict = evaluate_execution(make_result(final_displacement=0.10, final_velocity=0.0), CRITERIA).verdicts[0]
+        assert not verdict.reach_success
+        assert not verdict.stable_success
+
+    def test_both_hold_when_the_drawer_is_placed_at_the_goal(self) -> None:
+        verdict = evaluate_execution(make_result(final_displacement=0.152, final_velocity=0.005), CRITERIA).verdicts[0]
+        assert verdict.reach_success and verdict.stable_success
+
+    def test_stable_success_implies_reach_success(self) -> None:
+        """Nested by construction, so no combination of the three booleans can invert them."""
+        for displacement in (0.10, 0.148, 0.15, 0.152, 0.20):
+            for velocity in (0.0, 0.01, 0.03, 0.2):
+                verdict = evaluate_execution(
+                    make_result(final_displacement=displacement, final_velocity=velocity), CRITERIA
+                ).verdicts[0]
+                assert not verdict.stable_success or verdict.reach_success
+
+    def test_neither_label_survives_an_invalid_operating_point(self) -> None:
+        """Validity gates the *primary* metric too -- reaching the goal unsafely is not a reach."""
+        report = evaluate_execution(
+            make_result(
+                final_displacement=0.15, final_velocity=0.0, termination_reason=TerminationReason.SAFETY_ABORT
+            ),
+            CRITERIA,
+        )
+        verdict = report.verdicts[0]
+        assert verdict.displacement_ok and verdict.velocity_ok
+        assert not verdict.reach_success
+        assert not verdict.stable_success
+
+    def test_success_still_means_what_dataset_v0_recorded(self) -> None:
+        """``success`` is the strict label. Redefining it would reinterpret 49,152 stored rows."""
+        for displacement in (0.10, 0.15):
+            for velocity in (0.005, 0.2):
+                verdict = evaluate_execution(
+                    make_result(final_displacement=displacement, final_velocity=velocity), CRITERIA
+                ).verdicts[0]
+                assert verdict.success == verdict.stable_success
+                assert verdict.success == (verdict.displacement_ok and verdict.velocity_ok and verdict.valid)
+
+    def test_the_report_exposes_both_masks(self) -> None:
+        report = evaluate_execution(make_result(final_displacement=0.15, final_velocity=0.2), CRITERIA)
+        assert report.reach_success.tolist() == [True]
+        assert report.stable_success.tolist() == [False]
+        assert report.success.tolist() == report.stable_success.tolist()
+
+    def test_the_continuous_quantities_are_kept_alongside_the_flags(self) -> None:
+        """A threshold can be revisited offline; a discarded measurement cannot."""
+        payload = evaluate_execution(
+            make_result(final_displacement=0.15, final_velocity=0.2), CRITERIA
+        ).verdicts[0].as_dict()
+        assert {"reach_success", "stable_success", "success"} <= set(payload)
+        assert payload["terminal_velocity"] == pytest.approx(0.2)
+        assert payload["displacement_error"] == pytest.approx(0.15 - CRITERIA.goal_displacement, abs=1e-12)

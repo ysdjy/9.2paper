@@ -31,10 +31,31 @@ from torch.utils.data import DataLoader, Dataset
 from probe_drawer.dataset.schema import XI_DIMENSIONS
 from probe_drawer.observations import DEFAULT_ACE_INPUT, validate_model_input
 
-__all__ = ["FeatureScaler", "ProbeBatch", "SampleDataset", "collate_samples", "make_loader"]
+__all__ = [
+    "LABEL_FIELDS",
+    "POST_PROBE_FIELDS",
+    "TASK_CONDITION_FIELDS",
+    "FeatureScaler",
+    "ProbeBatch",
+    "SampleDataset",
+    "collate_samples",
+    "make_loader",
+]
 
 #: Order of the post-probe state's two entries, wherever it appears as a vector.
 POST_PROBE_FIELDS = ("displacement", "velocity")
+
+#: Order of the task condition's two entries. ``(d_goal, T_goal)`` -- what the task asks,
+#: which Setting V1 conditions on rather than adapts (``docs/DECISIONS.md`` D044).
+TASK_CONDITION_FIELDS = ("goal_displacement", "duration")
+
+#: Label names a batch can be trained against.
+#:
+#: ``reach_success`` is the primary metric (D046) and is what Setting V1 trains on;
+#: ``success`` is the strict label Dataset v0 carries. They are separate entries rather than
+#: one configurable field because a v0 dataset has no ``reach_success`` to give, and reading
+#: an absent label must fail loudly rather than fall back.
+LABEL_FIELDS = ("reach_success", "success")
 
 
 @dataclass
@@ -47,7 +68,14 @@ class ProbeBatch:
         mask: ``(batch, time)`` boolean, ``True`` on real steps.
         candidate_force: ``(batch,)`` the force each row asks about (N).
         post_probe: ``(batch, 2)`` displacement and velocity where the execution starts.
-        success: ``(batch,)`` float labels in ``{0, 1}``.
+        task_condition: ``(batch, 2)`` ``d_goal`` (m) and ``T_goal`` (s). Deployable: the task
+            tells the robot both.
+        success: ``(batch,)`` float strict labels in ``{0, 1}``.
+        reach_success: ``(batch,)`` float primary labels in ``{0, 1}``, or ``nan`` on a
+            Dataset v0 row, which predates the split. ``nan`` rather than a substituted value
+            so that training on a dataset that cannot supply this label fails loudly.
+        final_displacement: ``(batch,)`` :math:`d_\text{total}(T)` (m) -- the auxiliary target.
+        final_velocity: ``(batch,)`` :math:`v(T)` (m/s) -- the other auxiliary target.
         valid: ``(batch,)`` whether the episode stayed inside the operating region.
         xi: ``(batch, 4)`` the hidden state. **Privileged** -- for the teacher and for
             analysis only. It travels in the batch because the teacher needs it; keeping it
@@ -63,7 +91,11 @@ class ProbeBatch:
     mask: torch.Tensor
     candidate_force: torch.Tensor
     post_probe: torch.Tensor
+    task_condition: torch.Tensor
     success: torch.Tensor
+    reach_success: torch.Tensor
+    final_displacement: torch.Tensor
+    final_velocity: torch.Tensor
     valid: torch.Tensor
     xi: torch.Tensor
     channels: tuple[str, ...]
@@ -73,6 +105,27 @@ class ProbeBatch:
     def __len__(self) -> int:
         return int(self.history.shape[0])
 
+    def label(self, name: str) -> torch.Tensor:
+        """The named training label, refusing to hand back one the dataset never recorded.
+
+        A Dataset v0 row has no ``reach_success``: a v0 negative failed on position or on
+        terminal velocity and the row does not say which. Substituting ``success`` there would
+        train on a strictly harder label while reporting the easier one's name, so the ``nan``
+        the loader stores is turned into an error here instead.
+
+        Raises:
+            ValueError: If ``name`` is not a label field, or the label is not recorded.
+        """
+        if name not in LABEL_FIELDS:
+            raise ValueError(f"unknown label {name!r}; expected one of {LABEL_FIELDS}.")
+        values = getattr(self, name)
+        if torch.isnan(values).any():
+            raise ValueError(
+                f"this dataset does not record {name!r} (Dataset v0 predates it). Train on "
+                f"'success', or regenerate with scripts/generate_dataset.py --setting v1."
+            )
+        return values
+
     def to(self, device: str | torch.device) -> ProbeBatch:
         """Move the tensors, except ``lengths``, which must stay on the CPU."""
         return ProbeBatch(
@@ -81,7 +134,11 @@ class ProbeBatch:
             mask=self.mask.to(device),
             candidate_force=self.candidate_force.to(device),
             post_probe=self.post_probe.to(device),
+            task_condition=self.task_condition.to(device),
             success=self.success.to(device),
+            reach_success=self.reach_success.to(device),
+            final_displacement=self.final_displacement.to(device),
+            final_velocity=self.final_velocity.to(device),
             valid=self.valid.to(device),
             xi=self.xi.to(device),
             channels=self.channels,
@@ -231,11 +288,21 @@ class SampleDataset(Dataset):
             history = self.scaler.transform_history(history).astype(np.float32)
             post = self.scaler.transform_post_probe(post).astype(np.float32)
             force = self.scaler.transform_force(force)
+        # The task condition is deliberately not scaled. Both entries are O(0.1-2) in SI
+        # units, so they are already well conditioned, and standardising a quantity that is
+        # constant within a dataset divides by a floor rather than by a spread.
+        condition = np.array(
+            [getattr(sample, name) for name in TASK_CONDITION_FIELDS], dtype=np.float32
+        )
         return {
             "history": torch.from_numpy(np.ascontiguousarray(history)),
             "post_probe": torch.from_numpy(post),
+            "task_condition": torch.from_numpy(condition),
             "candidate_force": float(force),
             "success": float(sample.success),
+            "reach_success": float("nan") if sample.reach_success is None else float(sample.reach_success),
+            "final_displacement": float(sample.final_total_displacement),
+            "final_velocity": float(sample.final_velocity),
             "valid": float(sample.valid),
             "xi": torch.tensor([sample.xi[name] for name in XI_DIMENSIONS], dtype=torch.float32),
             "probe_id": sample.probe_id,
@@ -266,7 +333,13 @@ def collate_samples(items: Sequence[dict], channels: tuple[str, ...] = DEFAULT_A
         mask=mask,
         candidate_force=torch.tensor([item["candidate_force"] for item in items], dtype=torch.float32),
         post_probe=torch.stack([item["post_probe"] for item in items]),
+        task_condition=torch.stack([item["task_condition"] for item in items]),
         success=torch.tensor([item["success"] for item in items], dtype=torch.float32),
+        reach_success=torch.tensor([item["reach_success"] for item in items], dtype=torch.float32),
+        final_displacement=torch.tensor(
+            [item["final_displacement"] for item in items], dtype=torch.float32
+        ),
+        final_velocity=torch.tensor([item["final_velocity"] for item in items], dtype=torch.float32),
         valid=torch.tensor([item["valid"] for item in items], dtype=torch.float32),
         xi=torch.stack([item["xi"] for item in items]),
         channels=tuple(channels),

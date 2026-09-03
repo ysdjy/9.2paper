@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import inspect
+from types import SimpleNamespace
+
 import pytest
 import torch
 
 from probe_drawer.controllers import ExecutionControllerCfg, ProbeControllerCfg, SafetyLimits, TerminationReason
+from probe_drawer.controllers.force_profiles import TrapezoidForceProfile
 from probe_drawer.controllers.probe_pull_controller import ProbePullController
 from probe_drawer.envs import (
     PRESETS,
@@ -65,11 +69,40 @@ class TestProbeControllerCfg:
             ({"hold_after_max_force": -0.1}, "hold_after_max_force must be >= 0"),
             ({"max_probe_duration": 0.0}, "max_probe_duration must be > 0"),
             ({"settle_steps": -1}, "settle_steps must be >= 0"),
+            ({"fixed_rise_fraction": 0.0}, r"fixed_rise_fraction must lie in \(0, 1\)"),
+            ({"fixed_fall_fraction": 1.0}, r"fixed_fall_fraction must lie in \(0, 1\)"),
+            ({"fixed_rise_fraction": 0.7, "fixed_fall_fraction": 0.5}, "must be <= 1"),
         ],
     )
     def test_rejects_invalid(self, kwargs: dict, match: str) -> None:
         with pytest.raises(ValueError, match=match):
             ProbeControllerCfg(**kwargs)
+
+    def test_the_fixed_budget_profile_starts_and_ends_at_zero_force(self) -> None:
+        """"Fixed release -> Probe END" is a property of the shape, not of a stop condition.
+
+        The probe hands the drawer to the execution with the force already at zero, so the
+        post-probe state is a coasting drawer rather than a loaded one. If the fractions ever
+        made ``phi(1) > 0`` the probe would end mid-pull and the recorded ``v_post`` would
+        describe a state the execution never starts from.
+        """
+        cfg = ProbeControllerCfg()
+        profile = TrapezoidForceProfile(
+            peak_force=1.0,
+            duration=0.8,
+            rise_fraction=cfg.fixed_rise_fraction,
+            fall_fraction=cfg.fixed_fall_fraction,
+            shape=cfg.fixed_shape,
+        )
+        assert profile.normalized(0.0) == pytest.approx(0.0, abs=1e-12)
+        assert profile.normalized(1.0) == pytest.approx(0.0, abs=1e-12)
+        plateau = 0.5 * (cfg.fixed_rise_fraction + (1.0 - cfg.fixed_fall_fraction))
+        assert profile.normalized(plateau) == pytest.approx(1.0, abs=1e-12)
+
+    def test_the_release_gets_more_of_the_budget_than_the_rise(self) -> None:
+        """Not symmetry for its own sake: the release is the informative half (D044)."""
+        cfg = ProbeControllerCfg()
+        assert cfg.fixed_fall_fraction > cfg.fixed_rise_fraction
 
 
 class TestProbeTaskParameterValidation:
@@ -92,6 +125,70 @@ class TestProbeTaskParameterValidation:
 
     def test_accepts_the_documented_example(self) -> None:
         ProbePullController._validate_task_parameters(2.0, 10.0, 0.005, 0.05)
+
+
+class TestFixedBudgetProbe:
+    """The Setting V1 probe mode. It shares a controller with ``run`` and differs in kind."""
+
+    @pytest.mark.parametrize(
+        ("kwargs", "match"),
+        [
+            ({"peak_force": 0.0}, "peak_force must be > 0"),
+            ({"peak_force": -1.0}, "peak_force must be > 0"),
+            ({"duration": 0.0}, "duration must be > 0"),
+        ],
+    )
+    def test_rejects_non_physical_arguments_before_touching_the_simulation(
+        self, kwargs: dict, match: str
+    ) -> None:
+        args = {"peak_force": 2.0, "duration": 0.8}
+        args.update(kwargs)
+        with pytest.raises(ValueError, match=match):
+            ProbePullController.run_fixed_budget(None, **args)  # type: ignore[arg-type]
+
+    def test_it_takes_no_task_parameters(self) -> None:
+        """The point of the mode: one excitation for every hidden state and every task.
+
+        A ``d_goal``, a target displacement or a velocity limit in this signature would make
+        the probe task-dependent, which is the property Phase 12's response-triggered probe
+        had and Setting V1 gives up (D044). Enumerated exactly, in the manner of the D004
+        guard, so adding a parameter has to be a deliberate edit to this list.
+        """
+        parameters = list(inspect.signature(ProbePullController.run_fixed_budget).parameters)
+        assert parameters == ["self", "peak_force", "duration", "on_step"]
+
+        forbidden = ("goal", "target", "displacement", "velocity", "criteria", "tolerance", "alpha")
+        assert not [name for name in parameters for word in forbidden if word in name.lower()]
+
+    def test_no_task_stop_condition_can_fire_in_fixed_budget_mode(self) -> None:
+        """Only safety may cut it short, and safety is applied by ``run_profile`` itself.
+
+        Checked on the flag rather than through a run because the guarantee is structural:
+        the empty tuple is what makes every healthy history the same length, and a future
+        edit that appends a condition unconditionally would break that silently.
+        """
+        pretend = SimpleNamespace(_fixed_budget=True)
+        conditions = ProbePullController._stop_conditions(pretend, 0.5, torch.tensor([1.0]))  # type: ignore[arg-type]
+        assert conditions == ()
+
+    def test_the_ramp_mode_still_has_its_stop_conditions(self) -> None:
+        """The counterpart, so the test above cannot pass by disabling both modes."""
+        pretend = SimpleNamespace(
+            _fixed_budget=False,
+            drawer_displacement=torch.tensor([0.001]),
+            reader=SimpleNamespace(drawer_velocity=torch.tensor([0.01])),
+            step_dt=1.0 / 60.0,
+            _target_displacement=0.003,
+            _max_force=6.0,
+            _max_velocity=0.08,
+            _stop_force_time=1.0,
+        )
+        reasons = [reason for reason, _ in ProbePullController._stop_conditions(pretend, 0.5, torch.tensor([2.0]))]  # type: ignore[arg-type]
+        assert reasons == [
+            TerminationReason.DISPLACEMENT_REACHED,
+            TerminationReason.VELOCITY_LIMIT,
+            TerminationReason.MAX_FORCE_REACHED,
+        ]
 
 
 class TestExecutionControllerCfg:

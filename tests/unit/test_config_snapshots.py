@@ -151,6 +151,9 @@ class TestExperimentPlanSnapshot:
             RECOMMENDED_PROBE_CFG,
             RECOMMENDED_PROBE_TASK,
             SEQUENTIAL_TRANSITION_STEPS,
+            SETTING_V1_PROBE,
+            SETTING_V1_PROBE_CFG,
+            SETTING_V1_TASK,
             TRAINING_XI_RANGES,
         )
 
@@ -158,6 +161,9 @@ class TestExperimentPlanSnapshot:
         assert snapshot["sequential_transition_steps"] == SEQUENTIAL_TRANSITION_STEPS
         for section, expected in (
             ("main_task", MAIN_TASK.as_dict()),
+            ("setting_v1_task", SETTING_V1_TASK.as_dict()),
+            ("setting_v1_probe", SETTING_V1_PROBE.as_dict()),
+            ("setting_v1_probe_controller", SETTING_V1_PROBE_CFG.as_dict()),
             ("phase9_reset_task", PHASE9_RESET_TASK.as_dict()),
             ("probe_task", RECOMMENDED_PROBE_TASK.as_dict()),
             ("probe_controller", RECOMMENDED_PROBE_CFG.as_dict()),
@@ -170,7 +176,7 @@ class TestExperimentPlanSnapshot:
     def test_provenance_is_recorded(self) -> None:
         """A selected parameter with no cited sweep is a guess by another name."""
         provenance = _snapshot("experiment_plan.yaml")["_provenance"]
-        for key in ("main_task", "transition", "probe", "xi_ranges"):
+        for key in ("main_task", "transition", "probe", "xi_ranges", "setting_v1_probe", "setting_v1_task"):
             assert "scripts/" in provenance[key]
 
 

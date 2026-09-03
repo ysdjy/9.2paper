@@ -270,6 +270,11 @@ class DatasetStore:
                     final_velocity=row["final_velocity"],
                     success=row["success"],
                     valid=row["valid"],
+                    # ``get`` rather than ``[]``: Dataset v0 predates these three, and reading
+                    # an old dataset must keep working rather than start raising (D046).
+                    reach_success=row.get("reach_success"),
+                    stable_success=row.get("stable_success"),
+                    termination_reason=row.get("termination_reason"),
                     invalid_reasons=row.get("invalid_reasons", []),
                 )
             )

@@ -4,20 +4,31 @@ The execution controller is given a peak force and a duration and nothing else; 
 learns what the goal was (``docs/DECISIONS.md`` D004). Turning its output into a success
 label is this module's job, and it happens after the fact, from recorded values only.
 
-Success has three parts, all required:
+Two success definitions, nested
+-------------------------------
+Setting V1 reports both, and says which is which (``docs/DECISIONS.md`` D046):
 
 .. math::
 
-    |d(T) - d_\text{goal}| \le \epsilon_d
-    \quad\wedge\quad
-    |v(T)| \le \epsilon_v
-    \quad\wedge\quad
-    \text{valid operating point}
+    \text{reach} &: \quad |d(T) - d_\text{goal}| \le \epsilon_d
+        \;\wedge\; \text{valid operating point} \\
+    \text{stable} &: \quad \text{reach} \;\wedge\; |v(T)| \le \epsilon_v
 
-The terminal-velocity term is not decoration. A drawer that reaches the goal at
-0.4 m/s has not been placed there -- it is passing through, and a moment later it is
-somewhere else or against its end stop. Requiring ``|v(T)|`` to be small is what makes
-"reached the goal" mean "came to rest at the goal" (``docs/DECISIONS.md`` D020).
+**reach_success** is the primary metric: did the adaptation put the drawer where the task
+asked, from an unknown hidden state, without leaving the usable operating region. That is
+the question the paper poses, and one number answers it.
+
+**stable_success** is the secondary one, and it is *kept*, not dropped. A drawer that
+arrives at the goal at 0.4 m/s has not been placed there -- it is passing through, and a
+moment later it is somewhere else or against its end stop (D020). What Phase 13 changed is
+only the reporting: one combined number made a *positioning* failure and a *braking*
+failure indistinguishable, and the goal-distance sweep showed they are not the same
+failure -- past roughly 100 mm the terminal-velocity term is what fails first while the
+position term is still comfortably met. Splitting them is what let that be seen.
+
+Both are derived from the same three booleans, so they cannot disagree, and every
+continuous quantity behind them -- ``displacement_error``, ``terminal_velocity`` -- stays on
+the verdict. A threshold can be revisited offline; a discarded measurement cannot.
 
 Validity is delegated to :mod:`probe_drawer.evaluation.operating_region`, which also
 subsumes the safety check: a safety-aborted episode is never a valid operating point.
@@ -89,8 +100,10 @@ class SuccessCriteria:
 class ExecutionVerdict:
     """One environment's success label, with every term that produced it.
 
+    ``success`` is a derived property rather than a stored field, so the three booleans
+    below are the single source of truth and no recorded label can disagree with them.
+
     Attributes:
-        success: All three requirements met.
         displacement_ok: :math:`|d(T) - d_\\text{goal}| \\le \\epsilon_d`.
         velocity_ok: :math:`|v(T)| \\le \\epsilon_v`.
         valid: The operating point is usable (which includes not having safety-aborted).
@@ -104,7 +117,6 @@ class ExecutionVerdict:
         invalid_reasons: Why the operating point was rejected, if it was.
     """
 
-    success: bool
     displacement_ok: bool
     velocity_ok: bool
     valid: bool
@@ -116,6 +128,29 @@ class ExecutionVerdict:
     invalid_reasons: list[InvalidReason] = field(default_factory=list)
 
     @property
+    def reach_success(self) -> bool:
+        """**Primary metric**: ended up at the goal, from a usable operating point.
+
+        Says nothing about whether the drawer stopped there; that is :attr:`stable_success`.
+        """
+        return bool(self.displacement_ok and self.valid)
+
+    @property
+    def stable_success(self) -> bool:
+        """**Secondary metric**: reached the goal *and* came to rest there."""
+        return bool(self.reach_success and self.velocity_ok)
+
+    @property
+    def success(self) -> bool:
+        """The strict label, identical to :attr:`stable_success`.
+
+        Kept under its original name and meaning on purpose: it is the label Dataset v0 was
+        generated with, and redefining it would change how 49,152 stored rows read without
+        changing a byte of them. New code should name which of the two it means.
+        """
+        return self.stable_success
+
+    @property
     def safety_aborted(self) -> bool:
         """Whether an absolute safety limit ended the episode."""
         return InvalidReason.SAFETY_ABORT in self.invalid_reasons
@@ -123,6 +158,8 @@ class ExecutionVerdict:
     def as_dict(self) -> dict:
         return {
             "success": self.success,
+            "reach_success": self.reach_success,
+            "stable_success": self.stable_success,
             "displacement_ok": self.displacement_ok,
             "velocity_ok": self.velocity_ok,
             "valid": self.valid,
@@ -145,8 +182,18 @@ class EvaluationReport:
 
     @property
     def success(self) -> np.ndarray:
-        """Boolean success mask, shape ``(num_envs,)``."""
-        return np.asarray([verdict.success for verdict in self.verdicts], dtype=bool)
+        """Strict-success mask, shape ``(num_envs,)``. Identical to :attr:`stable_success`."""
+        return self.stable_success
+
+    @property
+    def reach_success(self) -> np.ndarray:
+        """Primary-metric mask, shape ``(num_envs,)``."""
+        return np.asarray([verdict.reach_success for verdict in self.verdicts], dtype=bool)
+
+    @property
+    def stable_success(self) -> np.ndarray:
+        """Secondary-metric mask, shape ``(num_envs,)``."""
+        return np.asarray([verdict.stable_success for verdict in self.verdicts], dtype=bool)
 
     def as_dict(self) -> dict:
         return {
@@ -191,7 +238,6 @@ def evaluate_execution(
 
         verdicts.append(
             ExecutionVerdict(
-                success=bool(displacement_ok and velocity_ok and verdict.valid),
                 displacement_ok=displacement_ok,
                 velocity_ok=velocity_ok,
                 valid=verdict.valid,

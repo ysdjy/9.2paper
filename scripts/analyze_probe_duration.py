@@ -32,6 +32,7 @@ from pathlib import Path
 import numpy as np
 
 from probe_drawer.analysis.probe_features import PROBE_FEATURES, rank_correlation
+from probe_drawer.analysis.readout import RIDGE_PENALTY, leave_one_out
 from probe_drawer.dataset import DatasetStore
 from probe_drawer.dataset.schema import XI_DIMENSIONS
 from probe_drawer.experiment_plan import MAIN_TASK
@@ -40,34 +41,16 @@ from probe_drawer.utils import git_commit, project_root
 #: Candidate floors to evaluate, in seconds. Each is scored by what it would cost and buy.
 CANDIDATE_FLOORS = (0.20, 0.35, 0.50)
 
+#: The readout now comes from ``probe_drawer.analysis.readout`` (Phase 13), which applies a
+#: ridge penalty; this script's own copy did not. The Phase 12 conclusion is unaffected --
+#: it rested on RMSE being flat while R-squared moved with the target's sd, and the penalty
+#: changes neither -- but the numbers a re-run prints will differ slightly from
+#: ``outputs/logs/probe_duration_analysis.json``, which is left as it was recorded.
+#:
 #: Below this a probe is called "short" for the split comparisons.
 SHORT_PROBE = 0.20
 
 
-def leave_one_out_readout(features: np.ndarray, target: np.ndarray) -> dict:
-    r"""Leave-one-out linear readout of ``target`` from ``features``.
-
-    Leave-one-out rather than a fit to its own data, because with a few hundred probes a
-    plain :math:`R^2` would mostly measure the number of features. Implemented by the closed
-    form so the whole thing stays one small matrix solve per point.
-    """
-    if len(features) < len(features[0]) + 3:
-        return {"r2": float("nan"), "rmse": float("nan"), "n": len(features)}
-    standardised = (features - features.mean(axis=0)) / np.maximum(features.std(axis=0), 1e-9)
-    design = np.hstack([standardised, np.ones((len(standardised), 1))])
-    predictions = np.empty(len(target))
-    for index in range(len(target)):
-        keep = np.ones(len(target), dtype=bool)
-        keep[index] = False
-        solution, *_ = np.linalg.lstsq(design[keep], target[keep], rcond=None)
-        predictions[index] = design[index] @ solution
-    residual = predictions - target
-    variance = float(np.var(target))
-    return {
-        "r2": float(1.0 - np.mean(residual**2) / variance) if variance > 0 else float("nan"),
-        "rmse": float(np.sqrt(np.mean(residual**2))),
-        "n": len(target),
-    }
 
 
 def main() -> None:
@@ -136,9 +119,9 @@ def main() -> None:
     # 2 and 3: what a probe supports, split by length.
     for name, target in targets.items():
         report["readouts"][name] = {
-            "all": leave_one_out_readout(features, target),
-            "short_only": leave_one_out_readout(features[short], target[short]) if short.sum() > 15 else None,
-            "long_only": leave_one_out_readout(features[~short], target[~short]),
+            "all": leave_one_out(features, target),
+            "short_only": leave_one_out(features[short], target[short]) if short.sum() > 15 else None,
+            "long_only": leave_one_out(features[~short], target[~short]),
             "spearman_duration_vs_target": rank_correlation(durations.tolist(), target.tolist()),
         }
 
@@ -155,7 +138,7 @@ def main() -> None:
             "duration_range": [float(durations[part].min()), float(durations[part].max())],
             "probes": len(part),
             "readouts": {
-                name: leave_one_out_readout(features[part], target[part])
+                name: leave_one_out(features[part], target[part])
                 for name, target in targets.items()
             },
             # Recorded because it is the confound: R2 is scored against this, so a tercile

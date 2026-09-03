@@ -35,6 +35,9 @@ from probe_drawer.evaluation.task_evaluator import SuccessCriteria
 
 __all__ = [
     "MAIN_TASK",
+    "SETTING_V1_PROBE",
+    "SETTING_V1_PROBE_CFG",
+    "SETTING_V1_TASK",
     "OOD_XI_RANGES",
     "PHASE9_RESET_TASK",
     "SEQUENTIAL_TRANSITION_STEPS",
@@ -42,6 +45,7 @@ __all__ = [
     "RECOMMENDED_PROBE_CFG",
     "RECOMMENDED_PROBE_TASK",
     "TRAINING_XI_RANGES",
+    "FixedProbeTask",
     "MainTask",
     "ProbeTask",
     "XiRanges",
@@ -105,6 +109,31 @@ class ProbeTask:
 
     def as_kwargs(self) -> dict:
         """Ready to splat into :meth:`ProbePullController.run`."""
+        return self.as_dict()
+
+
+@dataclass(frozen=True)
+class FixedProbeTask:
+    """Setting V1's probe: an amplitude and a budget, and nothing else.
+
+    Two parameters where :class:`ProbeTask` has four, and the two it drops are the ones that
+    made the old probe depend on the drawer it was probing (``target_displacement``,
+    ``max_velocity``). What is left is a description of the *input*, which is what makes the
+    probe a standardised measurement (``docs/DECISIONS.md`` D044).
+
+    Args:
+        peak_force: :math:`F_\text{probe}`, the plateau force (N).
+        duration: :math:`H_\text{probe}`, the whole budget including rise and release (s).
+    """
+
+    peak_force: float
+    duration: float
+
+    def as_dict(self) -> dict:
+        return {"peak_force": self.peak_force, "duration": self.duration}
+
+    def as_kwargs(self) -> dict:
+        """Ready to splat into :meth:`ProbePullController.run_fixed_budget`."""
         return self.as_dict()
 
 
@@ -206,6 +235,73 @@ RECOMMENDED_PROBE_TASK = ProbeTask(
 #: The probe's fixed character, unchanged from Phase 8 except that it is now confirmed
 #: rather than assumed: a 1 s linear ramp inside a 1.5 s budget.
 RECOMMENDED_PROBE_CFG = ProbeControllerCfg(ramp_duration=1.0, max_probe_duration=1.5)
+
+#: **Setting V1's probe** -- the paper's standardised excitation. Frozen; do not re-tune.
+#:
+#: Selected by ``scripts/calibrate_fixed_probe.py`` over 24 hidden states, under the rule in
+#: ``probe_drawer.analysis.fixed_probe_calibration``, which was written before the first run.
+#: Report: ``outputs/logs/fixed_probe_calibration_short.json``.
+#:
+#: The first candidate set (H = 0.4-0.6 s) was mis-centred: three of its four candidates
+#: travelled more than 30 % of the goal during the probe, and the one that passed did so at
+#: 0.2992 -- a knife edge. The candidate set was widened downward *once*, to a 3x2 factorial
+#: over F in {3.5, 4.5, 5.5} N and H in {0.20, 0.30} s, which separates the two effects
+#: cleanly: **the budget sets intrusion** (at F = 3.5 N, H 0.2 -> 0.3 s takes the median
+#: probe displacement from 3.6 to 6.8 mm) while **the amplitude sets breakaway** (at
+#: H = 0.2 s, F = 3.5 N leaves 2 of 24 drawers motionless and F = 4.5 N moves all of them).
+#: F = 3.5 N with H = 0.3 s is the only combination that gets both from one point: the longer
+#: plateau breaks away every drawer at the lower amplitude.
+#:
+#: Measured at this point over 24 hidden states: all 24 break away, zero safety aborts, the
+#: probe travels 0.9-13.0 mm (median 6.9) against a 100 mm goal -- 13 % at worst -- and leaves
+#: the drawer moving at 0.000-0.041 m/s, which the execution inherits rather than has removed
+#: (D029). The leave-one-out ridge readout of the required peak force from the probe's nine
+#: deployable features gives RMSE 0.333 N on a target sd of 1.411 N.
+#:
+#: The margin over the runner-up is real but not large: on a second 24-state draw the
+#: ordering held (0.363 vs 0.403 N for F = 4.5 N, H = 0.2 s) with the gap narrowing. Both
+#: would serve; the rule picks this one, and it is now frozen rather than revisited.
+SETTING_V1_PROBE = FixedProbeTask(peak_force=3.5, duration=0.3)
+
+#: The fixed-budget probe's shape. Rise 10 %, release 35 %, smoothstep -- the execution's
+#: curve, so probe and execution differ in amplitude rather than in kind.
+#:
+#: ``max_probe_duration`` is irrelevant to this mode (the profile's own length ends it) and is
+#: left at the value the ramp mode uses, since one config serves both.
+SETTING_V1_PROBE_CFG = ProbeControllerCfg(ramp_duration=1.0, max_probe_duration=1.5)
+
+#: **Setting V1's task.** Frozen; ``T_goal`` is a task condition, not an adapted parameter.
+#:
+#: ``d_goal`` is 0.10 m by decision rather than by sweep -- it is the distance the project set
+#: out to make work, and the goal-distance study (``docs/GOAL_DISTANCE.md``) established that
+#: the robot is not the limiter there: 18 of 24 hidden states reach validly with a joint-limit
+#: margin of 0.139 and 0.45 mm of lateral drift.
+#:
+#: ``T_goal`` was compared at 1.5 s and 2.0 s on the frozen probe over 24 hidden states with a
+#: 0.10 N force grid, and **1.5 s is the better of the two on every count**: reach coverage
+#: 24/24 against 23/24, and a median reach band of 0.30 N against 0.20 N. Longer is worse
+#: because more time means more displacement per newton, so the position tolerance is crossed
+#: by a smaller change in force. Reports: ``outputs/logs/setting_v1_T1.5.json`` and
+#: ``setting_v1_T2.0.json``.
+#:
+#: **A limitation to state rather than tune away**: at this operating point ``stable_success``
+#: is 0 of 24 at 1.5 s and 1 of 24 at 2.0 s. Reaching 100 mm inside 1.5 s leaves the drawer
+#: moving at 0.048-0.077 m/s where ``eps_v`` is 0.03, so Setting V1 poses a *reaching* task
+#: and not a *placement* task. That is why the two labels are reported separately (D046) and
+#: why the terminal velocity is kept as a continuous quantity on every row: the threshold can
+#: be revisited from stored data, and the ramp-down was deliberately not re-searched to make
+#: the drawer "just stop".
+#:
+#: ``peak_force_range`` is the union of every hidden state's reach band at this setting,
+#: 0.70-6.10 N, rounded outward. The required force itself spans 0.70-5.40 N (median 2.80), a
+#: 7.7x range -- which is the evidence that one fixed force cannot serve every drawer.
+SETTING_V1_TASK = MainTask(
+    duration=1.5,
+    goal_displacement=0.10,
+    displacement_tolerance=0.0075,
+    velocity_tolerance=0.03,
+    peak_force_range=(0.5, 6.5),
+)
 
 #: Control steps of zero pull force between the probe ending and the execution starting.
 #:

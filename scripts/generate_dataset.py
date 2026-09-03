@@ -26,8 +26,12 @@ Usage::
     python scripts/generate_dataset.py --headless --num-xi 8 --repeats 2 --candidates 6 \\
         --num_envs 8 --output outputs/dataset_smoke
 
-    # Dataset v0
+    # Dataset v1 (the paper's setting)
     python scripts/generate_dataset.py --headless
+
+    # Dataset v0, regenerated under the Phase 11 setting
+    python scripts/generate_dataset.py --headless --setting v0 --dataset-version v0 \\
+        --candidates 32 --output outputs/dataset_v0_regenerated
 """
 
 from __future__ import annotations
@@ -42,7 +46,18 @@ parser.add_argument("--repeats", type=int, default=3, help="Independent probe ep
 parser.add_argument("--candidates", type=int, default=24, help="Candidate forces per probe.")
 parser.add_argument("--num_envs", type=int, default=32, help="Hidden states simulated in parallel.")
 parser.add_argument("--seed", type=int, default=20260902, help="Dataset seed; fixes both samplers.")
-parser.add_argument("--dataset-version", type=str, default="v0", help="Recorded in the manifest.")
+parser.add_argument("--dataset-version", type=str, default="v1", help="Recorded in the manifest.")
+parser.add_argument(
+    "--setting",
+    choices=("v0", "v1"),
+    default="v1",
+    help=(
+        "Which frozen setting to generate under. 'v1' is the paper's: the fixed-budget probe "
+        "and d_goal = 0.10 m (docs/DECISIONS.md D044). 'v0' reproduces Phase 11 -- the "
+        "response-terminated ramp probe and d_goal = 0.04 m -- so the earlier dataset stays "
+        "regenerable rather than merely archived."
+    ),
+)
 parser.add_argument("--output", type=str, default=None, help="Dataset directory.")
 parser.add_argument(
     "--jitter", type=float, default=0.4, help="Candidate jitter, as a fraction of a stratum's width."
@@ -82,6 +97,9 @@ from probe_drawer.experiment_plan import (  # noqa: E402
     RECOMMENDED_PROBE_CFG,
     RECOMMENDED_PROBE_TASK,
     SEQUENTIAL_TRANSITION_STEPS,
+    SETTING_V1_PROBE,
+    SETTING_V1_PROBE_CFG,
+    SETTING_V1_TASK,
     TRAINING_XI_RANGES,
 )
 from probe_drawer.observations import DEFAULT_ACE_INPUT  # noqa: E402
@@ -112,7 +130,41 @@ DIAGNOSTIC_CHANNELS = (
 )
 
 
-def build_system(num_envs: int) -> PullSystem:
+#: The two frozen settings this script can generate under.
+#:
+#: Kept as a mapping rather than as branches scattered through ``main`` so that the whole
+#: difference between Dataset v0 and Dataset v1 is visible in one place: which probe runs,
+#: which task it serves, and which force range the candidates are drawn from. Everything
+#: else -- the samplers, the branching, the identifiers, the audit -- is shared.
+SETTINGS = {
+    "v0": {
+        "task": MAIN_TASK,
+        "probe_cfg": RECOMMENDED_PROBE_CFG,
+        "probe_parameters": RECOMMENDED_PROBE_TASK.as_dict(),
+        "probe_mode": "ramp_response_terminated",
+    },
+    "v1": {
+        "task": SETTING_V1_TASK,
+        "probe_cfg": SETTING_V1_PROBE_CFG,
+        "probe_parameters": SETTING_V1_PROBE.as_dict(),
+        "probe_mode": "fixed_budget",
+    },
+}
+
+
+def run_probe(system: PullSystem, setting: dict):
+    """Run whichever probe this setting specifies.
+
+    The two modes are genuinely different measurements, not a parameterisation of one: the
+    ramp probe stops when the drawer has moved, the fixed-budget probe runs its whole profile
+    (``docs/DECISIONS.md`` D044, D045).
+    """
+    if setting["probe_mode"] == "fixed_budget":
+        return system.probe.run_fixed_budget(**setting["probe_parameters"])
+    return system.probe.run(**setting["probe_parameters"])
+
+
+def build_system(num_envs: int, probe_cfg) -> PullSystem:
     """A system whose execution does not settle, as branching and the protocol require."""
     execution = ExecutionControllerCfg(
         rise_fraction=RECOMMENDED_EXECUTION_CFG.rise_fraction,
@@ -126,7 +178,7 @@ def build_system(num_envs: int) -> PullSystem:
         PullSystemCfg(
             num_envs=num_envs,
             device=args_cli.device,
-            probe=RECOMMENDED_PROBE_CFG,
+            probe=probe_cfg,
             execution=execution,
         )
     )
@@ -171,6 +223,9 @@ def main() -> None:
     enable_unbuffered_stdout()
     started = time.perf_counter()
 
+    setting = SETTINGS[args_cli.setting]
+    task = setting["task"]
+
     plan = build_plan(
         repeats=args_cli.repeats,
         xi_cfg=XiSamplerCfg(
@@ -183,7 +238,7 @@ def main() -> None:
         ),
         force_cfg=ForceSamplerCfg(
             count=args_cli.candidates,
-            force_range=MAIN_TASK.peak_force_range,
+            force_range=task.peak_force_range,
             jitter=args_cli.jitter,
             seed=args_cli.seed,
         ),
@@ -199,26 +254,30 @@ def main() -> None:
     print(f"[gen] hidden states : {len(plan.states)} in {len(grouped)} batch(es) of <= {num_envs}")
     print(f"[gen] probes        : {plan.num_probes} ({plan.repeats} independent repeats each)")
     print(f"[gen] candidates    : {plan.num_candidates} ({plan.force_cfg.count} per probe, branched)")
-    print(f"[gen] task          : T={MAIN_TASK.duration} s d_goal={MAIN_TASK.goal_displacement * 1000:g} mm "
-          f"eps_d={MAIN_TASK.displacement_tolerance * 1000:g} mm eps_v={MAIN_TASK.velocity_tolerance:g} m/s")
-    print(f"[gen] force range   : {MAIN_TASK.peak_force_range[0]}-{MAIN_TASK.peak_force_range[1]} N, "
+    print(f"[gen] setting       : {args_cli.setting} -- {setting['probe_mode']} probe, "
+          f"probe {setting['probe_parameters']}")
+    print(f"[gen] task          : T={task.duration} s d_goal={task.goal_displacement * 1000:g} mm "
+          f"eps_d={task.displacement_tolerance * 1000:g} mm eps_v={task.velocity_tolerance:g} m/s")
+    print(f"[gen] force range   : {task.peak_force_range[0]}-{task.peak_force_range[1]} N, "
           f"stratified, jitter {args_cli.jitter}, label-independent")
     print(f"[gen] history       : {list(HISTORY_CHANNELS)} at the raw control rate, true lengths")
 
     manifest = {
         "dataset_version": args_cli.dataset_version,
-        "schema_version": "1.0",
+        "schema_version": "1.1",
+        "setting": args_cli.setting,
+        "probe_mode": setting["probe_mode"],
         "created_at": datetime.now(UTC).isoformat(),
         "git_commit": git_commit(),
         "protocol": "sequential: reset -> probe -> inference gap -> branched executions",
         "counterfactual_labels": "post-probe snapshot restored before each candidate",
         "seed": args_cli.seed,
         "sampling": plan.as_dict(),
-        "probe_task": RECOMMENDED_PROBE_TASK.as_dict(),
-        "probe_cfg": RECOMMENDED_PROBE_CFG.as_dict(),
+        "probe_task": setting["probe_parameters"],
+        "probe_cfg": setting["probe_cfg"].as_dict(),
         "execution_cfg": RECOMMENDED_EXECUTION_CFG.as_dict(),
         "sequential_transition_steps": SEQUENTIAL_TRANSITION_STEPS,
-        "main_task": MAIN_TASK.as_dict(),
+        "main_task": task.as_dict(),
         "operating_region": region.as_dict(),
         "history_channels": list(HISTORY_CHANNELS),
         "diagnostic_channels": list(DIAGNOSTIC_CHANNELS),
@@ -226,11 +285,10 @@ def main() -> None:
         "environment": collect_environment_info().as_dict(),
     }
 
-    system = build_system(num_envs)
+    system = build_system(num_envs, setting["probe_cfg"])
     system.verify_measured_force_available()
     randomizer = DynamicsRandomizer()
-    probe_task = RECOMMENDED_PROBE_TASK.as_kwargs()
-    criteria = MAIN_TASK.criteria
+    criteria = task.criteria
 
     positives = 0
     invalid = 0
@@ -248,7 +306,7 @@ def main() -> None:
                     system.reset()
 
                     task_start = system.reader.drawer_position.clone()
-                    probe = system.probe.run(**probe_task)
+                    probe = run_probe(system, setting)
                     system.osc.coast(SEQUENTIAL_TRANSITION_STEPS)
                     pre_execution = (system.reader.drawer_position - task_start).cpu().numpy().copy()
                     post_probe_velocity = system.reader.drawer_velocity.cpu().numpy().copy()
@@ -259,7 +317,9 @@ def main() -> None:
                     probes = []
                     for env_index, (_, state) in enumerate(batch):
                         state_id = xi_id(state)
-                        identifier = probe_id(state, repeat, RECOMMENDED_PROBE_TASK.as_dict())
+                        # The probe's parameters are part of the identity: two datasets that
+                        # probed the same drawer differently did not measure the same thing.
+                        identifier = probe_id(state, repeat, setting["probe_parameters"])
                         writer.add_probe(
                             ProbeRecord(
                                 probe_id=identifier,
@@ -283,7 +343,7 @@ def main() -> None:
                         restore_snapshot(system, snapshot)
                         forces = [probes[env][2][orders[env][position]] for env in range(len(batch))]
                         padded_forces = forces + [forces[-1]] * (num_envs - len(forces))
-                        result = system.execution.run(peak_force=padded_forces, duration=MAIN_TASK.duration)
+                        result = system.execution.run(peak_force=padded_forces, duration=task.duration)
                         evaluation = evaluate_execution(
                             result, criteria, region, pre_execution_displacement=pre_execution
                         )
@@ -294,30 +354,34 @@ def main() -> None:
                             writer.add_candidate(
                                 {
                                     "candidate_id": candidate_id(
-                                        identifier, force, MAIN_TASK.duration, MAIN_TASK.goal_displacement
+                                        identifier, force, task.duration, task.goal_displacement
                                     ),
                                     "probe_id": identifier,
                                     "xi_id": state_id,
                                     "branch_index": position,
                                     "candidate_peak_force": force,
-                                    "duration": MAIN_TASK.duration,
-                                    "goal_displacement": MAIN_TASK.goal_displacement,
+                                    "duration": task.duration,
+                                    "goal_displacement": task.goal_displacement,
                                     "final_total_displacement": verdict.total_displacement,
                                     "execution_displacement": verdict.execution_displacement,
                                     "pre_execution_displacement": verdict.pre_execution_displacement,
                                     "final_velocity": verdict.terminal_velocity,
+                                    "position_error": verdict.displacement_error,
                                     "success": bool(verdict.success),
+                                    "reach_success": bool(verdict.reach_success),
+                                    "stable_success": bool(verdict.stable_success),
                                     "valid": bool(verdict.valid),
+                                    "termination_reason": result.termination_reason[env_index].value,
                                     "invalid_reasons": [reason.value for reason in verdict.invalid_reasons],
                                 }
                             )
-                            positives += int(verdict.success)
+                            positives += int(verdict.reach_success)
                             invalid += int(not verdict.valid)
 
                     print(
                         f"[gen] batch {batch_number}/{len(grouped)} repeat {repeat + 1}/{plan.repeats} "
                         f"probe steps {[int(probe.history.active_steps(i).size) for i in range(min(4, len(batch)))]} "
-                        f"positives so far {positives} invalid {invalid} "
+                        f"reach so far {positives} invalid {invalid} "
                         f"({time.perf_counter() - started:.0f} s)"
                     )
     finally:
@@ -326,7 +390,8 @@ def main() -> None:
     elapsed = time.perf_counter() - started
     print("[gen]")
     print(f"[gen] wrote {plan.num_candidates} candidate rows from {plan.num_probes} probes in {elapsed:.0f} s")
-    print(f"[gen] positives {positives} ({positives / max(plan.num_candidates, 1) * 100:.1f} %), invalid {invalid}")
+    print(f"[gen] reach_success {positives} "
+          f"({positives / max(plan.num_candidates, 1) * 100:.1f} %), invalid {invalid}")
     print(f"[gen] dataset : {root}")
     print("[gen] next    : python scripts/audit_dataset.py --dataset " f"{root}")
     print("=" * 78 + "\n")

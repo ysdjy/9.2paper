@@ -5,7 +5,12 @@ land the drawer on the goal? So a sample carries the probe's recording, the stat
 left behind, one candidate force, the task, and the outcome::
 
     (xi, probe_history, probe_summary, post_probe_state,
-     candidate_peak_force, T_goal, d_goal, d_total(T), v(T), success, validity)
+     candidate_peak_force, task_condition = (d_goal, T_goal),
+     d_total(T), v(T), position_error, reach_success, stable_success, validity)
+
+Only ``candidate_peak_force`` varies within a probe's rows: Setting V1 searches the force and
+nothing else, and ``T_goal`` is a task condition rather than an adapted parameter
+(``docs/DECISIONS.md`` D044).
 
 ``xi`` is present and is labelled ``SIM_ONLY_PRIVILEGED``. It is what makes an upper-bound
 oracle and a per-dimension error analysis possible, and it must never reach a model's input;
@@ -123,7 +128,17 @@ class TrainingSample:
         goal_displacement: :math:`d_\\text{goal}` (m), measured from *before* the probe.
         final_total_displacement: :math:`d_\\text{total}(T)` (m).
         final_velocity: :math:`v(T)` (m/s).
-        success: Whether both the position and the terminal-velocity conditions held.
+        success: The strict label -- position, terminal velocity and validity all held.
+            Unchanged in name and meaning since Dataset v0, which was generated with it.
+        reach_success: **Primary metric** from Setting V1 on: position and validity held,
+            regardless of terminal velocity (``docs/DECISIONS.md`` D046). ``None`` in a
+            Dataset v0 row, which predates the split -- a v0 negative could have failed on
+            either term and the row does not record which, so it is left unknown rather than
+            guessed.
+        stable_success: **Secondary metric**: ``reach_success`` and the terminal velocity.
+            Equal to ``success`` where both are recorded; ``None`` in a v0 row.
+        termination_reason: How the execution ended, e.g. ``"duration_completed"`` or
+            ``"safety_abort"``. ``None`` in a v0 row.
         valid: Whether the episode stayed inside the operating region. An invalid row is
             evidence about the rig, not about the drawer, and must be dropped before
             training -- it is kept in the file so the drop is auditable.
@@ -147,6 +162,9 @@ class TrainingSample:
     final_velocity: float
     success: bool
     valid: bool
+    reach_success: bool | None = None
+    stable_success: bool | None = None
+    termination_reason: str | None = None
     invalid_reasons: list[str] = field(default_factory=list)
     protocol: str = "sequential"
 
@@ -159,6 +177,36 @@ class TrainingSample:
         for name in ("displacement", "velocity"):
             if name not in self.post_probe_state:
                 raise ValueError(f"post_probe_state needs '{name}'; got {sorted(self.post_probe_state)}")
+        # Nested by definition (D046). A row that claims otherwise was assembled wrongly, and
+        # finding out at training time would mean re-generating the dataset.
+        if self.stable_success and self.reach_success is False:
+            raise ValueError(
+                f"row {self.candidate_id} is stable_success without reach_success; "
+                "stable_success is reach_success plus the terminal-velocity condition."
+            )
+        if self.stable_success is not None and bool(self.stable_success) != bool(self.success):
+            raise ValueError(
+                f"row {self.candidate_id} has stable_success={self.stable_success} but "
+                f"success={self.success}; they are the same label under two names."
+            )
+
+    @property
+    def position_error(self) -> float:
+        r"""Signed :math:`d_\text{total}(T) - d_\text{goal}` (m); positive means overshoot.
+
+        Derived rather than stored, so it cannot disagree with the two values it comes from.
+        """
+        return self.final_total_displacement - self.goal_displacement
+
+    @property
+    def task_condition(self) -> tuple[float, float]:
+        """:math:`(d_\text{goal}, T_\text{goal})` -- what the task asks, not what is adapted.
+
+        Setting V1 searches ``candidate_peak_force`` and nothing else; the duration is a
+        condition handed to the model, which is why it sits here rather than among the
+        candidate's parameters.
+        """
+        return (self.goal_displacement, self.duration)
 
     def as_dict(self) -> dict:
         return {
@@ -177,12 +225,16 @@ class TrainingSample:
             "final_velocity": self.final_velocity,
             "success": self.success,
             "valid": self.valid,
+            "reach_success": self.reach_success,
+            "stable_success": self.stable_success,
+            "termination_reason": self.termination_reason,
             "invalid_reasons": list(self.invalid_reasons),
             "protocol": self.protocol,
         }
 
     @classmethod
     def from_dict(cls, payload: dict) -> TrainingSample:
+        """Rebuild a row. Dataset v0 payloads load unchanged, with the newer fields ``None``."""
         return cls(**payload)
 
 

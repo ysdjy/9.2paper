@@ -7,6 +7,8 @@ actually reach the parameters that matter and the labels line up with the inputs
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import numpy as np
 import pytest
 import torch
@@ -14,6 +16,7 @@ import torch
 from probe_drawer.dataset import TrainingSample, candidate_id, probe_id, xi_id
 from probe_drawer.models import PspCfg
 from probe_drawer.models.baselines import FeatureRegression, FixedForceBaseline
+from probe_drawer.models.psp import build_student
 from probe_drawer.training import (
     SampleDataset,
     TrainCfg,
@@ -26,6 +29,7 @@ from probe_drawer.training import (
     train_student,
     train_teacher,
 )
+from probe_drawer.training.dataloader import collate_samples
 
 CHANNELS = ("commanded_force", "drawer_position", "drawer_velocity")
 PROBE_TASK = {"initial_force": 1.0, "max_force": 6.0, "target_displacement": 0.003, "max_velocity": 0.08}
@@ -56,8 +60,18 @@ def make_sample(mass: float, force: float, repeat: int, steps: int, success: boo
         final_total_displacement=0.04 if success else 0.02,
         final_velocity=0.01,
         success=success,
+        # A Setting V1 sample. Reach and stable coincide here because the synthetic rule has
+        # only one failure mode; the tests that need them to differ say so explicitly.
+        reach_success=success,
+        stable_success=success,
+        termination_reason="duration_completed",
         valid=True,
     )
+
+
+def as_dataset_v0(samples: list) -> list:
+    """Strip the labels Dataset v0 never recorded, to exercise the refusal path (D046)."""
+    return [replace(sample, reach_success=None, stable_success=None) for sample in samples]
 
 
 def make_learnable_set(num_states: int = 24, forces=(0.5, 1.5, 2.5, 3.5)) -> list:
@@ -272,3 +286,141 @@ class TestBaselines:
         baseline = FixedForceBaseline().fit(forces, labels)
         assert min(forces) <= baseline.force <= max(forces)
         assert baseline.predict(3).tolist() == [baseline.force] * 3
+
+
+class TestTheTaskConditionedHead:
+    """Setting V1's PSP: conditioned on the task, and predicting what the execution will do."""
+
+    def test_the_condition_vector_is_the_documented_five(self) -> None:
+        from probe_drawer.models.psp import CONDITION_DIM, CONDITION_FIELDS  # noqa: PLC0415
+
+        assert CONDITION_FIELDS == (
+            "candidate_peak_force",
+            "post_probe_displacement",
+            "post_probe_velocity",
+            "goal_displacement",
+            "duration",
+        )
+        assert CONDITION_DIM == 5
+
+    def test_the_task_condition_reaches_the_batch_as_d_goal_then_t_goal(self) -> None:
+        batch = collate_samples(
+            [SampleDataset(make_learnable_set(4), channels=CHANNELS)[index] for index in range(3)],
+            channels=CHANNELS,
+        )
+        assert batch.task_condition.shape == (3, 2)
+        assert batch.task_condition[0].tolist() == pytest.approx([0.04, 1.5])
+
+    def test_the_head_returns_a_logit_and_two_auxiliary_predictions(self) -> None:
+        dataset = SampleDataset(make_learnable_set(6), channels=CHANNELS)
+        batch = collate_samples([dataset[index] for index in range(5)], channels=CHANNELS)
+        prediction = build_student(len(CHANNELS), TINY).predict(batch)
+        assert prediction.logit.shape == (5,)
+        assert prediction.displacement.shape == (5,)
+        assert prediction.velocity.shape == (5,)
+
+    def test_forward_is_exactly_the_logit_of_predict(self) -> None:
+        """``model(batch)`` keeps meaning "the task output", so losses and distillation are
+        unchanged by the auxiliary head's existence."""
+        dataset = SampleDataset(make_learnable_set(6), channels=CHANNELS)
+        batch = collate_samples([dataset[index] for index in range(5)], channels=CHANNELS)
+        model = build_student(len(CHANNELS), TINY).eval()
+        with torch.no_grad():
+            assert torch.equal(model(batch), model.predict(batch).logit)
+
+    def test_the_task_condition_changes_the_prediction(self) -> None:
+        """Otherwise the extra inputs are decoration and the contract is not real."""
+        dataset = SampleDataset(make_learnable_set(6), channels=CHANNELS)
+        batch = collate_samples([dataset[index] for index in range(5)], channels=CHANNELS)
+        model = build_student(len(CHANNELS), TINY).eval()
+        with torch.no_grad():
+            before = model(batch)
+            batch.task_condition = batch.task_condition * torch.tensor([2.5, 1.3])
+            after = model(batch)
+        assert not torch.allclose(before, after)
+
+    def test_the_student_still_cannot_see_xi(self) -> None:
+        """The auxiliary head must not have opened a path to the privileged channel."""
+        dataset = SampleDataset(make_learnable_set(6), channels=CHANNELS)
+        batch = collate_samples([dataset[index] for index in range(5)], channels=CHANNELS)
+        model = build_student(len(CHANNELS), TINY).eval()
+        with torch.no_grad():
+            before = model.predict(batch)
+            batch.xi = torch.randn_like(batch.xi) * 100.0
+            after = model.predict(batch)
+        assert torch.equal(before.logit, after.logit)
+        assert torch.equal(before.displacement, after.displacement)
+
+
+class TestLabelSelection:
+    """A dataset that cannot supply the requested label must say so, not substitute."""
+
+    def test_training_on_reach_success_fails_loudly_on_a_dataset_v0_row(self) -> None:
+        dataset = SampleDataset(as_dataset_v0(make_learnable_set(6)), channels=CHANNELS)
+        with pytest.raises(ValueError, match="does not record 'reach_success'"):
+            train_teacher(dataset, dataset, TrainCfg(epochs=1, device="cpu"), TINY)
+
+    def test_the_same_dataset_trains_fine_on_the_strict_label(self) -> None:
+        dataset = SampleDataset(as_dataset_v0(make_learnable_set(6)), channels=CHANNELS)
+        trained = train_teacher(dataset, dataset, TrainCfg(epochs=1, device="cpu", label="success"), TINY)
+        assert trained.label_distribution["label"] == "success"
+
+    def test_the_batch_refuses_an_unrecorded_label(self) -> None:
+        dataset = SampleDataset(as_dataset_v0(make_learnable_set(4)), channels=CHANNELS)
+        batch = collate_samples([dataset[index] for index in range(3)], channels=CHANNELS)
+        with pytest.raises(ValueError, match="does not record 'reach_success'"):
+            batch.label("reach_success")
+        assert batch.label("success").shape == (3,)
+
+    def test_an_unknown_label_name_is_rejected(self) -> None:
+        dataset = SampleDataset(make_learnable_set(4), channels=CHANNELS)
+        batch = collate_samples([dataset[index] for index in range(3)], channels=CHANNELS)
+        with pytest.raises(ValueError, match="unknown label"):
+            batch.label("stable_success")
+
+    def test_reach_and_stable_can_disagree_within_one_batch(self) -> None:
+        """The case the split exists for: arrived, but still moving."""
+        samples = [
+            replace(sample, reach_success=True, stable_success=False, success=False)
+            for sample in make_learnable_set(4)
+        ]
+        dataset = SampleDataset(samples, channels=CHANNELS)
+        batch = collate_samples([dataset[index] for index in range(3)], channels=CHANNELS)
+        assert batch.label("reach_success").tolist() == [1.0, 1.0, 1.0]
+        assert batch.label("success").tolist() == [0.0, 0.0, 0.0]
+
+
+class TestTheAuxiliaryLoss:
+    def test_it_is_zero_when_the_predictions_are_exact(self) -> None:
+        from probe_drawer.training.trainer import _auxiliary_loss  # noqa: PLC0415
+        from probe_drawer.models.psp import PspPrediction  # noqa: PLC0415
+
+        dataset = SampleDataset(make_learnable_set(4), channels=CHANNELS)
+        batch = collate_samples([dataset[index] for index in range(3)], channels=CHANNELS)
+        exact = PspPrediction(
+            logit=torch.zeros(3),
+            displacement=batch.final_displacement.clone(),
+            velocity=batch.final_velocity.clone(),
+        )
+        assert float(_auxiliary_loss(exact, batch)) == pytest.approx(0.0, abs=1e-12)
+
+    def test_a_displacement_error_of_one_goal_costs_one_half(self) -> None:
+        """Normalised by ``d_goal``, so the loss means the same thing at another distance."""
+        from probe_drawer.training.trainer import _auxiliary_loss  # noqa: PLC0415
+        from probe_drawer.models.psp import PspPrediction  # noqa: PLC0415
+
+        dataset = SampleDataset(make_learnable_set(4), channels=CHANNELS)
+        batch = collate_samples([dataset[index] for index in range(3)], channels=CHANNELS)
+        offset = PspPrediction(
+            logit=torch.zeros(3),
+            displacement=batch.final_displacement + batch.task_condition[:, 0],
+            velocity=batch.final_velocity.clone(),
+        )
+        assert float(_auxiliary_loss(offset, batch)) == pytest.approx(0.5, abs=1e-6)
+
+    def test_disabling_it_leaves_the_classifier_trainable(self) -> None:
+        dataset = SampleDataset(make_learnable_set(8), channels=CHANNELS)
+        trained = train_teacher(
+            dataset, dataset, TrainCfg(epochs=2, device="cpu", auxiliary_weight=0.0), TINY
+        )
+        assert trained.history and np.isfinite(trained.history[-1]["train_loss"])

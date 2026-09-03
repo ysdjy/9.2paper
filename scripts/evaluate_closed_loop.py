@@ -73,11 +73,10 @@ from probe_drawer.evaluation import (  # noqa: E402
     select_forces,
     select_nearest,
 )
+from probe_drawer.controllers import ProbeControllerCfg  # noqa: E402
 from probe_drawer.experiment_plan import (  # noqa: E402
-    MAIN_TASK,
+    MainTask,
     RECOMMENDED_EXECUTION_CFG,
-    RECOMMENDED_PROBE_CFG,
-    RECOMMENDED_PROBE_TASK,
     SEQUENTIAL_TRANSITION_STEPS,
 )
 from probe_drawer.models import PspCfg, build_student, build_teacher  # noqa: E402
@@ -95,7 +94,29 @@ from probe_drawer.utils import (  # noqa: E402
 )
 
 
-def build_system(num_envs: int) -> PullSystem:
+def task_from_manifest(manifest: dict) -> MainTask:
+    """The task the models were trained for, read back rather than assumed.
+
+    Taking it from the dataset removes a whole class of quiet mismatch: a model trained at
+    ``d_goal`` = 0.04 m evaluated against a 0.10 m goal would report a failure that is the
+    harness's, not the model's.
+    """
+    return MainTask(**{**manifest["main_task"], "peak_force_range": tuple(manifest["main_task"]["peak_force_range"])})
+
+
+def run_probe_from_manifest(system: PullSystem, manifest: dict):
+    """Run whichever probe the dataset was built with (``docs/DECISIONS.md`` D044).
+
+    Datasets written before Phase 13 have no ``probe_mode``; they all used the ramp probe, so
+    that is the default rather than an error.
+    """
+    parameters = manifest["probe_task"]
+    if manifest.get("probe_mode", "ramp_response_terminated") == "fixed_budget":
+        return system.probe.run_fixed_budget(**parameters)
+    return system.probe.run(**parameters)
+
+
+def build_system(num_envs: int, probe_cfg: ProbeControllerCfg) -> PullSystem:
     execution = ExecutionControllerCfg(
         rise_fraction=RECOMMENDED_EXECUTION_CFG.rise_fraction,
         fall_fraction=RECOMMENDED_EXECUTION_CFG.fall_fraction,
@@ -108,7 +129,7 @@ def build_system(num_envs: int) -> PullSystem:
         PullSystemCfg(
             num_envs=num_envs,
             device=args_cli.device,
-            probe=RECOMMENDED_PROBE_CFG,
+            probe=probe_cfg,
             execution=execution,
         )
     )
@@ -196,11 +217,21 @@ def main() -> None:
         gru.load_state_dict(torch.load(gru_path, weights_only=True)["state_dict"])
         gru.eval()
 
-    selection_cfg = SelectionCfg(force_range=MAIN_TASK.peak_force_range, step=0.05)
+    manifest = store.manifest
+    task = task_from_manifest(manifest)
+    probe_cfg = ProbeControllerCfg(**manifest["probe_cfg"])
+    selection_cfg = SelectionCfg(force_range=task.peak_force_range, step=0.05)
     region = OperatingRegionCfg()
-    criteria = MAIN_TASK.criteria
+    criteria = task.criteria
+    task_condition = torch.tensor(
+        [[task.goal_displacement, task.duration]], dtype=torch.float32
+    )
 
-    system = build_system(min(args_cli.num_envs, len(test_ids)))
+    print(f"[eval] setting  : {manifest.get('setting', 'v0')} -- "
+          f"{manifest.get('probe_mode', 'ramp_response_terminated')} probe, "
+          f"d_goal={task.goal_displacement * 1000:g} mm T_goal={task.duration:g} s")
+
+    system = build_system(min(args_cli.num_envs, len(test_ids)), probe_cfg)
     system.verify_measured_force_available()
     randomizer = DynamicsRandomizer()
     num_envs = system.env.num_envs
@@ -224,7 +255,7 @@ def main() -> None:
             system.reset()
 
             task_start = system.reader.drawer_position.clone()
-            probe = system.probe.run(**RECOMMENDED_PROBE_TASK.as_kwargs())
+            probe = run_probe_from_manifest(system, manifest)
             system.osc.coast(SEQUENTIAL_TRANSITION_STEPS)
             pre_execution = (system.reader.drawer_position - task_start).cpu().numpy().copy()
             post_velocity = system.reader.drawer_velocity.cpu().numpy().copy()
@@ -251,20 +282,35 @@ def main() -> None:
                     [float(ridge.predict([_FeatureRow(row)])[0]) for row in features], selection_cfg
                 ).force,
                 "teacher (privileged)": _landscape_choice(
-                    teacher, xi_tensor, post_probe, scaler, num_envs, selection_cfg, privileged=True
+                    teacher,
+                    xi_tensor,
+                    post_probe,
+                    task_condition.expand(num_envs, -1),
+                    scaler,
+                    num_envs,
+                    selection_cfg,
+                    privileged=True,
                 ),
                 "ACE + PSP": _landscape_choice(
-                    student, (history, lengths), post_probe, scaler, num_envs, selection_cfg
+                    student,
+                    (history, lengths),
+                    post_probe,
+                    task_condition.expand(num_envs, -1),
+                    scaler,
+                    num_envs,
+                    selection_cfg,
                 ),
             }
             if has_gru:
                 with torch.no_grad():
-                    predicted = gru(_Batch(history, lengths, post_probe)).numpy()
+                    predicted = gru(
+                        _Batch(history, lengths, post_probe, task_condition.expand(num_envs, -1))
+                    ).numpy()
                 choices["D GRU (history)"] = select_nearest(predicted, selection_cfg).force
 
             for method, forces in choices.items():
                 restore_snapshot(system, snapshot)
-                result = system.execution.run(peak_force=[float(f) for f in forces], duration=MAIN_TASK.duration)
+                result = system.execution.run(peak_force=[float(f) for f in forces], duration=task.duration)
                 evaluation = evaluate_execution(
                     result, criteria, region, pre_execution_displacement=pre_execution
                 )
@@ -279,6 +325,8 @@ def main() -> None:
                             "total_displacement": verdict.total_displacement,
                             "final_velocity": verdict.terminal_velocity,
                             "success": bool(verdict.success),
+                            "reach_success": bool(verdict.reach_success),
+                            "stable_success": bool(verdict.stable_success),
                             "valid": bool(verdict.valid),
                             "invalid_reasons": [reason.value for reason in verdict.invalid_reasons],
                             "probe_displacement": float(pre_execution[index]),
@@ -291,14 +339,15 @@ def main() -> None:
     finally:
         system.close()
 
-    report = _summarise(rows, len(test_ids))
+    report = _summarise(rows, len(test_ids), task.goal_displacement)
     report.update(
         {
             "run": str(run_root),
             "dataset": str(dataset_root),
             "seed": args_cli.seed,
             "selection": {"grid_step": selection_cfg.step, "range": list(selection_cfg.force_range)},
-            "task": MAIN_TASK.as_dict(),
+            "task": task.as_dict(),
+            "setting": manifest.get("setting", "v0"),
             "git_commit": git_commit(),
             "environment": collect_environment_info().as_dict(),
             "rows": rows,
@@ -317,16 +366,22 @@ class _FeatureRow:
 
 
 class _Batch:
-    """The three fields the deployed models read. Deliberately not the whole ``ProbeBatch``:
-    a deployed model has no labels and no ``xi``, and this makes that structural."""
+    """The four fields the deployed models read. Deliberately not the whole ``ProbeBatch``:
+    a deployed model has no labels and no ``xi``, and this makes that structural.
 
-    def __init__(self, history, lengths, post_probe) -> None:
+    ``task_condition`` is among them because a deployed robot *is* told the task -- how far to
+    open the drawer and by when. It is a condition, not something the model chooses (D044)."""
+
+    def __init__(self, history, lengths, post_probe, task_condition) -> None:
         self.history = history
         self.lengths = lengths
         self.post_probe = post_probe
+        self.task_condition = task_condition
 
 
-def _landscape_choice(model, inputs, post_probe, scaler, num_envs, cfg, privileged: bool = False):
+def _landscape_choice(
+    model, inputs, post_probe, task_condition, scaler, num_envs, cfg, privileged: bool = False
+):
     """Scan the force grid through a success-landscape model and take each drawer's argmax."""
 
     def score(forces: np.ndarray) -> np.ndarray:
@@ -334,17 +389,14 @@ def _landscape_choice(model, inputs, post_probe, scaler, num_envs, cfg, privileg
             [scaler.transform_force(float(value)) for value in forces], dtype=torch.float32
         )
         with torch.no_grad():
-            if privileged:
-                logits = model.head(model.encoder(inputs), scaled, post_probe)
-            else:
-                history, lengths = inputs
-                logits = model.head(model.encoder(history, lengths), scaled, post_probe)
+            context = model.encoder(inputs) if privileged else model.encoder(*inputs)
+            logits = model.head(context, scaled, post_probe, task_condition)
         return torch.sigmoid(logits).numpy()
 
     return select_forces(score, num_envs, cfg).force
 
 
-def _summarise(rows: list[dict], num_states: int) -> dict:
+def _summarise(rows: list[dict], num_states: int, goal: float) -> dict:
     methods = sorted({row["method"] for row in rows})
     summary = {}
     for method in methods:
@@ -353,10 +405,12 @@ def _summarise(rows: list[dict], num_states: int) -> dict:
         summary[method] = {
             "drawers": len(selected),
             "success_rate": float(np.mean([row["success"] for row in selected])),
+            "reach_success_rate": float(np.mean([row["reach_success"] for row in selected])),
+            "stable_success_rate": float(np.mean([row["stable_success"] for row in selected])),
             "success_rate_valid_only": float(np.mean([row["success"] for row in valid])) if valid else float("nan"),
             "invalid_rate": 1.0 - len(valid) / len(selected),
             "median_displacement_error_mm": float(
-                np.median([abs(row["total_displacement"] - MAIN_TASK.goal_displacement) for row in selected]) * 1000
+                np.median([abs(row["total_displacement"] - goal) for row in selected]) * 1000
             ),
             "median_terminal_velocity": float(np.median([abs(row["final_velocity"]) for row in selected])),
             "mean_chosen_force": float(np.mean([row["chosen_force"] for row in selected])),
@@ -369,17 +423,19 @@ def _summarise(rows: list[dict], num_states: int) -> dict:
 
 
 def _print(report: dict, output: Path) -> None:
+    """Ranked by ``reach``, the primary metric, with ``stable`` printed beside it (D046)."""
     print("[deploy]")
     print(
-        f"[deploy] {'method':>22} {'success':>9} {'valid only':>11} {'invalid':>8} "
-        f"{'|d-goal| med':>13} {'F range':>14}"
+        f"[deploy] {'method':>22} {'reach':>8} {'stable':>8} {'invalid':>8} "
+        f"{'|d-goal| med':>13} {'|v(T)| med':>11} {'F range':>14}"
     )
-    for method, values in sorted(report["methods"].items(), key=lambda item: -item[1]["success_rate"]):
+    for method, values in sorted(report["methods"].items(), key=lambda item: -item[1]["reach_success_rate"]):
         low, high = values["chosen_force_spread"]
         print(
-            f"[deploy] {method:>22} {values['success_rate'] * 100:8.1f}% "
-            f"{values['success_rate_valid_only'] * 100:10.1f}% {values['invalid_rate'] * 100:7.1f}% "
-            f"{values['median_displacement_error_mm']:12.2f}mm {low:6.2f}-{high:5.2f} N"
+            f"[deploy] {method:>22} {values['reach_success_rate'] * 100:7.1f}% "
+            f"{values['stable_success_rate'] * 100:7.1f}% {values['invalid_rate'] * 100:7.1f}% "
+            f"{values['median_displacement_error_mm']:12.2f}mm "
+            f"{values['median_terminal_velocity']:10.3f} {low:6.2f}-{high:5.2f} N"
         )
     print("[deploy]")
     print(f"[deploy] report written: {output}")
