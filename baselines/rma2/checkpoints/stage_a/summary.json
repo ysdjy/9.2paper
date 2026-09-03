@@ -1,0 +1,113 @@
+{
+  "created_at": "2026-09-03T09:33:10.106889+00:00",
+  "git_commit": "59d2b46444c94d64f01bb9f7543fd1f25271b7d4",
+  "dataset": "/home/zbh/Downloads/IsaacLab/9.2paper/outputs/dataset_v1",
+  "dataset_version": "v1",
+  "channels": [
+    "commanded_force",
+    "drawer_position",
+    "drawer_velocity",
+    "drawer_acceleration",
+    "tcp_pull_axis_position",
+    "tcp_pull_axis_velocity",
+    "tcp_pull_axis_acceleration"
+  ],
+  "scaler": {
+    "channels": [
+      "commanded_force",
+      "drawer_position",
+      "drawer_velocity",
+      "drawer_acceleration",
+      "tcp_pull_axis_position",
+      "tcp_pull_axis_velocity",
+      "tcp_pull_axis_acceleration"
+    ],
+    "mean": [
+      2.7093811937504344,
+      0.0015717879286298864,
+      0.01343758873615334,
+      0.0750665206140553,
+      0.0015790145238904678,
+      0.012856374904681707,
+      0.07096897054701914
+    ],
+    "std": [
+      1.194218070268363,
+      0.0015639504980130906,
+      0.009750331953628196,
+      0.05491151235329227,
+      0.0015700499767297036,
+      0.009967645402647173,
+      0.08050907487527606
+    ],
+    "force_mean": 3.499299731807103,
+    "force_std": 1.7317669257593695,
+    "post_probe_mean": [
+      0.006697870444750633,
+      0.01517705580855125
+    ],
+    "post_probe_std": [
+      0.0029981901402941144,
+      0.010697474049032726
+    ],
+    "fitted_on": 34464
+  },
+  "force_range": [
+    0.5,
+    6.5
+  ],
+  "cfg": {
+    "latent_dim": 16,
+    "encoder_units": [
+      128,
+      128
+    ],
+    "head_units": [
+      128,
+      128,
+      64
+    ],
+    "dropout": 0.0,
+    "epochs": 40,
+    "batch_size": 256,
+    "learning_rate": 0.003,
+    "weight_decay": 0.0001,
+    "seed": 0,
+    "device": "cuda"
+  },
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "per_seed": [
+    {
+      "seed": 0,
+      "best_epoch": 11,
+      "val_force_mae": 0.07108677296728423,
+      "val_probes": 193,
+      "test_force_mae": 0.08106957067278661,
+      "test_probes": 264
+    },
+    {
+      "seed": 1,
+      "best_epoch": 4,
+      "val_force_mae": 0.07408182112991257,
+      "val_probes": 193,
+      "test_force_mae": 0.08603722005047945,
+      "test_probes": 264
+    },
+    {
+      "seed": 2,
+      "best_epoch": 29,
+      "val_force_mae": 0.07556022333518708,
+      "val_probes": 193,
+      "test_force_mae": 0.08156911997815337,
+      "test_probes": 264
+    }
+  ],
+  "test_force_mae": {
+    "mean": 0.08289197023380647,
+    "sd": 0.0022333584104190307
+  }
+}

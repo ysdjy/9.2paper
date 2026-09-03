@@ -6,10 +6,20 @@ third_party/
 # large for git. The small artefacts that say what a run *was* stay tracked, so a result can
 # be traced back to a config, a split and a commit without the bulk.
 checkpoints/**
+# Directories must be re-included explicitly, or git never descends far enough to evaluate
+# the negations below and every one of them is silently dead.
+!checkpoints/**/
 !checkpoints/.gitkeep
 !checkpoints/**/config.yaml
 !checkpoints/**/metrics.json
 !checkpoints/**/manifest.json
+# Stage A's provenance, on the main project's policy: the weights stay out, the small files
+# that say what a run *was* -- and the physics result itself -- stay in, so a number can be
+# traced to a config, a dataset and a commit without the bulk.
+!checkpoints/**/config.json
+!checkpoints/**/history.csv
+!checkpoints/**/summary.json
+!checkpoints/**/closed_loop.json
 
 # This baseline's own scratch outputs. Project-level artefacts -- the Oracle sweeps and
 # outputs/logs/adaptation_premise.json -- live under the repository root's outputs/ instead.

@@ -32,13 +32,21 @@ is in [docs/RMA2_TO_DRAWER_MAPPING.md](docs/RMA2_TO_DRAWER_MAPPING.md) §4 and �
 [x] Official source analysed: privileged vector, encoder, latent, temporal CNN, both stages
 [x] Module mapping and this baseline's full design contract
 [x] adaptation_premise: is the adaptation problem well posed? (offline audit, 12 tests)
-[ ]  --- blocked, see §2 ---
-[ ] Stage A: privileged direct adaptation      (xi -> z_priv -> ParameterHead -> p*)
+[x] Setting V1 design audit                    (docs/SETTING_V1_DESIGN_AUDIT.md)
+[x] Stage A: privileged direct adaptation      (xi -> z_priv -> ParameterHead -> F_peak*)
 [ ] Stage B: latent distillation               (tau_p -> z_probe ~= z_priv)
 [ ] Deployment + evaluation on the shared protocol
 ```
 
-**No model code is written yet, and that is deliberate.** §2 says why.
+**§2 below is obsolete and has not yet been rewritten.** Its blocker -- that a
+one-dimensional parameter space cannot test the paper's claim -- was both superseded (Setting
+V1 refroze to 1-D, D044) and empirically refuted (the landscape model wins in 1-D anyway).
+See [docs/SETTING_V1_DESIGN_AUDIT.md](docs/SETTING_V1_DESIGN_AUDIT.md) §0 for what replaces
+it, and §4 there for the list of stale text in this file and in the mapping.
+
+**Stage A is done**: it ties the privileged teacher at 95.8 % physical reach success, which
+says the bottleneck is the probe and not the point output.
+[docs/STAGE_A_RESULTS.md](docs/STAGE_A_RESULTS.md).
 
 ## 2. What blocks Stage A, and why it is not this baseline's to unblock
 

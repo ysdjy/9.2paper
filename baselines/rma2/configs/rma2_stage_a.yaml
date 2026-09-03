@@ -1,0 +1,26 @@
+# GENERATED SNAPSHOT -- the authoritative values live in rma2.config:StageACfg.
+_source:
+  stage_a: rma2.config:StageACfg
+_provenance:
+  latent_dim: matched to probe_drawer.models.PspCfg.z_dim (docs/SETTING_V1_DESIGN_AUDIT.md
+    1)
+  optimiser: copied from scripts/train_models.py::train_force_regressor so the only
+    difference from Direct GRU is the model
+  target: probe_drawer.training.metrics.reference_force_per_probe, shared with every
+    other force regressor
+stage_a:
+  latent_dim: 16
+  encoder_units:
+  - 128
+  - 128
+  head_units:
+  - 128
+  - 128
+  - 64
+  dropout: 0.0
+  epochs: 40
+  batch_size: 256
+  learning_rate: 0.003
+  weight_decay: 0.0001
+  seed: 0
+  device: cpu
