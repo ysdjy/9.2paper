@@ -4,6 +4,73 @@ One entry per work session. Newest first.
 
 ---
 
+## 2026-09-03 — `agent/phase13-freeze-v1` — task-conditioning feasibility audit
+
+**Agent / task.** Claude Opus 5 — before any multi-goal model, check whether `d_goal` actually
+moves the action. Oracle only: nothing trained, no dataset written, probe / controllers /
+`T_goal` / hidden-state ranges all frozen.
+
+**One sweep, three readings.** Neither controller reads the goal — the execution takes a force
+and a duration (D004), the fixed-budget probe an amplitude and a budget (D044) — and validity
+bounds travel rather than the target. So one force sweep over 32 representative in-distribution
+states serves all three goals, which differ only in the scoring. Three views of identical
+physics, free of any between-run confound.
+
+### Results
+
+| goal | solvable | band width (N) | required force (N) |
+|---|---|---|---|
+| 80 mm | 32/32 | med **0.35** | med **2.20** |
+| 100 mm | 31/32 | med **0.40** | med **2.65** |
+| 120 mm | 32/32 | med **0.30** | med **3.20** |
+
+The one miss at 100 mm is a grid artefact on a state whose bands at 80 and 120 mm are a single
+0.10 N cell wide. Nothing reaches the 6.5 N ceiling, so the frozen action range covers the span.
+
+**The optimum moves 0.500 N median per 20 mm** (signed +0.494 / +0.481, max 0.750), i.e.
+`dF*/dd_goal` = 23.8 N/m median, 15.0–31.2 across states. That is **1.29× the band width** it
+has to leave.
+
+**The 100 mm optimum transfers to neither neighbour: 0/31 at 80 mm and 0/31 at 120 mm.** It
+lands at +19.8 mm median error at 80 mm and −20.2 mm at 120 mm against a ±7.5 mm tolerance,
+exceeding `eps_d` for 31 of 31 states in both directions. A model that ignores the goal lands at
+the distance it was trained on.
+
+### The mechanism, found while fixing my own test
+
+Two unit tests I wrote failed, and the reason is the more interesting result. For a locally
+affine response the band is `2*eps_d*k` wide and the optimum moves `delta_goal*k`, so **both
+scale with the drawer's stiffness and the ratio does not**:
+
+```
+shift / band = delta_goal / (2*eps_d) = 20 mm / 15 mm = 1.33
+```
+
+The measured 1.29× *is* that arithmetic. So the transfer failure is not a property of these
+drawers — it follows from the goal spacing exceeding the tolerance window, and no stiffness
+could rescue it. Goals spaced inside the window transfer for free; the tests now pin both
+directions.
+
+### Verdict
+
+**Yes, a multi-goal experiment is worth running.** The shift exceeds the band, transfer is 0 %
+both ways across 31 states, all three goals are essentially fully solvable inside the frozen
+action range, and band widths do not degrade — so it would measure adaptation rather than
+feasibility.
+
+One caveat carried forward: the mapping is near-affine with a modest slope spread (24 ± 4 N/m),
+so a multi-goal model could score well by learning little more than that slope. Such an
+experiment should report against an explicit **affine-in-goal** baseline, or it risks crediting
+conditioning for arithmetic.
+
+### Git state
+
+`agent/phase13-freeze-v1`. New `docs/TASK_CONDITIONING.md`,
+`probe_drawer.analysis.task_conditioning`, `scripts/audit_task_conditioning.py`, 16 unit tests.
+564 unit and 105 integration tests pass. **Stopped for review, as asked.**
+
+---
+
 ## 2026-09-03 — `agent/phase13-freeze-v1` — OOD evaluation: the probe is the limit
 
 **Agent / task.** Claude Opus 5 — deploy the existing Setting V1 checkpoints on the 64 genuine

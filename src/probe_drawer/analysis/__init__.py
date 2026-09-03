@@ -18,6 +18,7 @@ from .hidden_state_audit import CANDIDATES, AuditVerdict, HiddenStateCandidate, 
 from .ood_evaluation import summarise_ood_evaluation
 from .ood_feasibility import summarise_ood_feasibility
 from .readout import RIDGE_PENALTY, leave_one_out
+from .task_conditioning import summarise_task_conditioning
 
 __all__ = [
     "AUDIT_CASES",
@@ -35,4 +36,5 @@ __all__ = [
     "run_hidden_state_audit",
     "summarise_ood_evaluation",
     "summarise_ood_feasibility",
+    "summarise_task_conditioning",
 ]

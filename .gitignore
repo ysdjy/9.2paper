@@ -34,6 +34,8 @@ outputs/videos/**
 !outputs/logs/ood_feasibility.json
 !outputs/logs/ood_feasibility_summary.json
 !outputs/logs/ood_evaluation_summary.json
+# The task-conditioning audit is 284 KB and is the evidence behind docs/TASK_CONDITIONING.md.
+!outputs/logs/task_conditioning_audit.json
 !outputs/logs/ood_closed_loop.json
 
 # Large experiment snapshots
