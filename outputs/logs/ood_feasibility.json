@@ -1,0 +1,2544 @@
+{
+  "phase": "OOD feasibility pilot",
+  "training_ranges": {
+    "mass": [
+      4.0,
+      12.0
+    ],
+    "static_friction": [
+      0.5,
+      3.0
+    ],
+    "dynamic_friction_ratio": [
+      0.3,
+      1.0
+    ],
+    "damping": [
+      2.0,
+      10.0
+    ]
+  },
+  "ood_ranges": {
+    "mass": [
+      2.0,
+      18.0
+    ],
+    "static_friction": [
+      0.25,
+      4.5
+    ],
+    "dynamic_friction_ratio": [
+      0.15,
+      1.0
+    ],
+    "damping": [
+      1.0,
+      16.0
+    ]
+  },
+  "task": {
+    "duration": 1.5,
+    "goal_displacement": 0.1,
+    "displacement_tolerance": 0.0075,
+    "velocity_tolerance": 0.03,
+    "peak_force_range": [
+      0.5,
+      6.5
+    ]
+  },
+  "probe": {
+    "peak_force": 3.5,
+    "duration": 0.3
+  },
+  "force_grid": [
+    0.25,
+    0.35,
+    0.45,
+    0.55,
+    0.65,
+    0.75,
+    0.85,
+    0.95,
+    1.05,
+    1.15,
+    1.25,
+    1.35,
+    1.45,
+    1.55,
+    1.65,
+    1.75,
+    1.85,
+    1.95,
+    2.05,
+    2.15,
+    2.25,
+    2.35,
+    2.45,
+    2.55,
+    2.65,
+    2.75,
+    2.85,
+    2.95,
+    3.05,
+    3.15,
+    3.25,
+    3.35,
+    3.45,
+    3.55,
+    3.65,
+    3.75,
+    3.85,
+    3.95,
+    4.05,
+    4.15,
+    4.25,
+    4.35,
+    4.45,
+    4.55,
+    4.65,
+    4.75,
+    4.85,
+    4.95,
+    5.05,
+    5.15,
+    5.25,
+    5.35,
+    5.45,
+    5.55,
+    5.65,
+    5.75,
+    5.85,
+    5.95,
+    6.05,
+    6.15,
+    6.25,
+    6.35,
+    6.45,
+    6.55,
+    6.65,
+    6.75,
+    6.85,
+    6.95,
+    7.05,
+    7.15,
+    7.25,
+    7.35,
+    7.45,
+    7.55,
+    7.65,
+    7.75,
+    7.85,
+    7.95,
+    8.05,
+    8.15,
+    8.25,
+    8.35,
+    8.45,
+    8.55,
+    8.65,
+    8.75,
+    8.85,
+    8.95,
+    9.05,
+    9.15,
+    9.25,
+    9.35,
+    9.45,
+    9.55,
+    9.65,
+    9.75,
+    9.85,
+    9.95,
+    10.05
+  ],
+  "operating_region": {
+    "mechanical_margin_fraction": 0.8,
+    "max_displacement": 0.32000000000000006,
+    "drawer_travel_limit": 0.4,
+    "max_peak_velocity": 0.25,
+    "max_lateral_drift": 0.005,
+    "max_orientation_drift_deg": 5.0,
+    "min_displacement": 0.001
+  },
+  "seed": 20260903,
+  "git_commit": "8de6955e67f3efcf230290cc1011df404a2b72db",
+  "environment": {
+    "os": "Linux 5.15.0-1097-realtime",
+    "python": "3.11.15",
+    "python_executable": "/home/zbh/anaconda3/envs/env_isaaclab/bin/python",
+    "torch": "2.7.1+cu128",
+    "cuda": "12.8",
+    "gpu": "NVIDIA GeForce RTX 5080",
+    "isaacsim": "5.1.0.0",
+    "isaaclab": "0.49.0",
+    "isaaclab_root": "/home/zbh/Downloads/IsaacLab",
+    "project_root": "/home/zbh/Downloads/IsaacLab/9.2paper",
+    "project_git_commit": "8de6955e67f3efcf230290cc1011df404a2b72db",
+    "registered_drawer_envs": {}
+  },
+  "elapsed_s": 271.4014016169822,
+  "rows": [
+    {
+      "hidden_state": {
+        "mass": 17.762782096862793,
+        "static_friction": 3.998545467853546,
+        "dynamic_friction": 0.7710202403181176,
+        "damping": 6.228049159049988
+      },
+      "sampled_axes": {
+        "mass": 17.762782096862793,
+        "static_friction": 3.998545467853546,
+        "dynamic_friction_ratio": 0.1928251776844263,
+        "damping": 6.228049159049988
+      },
+      "novel_axes": [
+        "mass_high",
+        "static_friction_high",
+        "dynamic_friction_ratio_low"
+      ],
+      "probe_displacement": 0.0004509661521296948,
+      "probe_velocity": 2.7328493956702005e-07,
+      "probe_moved": false,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 4.25,
+      "band_low": 4.25,
+      "band_high": 4.75,
+      "band_width": 0.6,
+      "num_reaching_forces": 5,
+      "closest_force": 4.45,
+      "closest_position_error": 0.0006810810242313947,
+      "invalid_reasons": {
+        "excessive_velocity": 16,
+        "no_measurable_motion": 13
+      },
+      "invalid_fraction": 0.29292929292929293,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 9.752796649932861,
+        "static_friction": 0.3825094345957041,
+        "dynamic_friction": 0.2634744722700563,
+        "damping": 15.132678210735321
+      },
+      "sampled_axes": {
+        "mass": 9.752796649932861,
+        "static_friction": 0.3825094345957041,
+        "dynamic_friction_ratio": 0.6888051599264144,
+        "damping": 15.132678210735321
+      },
+      "novel_axes": [
+        "static_friction_low",
+        "damping_high"
+      ],
+      "probe_displacement": 0.009073690511286259,
+      "probe_velocity": 0.0258234404027462,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 2.15,
+      "band_low": 2.15,
+      "band_high": 2.55,
+      "band_width": 0.4999999999999999,
+      "num_reaching_forces": 5,
+      "closest_force": 2.35,
+      "closest_position_error": 0.0007807513698935564,
+      "invalid_reasons": {
+        "mechanical_limit": 6,
+        "excessive_velocity": 29,
+        "excessive_lateral_drift": 10,
+        "excessive_orientation_drift": 8
+      },
+      "invalid_fraction": 0.5353535353535354,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 4.537815093994141,
+        "static_friction": 3.0500236451625824,
+        "dynamic_friction": 1.3352974995159512,
+        "damping": 4.323093131184578
+      },
+      "sampled_axes": {
+        "mass": 4.537815093994141,
+        "static_friction": 3.0500236451625824,
+        "dynamic_friction_ratio": 0.4377990648150443,
+        "damping": 4.323093131184578
+      },
+      "novel_axes": [
+        "static_friction_high"
+      ],
+      "probe_displacement": 0.0015967681538313627,
+      "probe_velocity": -3.282912075519562e-07,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 3.55,
+      "band_low": 3.55,
+      "band_high": 3.75,
+      "band_width": 0.30000000000000016,
+      "num_reaching_forces": 3,
+      "closest_force": 3.75,
+      "closest_position_error": 0.0049419685732573215,
+      "invalid_reasons": {
+        "mechanical_limit": 19,
+        "excessive_velocity": 42,
+        "excessive_lateral_drift": 32,
+        "excessive_orientation_drift": 31
+      },
+      "invalid_fraction": 1.2525252525252526,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 12.54047679901123,
+        "static_friction": 1.5548526421189308,
+        "dynamic_friction": 1.5138538920610451,
+        "damping": 9.480985760688782
+      },
+      "sampled_axes": {
+        "mass": 12.54047679901123,
+        "static_friction": 1.5548526421189308,
+        "dynamic_friction_ratio": 0.9736317455768585,
+        "damping": 9.480985760688782
+      },
+      "novel_axes": [
+        "mass_high"
+      ],
+      "probe_displacement": 0.0038736353162676096,
+      "probe_velocity": 0.005513363983482122,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 4.35,
+      "band_low": 4.35,
+      "band_high": 4.55,
+      "band_width": 0.30000000000000016,
+      "num_reaching_forces": 2,
+      "closest_force": 4.55,
+      "closest_position_error": 0.0011916960123926346,
+      "invalid_reasons": {
+        "excessive_velocity": 17,
+        "excessive_lateral_drift": 1
+      },
+      "invalid_fraction": 0.18181818181818182,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 11.453798294067383,
+        "static_friction": 2.817835584282875,
+        "dynamic_friction": 1.7418562824649026,
+        "damping": 11.201684534549713
+      },
+      "sampled_axes": {
+        "mass": 11.453798294067383,
+        "static_friction": 2.817835584282875,
+        "dynamic_friction_ratio": 0.6181539803743362,
+        "damping": 11.201684534549713
+      },
+      "novel_axes": [
+        "damping_high"
+      ],
+      "probe_displacement": 0.002303407294675708,
+      "probe_velocity": 1.8789430669130525e-06,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 4.75,
+      "band_low": 4.75,
+      "band_high": 5.05,
+      "band_width": 0.3999999999999998,
+      "num_reaching_forces": 4,
+      "closest_force": 4.95,
+      "closest_position_error": 0.001218917174264783,
+      "invalid_reasons": {
+        "excessive_velocity": 12
+      },
+      "invalid_fraction": 0.12121212121212122,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 3.4682457447052,
+        "static_friction": 2.3187445253133774,
+        "dynamic_friction": 0.6123548457253893,
+        "damping": 1.3554494678974152
+      },
+      "sampled_axes": {
+        "mass": 3.4682457447052,
+        "static_friction": 2.3187445253133774,
+        "dynamic_friction_ratio": 0.26408896669745446,
+        "damping": 1.3554494678974152
+      },
+      "novel_axes": [
+        "mass_low",
+        "dynamic_friction_ratio_low",
+        "damping_low"
+      ],
+      "probe_displacement": 0.008605816401541233,
+      "probe_velocity": 0.027325071394443512,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 1.55,
+      "band_low": 1.55,
+      "band_high": 1.75,
+      "band_width": 0.29999999999999993,
+      "num_reaching_forces": 3,
+      "closest_force": 1.65,
+      "closest_position_error": 0.0011874785646796282,
+      "invalid_reasons": {
+        "excessive_velocity": 64,
+        "excessive_lateral_drift": 64,
+        "excessive_orientation_drift": 61,
+        "mechanical_limit": 42
+      },
+      "invalid_fraction": 2.3333333333333335,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 6.245238780975342,
+        "static_friction": 3.7663417011499405,
+        "dynamic_friction": 3.250065604576129,
+        "damping": 13.16294527053833
+      },
+      "sampled_axes": {
+        "mass": 6.245238780975342,
+        "static_friction": 3.7663417011499405,
+        "dynamic_friction_ratio": 0.8629237234592437,
+        "damping": 13.16294527053833
+      },
+      "novel_axes": [
+        "static_friction_high",
+        "damping_high"
+      ],
+      "probe_displacement": 0.0007155335042625666,
+      "probe_velocity": 8.504138122589211e-07,
+      "probe_moved": false,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 5.95,
+      "band_low": 5.95,
+      "band_high": 6.25,
+      "band_width": 0.3999999999999998,
+      "num_reaching_forces": 4,
+      "closest_force": 6.15,
+      "closest_position_error": 0.0010835713241249267,
+      "invalid_reasons": {
+        "no_measurable_motion": 14,
+        "excessive_velocity": 5
+      },
+      "invalid_fraction": 0.1919191919191919,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 14.239091873168945,
+        "static_friction": 1.1464172452688217,
+        "dynamic_friction": 0.6290373303745264,
+        "damping": 7.071687042713165
+      },
+      "sampled_axes": {
+        "mass": 14.239091873168945,
+        "static_friction": 1.1464172452688217,
+        "dynamic_friction_ratio": 0.5486984193325043,
+        "damping": 7.071687042713165
+      },
+      "novel_axes": [
+        "mass_high"
+      ],
+      "probe_displacement": 0.006789361592382193,
+      "probe_velocity": 0.018862660974264145,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 2.75,
+      "band_low": 2.75,
+      "band_high": 3.05,
+      "band_width": 0.3999999999999998,
+      "num_reaching_forces": 4,
+      "closest_force": 2.85,
+      "closest_position_error": 0.0015460782684385832,
+      "invalid_reasons": {
+        "excessive_velocity": 29,
+        "excessive_lateral_drift": 6,
+        "mechanical_limit": 2,
+        "excessive_orientation_drift": 4
+      },
+      "invalid_fraction": 0.41414141414141414,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 15.564525604248047,
+        "static_friction": 3.324108764529228,
+        "dynamic_friction": 2.7939048675733824,
+        "damping": 2.874014735221863
+      },
+      "sampled_axes": {
+        "mass": 15.564525604248047,
+        "static_friction": 3.324108764529228,
+        "dynamic_friction_ratio": 0.8404974281787874,
+        "damping": 2.874014735221863
+      },
+      "novel_axes": [
+        "mass_high",
+        "static_friction_high"
+      ],
+      "probe_displacement": 0.00061066570924595,
+      "probe_velocity": -6.936024146853015e-05,
+      "probe_moved": false,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 5.85,
+      "band_low": 5.85,
+      "band_high": 6.15,
+      "band_width": 0.4000000000000007,
+      "num_reaching_forces": 4,
+      "closest_force": 6.05,
+      "closest_position_error": 0.001361566514242435,
+      "invalid_reasons": {
+        "excessive_velocity": 6,
+        "no_measurable_motion": 16
+      },
+      "invalid_fraction": 0.2222222222222222,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 7.576024532318115,
+        "static_friction": 1.8289229422807693,
+        "dynamic_friction": 0.8654074503780933,
+        "damping": 11.777728259563446
+      },
+      "sampled_axes": {
+        "mass": 7.576024532318115,
+        "static_friction": 1.8289229422807693,
+        "dynamic_friction_ratio": 0.4731787383556366,
+        "damping": 11.777728259563446
+      },
+      "novel_axes": [
+        "damping_high"
+      ],
+      "probe_displacement": 0.007398000452667475,
+      "probe_velocity": 0.01807660609483719,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 2.85,
+      "band_low": 2.85,
+      "band_high": 3.15,
+      "band_width": 0.3999999999999998,
+      "num_reaching_forces": 4,
+      "closest_force": 3.05,
+      "closest_position_error": 0.0009372533299028818,
+      "invalid_reasons": {
+        "mechanical_limit": 9,
+        "excessive_velocity": 32,
+        "excessive_lateral_drift": 20,
+        "excessive_orientation_drift": 13
+      },
+      "invalid_fraction": 0.7474747474747475,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 2.8532610535621643,
+        "static_friction": 4.239111825823784,
+        "dynamic_friction": 2.7435322411139587,
+        "damping": 8.409549206495285
+      },
+      "sampled_axes": {
+        "mass": 2.8532610535621643,
+        "static_friction": 4.239111825823784,
+        "dynamic_friction_ratio": 0.6471950620412826,
+        "damping": 8.409549206495285
+      },
+      "novel_axes": [
+        "mass_low",
+        "static_friction_high"
+      ],
+      "probe_displacement": 0.0008618324645794928,
+      "probe_velocity": -0.00013122391828801483,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 5.15,
+      "band_low": 5.15,
+      "band_high": 5.25,
+      "band_width": 0.19999999999999965,
+      "num_reaching_forces": 2,
+      "closest_force": 5.15,
+      "closest_position_error": 0.0028666749945841785,
+      "invalid_reasons": {
+        "mechanical_limit": 8,
+        "excessive_velocity": 27,
+        "excessive_lateral_drift": 27,
+        "excessive_orientation_drift": 26,
+        "no_measurable_motion": 12
+      },
+      "invalid_fraction": 1.0101010101010102,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 10.85006332397461,
+        "static_friction": 0.6230925749987364,
+        "dynamic_friction": 0.21576159280779375,
+        "damping": 13.568357586860657
+      },
+      "sampled_axes": {
+        "mass": 10.85006332397461,
+        "static_friction": 0.6230925749987364,
+        "dynamic_friction_ratio": 0.3462753392755985,
+        "damping": 13.568357586860657
+      },
+      "novel_axes": [
+        "damping_high"
+      ],
+      "probe_displacement": 0.008803640492260456,
+      "probe_velocity": 0.026331188157200813,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 2.15,
+      "band_low": 2.15,
+      "band_high": 2.45,
+      "band_width": 0.40000000000000024,
+      "num_reaching_forces": 4,
+      "closest_force": 2.25,
+      "closest_position_error": 0.001286046020686632,
+      "invalid_reasons": {
+        "mechanical_limit": 7,
+        "excessive_velocity": 30,
+        "excessive_lateral_drift": 13,
+        "excessive_orientation_drift": 8
+      },
+      "invalid_fraction": 0.5858585858585859,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 13.155961036682129,
+        "static_friction": 3.475675791501999,
+        "dynamic_friction": 1.443712525465261,
+        "damping": 14.643609583377838
+      },
+      "sampled_axes": {
+        "mass": 13.155961036682129,
+        "static_friction": 3.475675791501999,
+        "dynamic_friction_ratio": 0.41537606269121163,
+        "damping": 14.643609583377838
+      },
+      "novel_axes": [
+        "mass_high",
+        "static_friction_high",
+        "damping_high"
+      ],
+      "probe_displacement": 0.0006232193554751575,
+      "probe_velocity": 4.138564122513344e-07,
+      "probe_moved": false,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 4.65,
+      "band_low": 4.65,
+      "band_high": 5.25,
+      "band_width": 0.6999999999999996,
+      "num_reaching_forces": 6,
+      "closest_force": 5.05,
+      "closest_position_error": 0.00013376559363678653,
+      "invalid_reasons": {
+        "excessive_velocity": 6,
+        "no_measurable_motion": 8
+      },
+      "invalid_fraction": 0.1414141414141414,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 8.425886631011963,
+        "static_friction": 2.560657024383545,
+        "dynamic_friction": 0.5681145574215449,
+        "damping": 9.047192096710205
+      },
+      "sampled_axes": {
+        "mass": 8.425886631011963,
+        "static_friction": 2.560657024383545,
+        "dynamic_friction_ratio": 0.2218628078699112,
+        "damping": 9.047192096710205
+      },
+      "novel_axes": [
+        "dynamic_friction_ratio_low"
+      ],
+      "probe_displacement": 0.006945902947336435,
+      "probe_velocity": 0.019912494346499443,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 2.35,
+      "band_low": 2.35,
+      "band_high": 2.65,
+      "band_width": 0.3999999999999998,
+      "num_reaching_forces": 4,
+      "closest_force": 2.55,
+      "closest_position_error": 0.0008636900223791544,
+      "invalid_reasons": {
+        "mechanical_limit": 14,
+        "excessive_velocity": 39,
+        "excessive_lateral_drift": 22,
+        "excessive_orientation_drift": 16
+      },
+      "invalid_fraction": 0.9191919191919192,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 16.433411598205566,
+        "static_friction": 2.061578758060932,
+        "dynamic_friction": 1.5894793500035773,
+        "damping": 2.9550181180238724
+      },
+      "sampled_axes": {
+        "mass": 16.433411598205566,
+        "static_friction": 2.061578758060932,
+        "dynamic_friction_ratio": 0.7710010319948196,
+        "damping": 2.9550181180238724
+      },
+      "novel_axes": [
+        "mass_high"
+      ],
+      "probe_displacement": 0.0033236555755138397,
+      "probe_velocity": 0.004780422430485487,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 4.45,
+      "band_low": 4.45,
+      "band_high": 4.85,
+      "band_width": 0.49999999999999944,
+      "num_reaching_forces": 4,
+      "closest_force": 4.65,
+      "closest_position_error": 0.00021376684308052618,
+      "invalid_reasons": {
+        "excessive_velocity": 18
+      },
+      "invalid_fraction": 0.18181818181818182,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 16.91341209411621,
+        "static_friction": 2.4705967903137207,
+        "dynamic_friction": 1.2562911364357587,
+        "damping": 12.366778910160065
+      },
+      "sampled_axes": {
+        "mass": 16.91341209411621,
+        "static_friction": 2.4705967903137207,
+        "dynamic_friction_ratio": 0.5084970325231551,
+        "damping": 12.366778910160065
+      },
+      "novel_axes": [
+        "mass_high",
+        "damping_high"
+      ],
+      "probe_displacement": 0.0035955358762294054,
+      "probe_velocity": 0.006593358237296343,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 4.35,
+      "band_low": 4.35,
+      "band_high": 4.95,
+      "band_width": 0.7000000000000005,
+      "num_reaching_forces": 7,
+      "closest_force": 4.75,
+      "closest_position_error": 0.0008283619303256218,
+      "invalid_reasons": {
+        "excessive_velocity": 5
+      },
+      "invalid_fraction": 0.050505050505050504,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 5.637672424316406,
+        "static_friction": 3.6471154987812042,
+        "dynamic_friction": 1.148805638040085,
+        "damping": 10.400940537452698
+      },
+      "sampled_axes": {
+        "mass": 5.637672424316406,
+        "static_friction": 3.6471154987812042,
+        "dynamic_friction_ratio": 0.3149901993572712,
+        "damping": 10.400940537452698
+      },
+      "novel_axes": [
+        "static_friction_high",
+        "damping_high"
+      ],
+      "probe_displacement": 0.0009985041106119752,
+      "probe_velocity": 1.1071095968873124e-06,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 3.85,
+      "band_low": 3.85,
+      "band_high": 4.05,
+      "band_width": 0.2999999999999997,
+      "num_reaching_forces": 3,
+      "closest_force": 3.95,
+      "closest_position_error": 0.0036267924821004327,
+      "invalid_reasons": {
+        "mechanical_limit": 9,
+        "excessive_velocity": 32,
+        "excessive_lateral_drift": 31,
+        "excessive_orientation_drift": 15,
+        "no_measurable_motion": 5
+      },
+      "invalid_fraction": 0.9292929292929293,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 13.628119468688965,
+        "static_friction": 0.9566338956356049,
+        "dynamic_friction": 0.6487745969767534,
+        "damping": 1.49678361043334
+      },
+      "sampled_axes": {
+        "mass": 13.628119468688965,
+        "static_friction": 0.9566338956356049,
+        "dynamic_friction_ratio": 0.6781848311424256,
+        "damping": 1.49678361043334
+      },
+      "novel_axes": [
+        "mass_high",
+        "damping_low"
+      ],
+      "probe_displacement": 0.007179195526987314,
+      "probe_velocity": 0.020576592534780502,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 2.35,
+      "band_low": 2.35,
+      "band_high": 2.65,
+      "band_width": 0.3999999999999998,
+      "num_reaching_forces": 4,
+      "closest_force": 2.45,
+      "closest_position_error": 0.001556847151368862,
+      "invalid_reasons": {
+        "mechanical_limit": 15,
+        "excessive_velocity": 40,
+        "excessive_lateral_drift": 17,
+        "excessive_orientation_drift": 11
+      },
+      "invalid_fraction": 0.8383838383838383,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 10.37006950378418,
+        "static_friction": 4.4775591641664505,
+        "dynamic_friction": 4.178503763325517,
+        "damping": 4.214488252997398
+      },
+      "sampled_axes": {
+        "mass": 10.37006950378418,
+        "static_friction": 4.4775591641664505,
+        "dynamic_friction_ratio": 0.9332101732492447,
+        "damping": 4.214488252997398
+      },
+      "novel_axes": [
+        "static_friction_high"
+      ],
+      "probe_displacement": 0.0003582464705687016,
+      "probe_velocity": 3.309105238713528e-07,
+      "probe_moved": false,
+      "reach_any_force": true,
+      "reach_within_task_range": false,
+      "required_force": 6.85,
+      "band_low": 6.85,
+      "band_high": 7.15,
+      "band_width": 0.4000000000000007,
+      "num_reaching_forces": 4,
+      "closest_force": 7.05,
+      "closest_position_error": 0.0019016282807569895,
+      "invalid_reasons": {
+        "no_measurable_motion": 27
+      },
+      "invalid_fraction": 0.2727272727272727,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 2.3644743263721466,
+        "static_friction": 0.6581536419689655,
+        "dynamic_friction": 0.25006357977080806,
+        "damping": 10.307133853435516
+      },
+      "sampled_axes": {
+        "mass": 2.3644743263721466,
+        "static_friction": 0.6581536419689655,
+        "dynamic_friction_ratio": 0.3799471184611321,
+        "damping": 10.307133853435516
+      },
+      "novel_axes": [
+        "mass_low",
+        "damping_high"
+      ],
+      "probe_displacement": 0.01994032971560955,
+      "probe_velocity": 0.04337165132164955,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 1.05,
+      "band_low": 1.05,
+      "band_high": 1.25,
+      "band_width": 0.29999999999999993,
+      "num_reaching_forces": 3,
+      "closest_force": 1.15,
+      "closest_position_error": 0.00027501620352268774,
+      "invalid_reasons": {
+        "excessive_lateral_drift": 80,
+        "excessive_velocity": 75,
+        "excessive_orientation_drift": 76,
+        "mechanical_limit": 41,
+        "safety_abort": 1
+      },
+      "invalid_fraction": 2.757575757575758,
+      "safety_aborts": 1
+    },
+    {
+      "hidden_state": {
+        "mass": 7.079455852508545,
+        "static_friction": 3.3010247498750687,
+        "dynamic_friction": 2.4424329112903873,
+        "damping": 6.116697698831558
+      },
+      "sampled_axes": {
+        "mass": 7.079455852508545,
+        "static_friction": 3.3010247498750687,
+        "dynamic_friction_ratio": 0.7399014234542847,
+        "damping": 6.116697698831558
+      },
+      "novel_axes": [
+        "static_friction_high"
+      ],
+      "probe_displacement": 0.0011361998040229082,
+      "probe_velocity": -0.00020315636356826872,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 4.85,
+      "band_low": 4.85,
+      "band_high": 5.05,
+      "band_width": 0.30000000000000016,
+      "num_reaching_forces": 3,
+      "closest_force": 4.95,
+      "closest_position_error": 0.001014021364972001,
+      "invalid_reasons": {
+        "excessive_velocity": 22,
+        "excessive_lateral_drift": 8,
+        "excessive_orientation_drift": 3
+      },
+      "invalid_fraction": 0.3333333333333333,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 15.092374801635742,
+        "static_friction": 1.6107856407761574,
+        "dynamic_friction": 0.4076097273987976,
+        "damping": 15.961572885513306
+      },
+      "sampled_axes": {
+        "mass": 15.092374801635742,
+        "static_friction": 1.6107856407761574,
+        "dynamic_friction_ratio": 0.2530502613633871,
+        "damping": 15.961572885513306
+      },
+      "novel_axes": [
+        "mass_high",
+        "dynamic_friction_ratio_low",
+        "damping_high"
+      ],
+      "probe_displacement": 0.006592543330043554,
+      "probe_velocity": 0.018853288143873215,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 3.05,
+      "band_low": 3.05,
+      "band_high": 3.45,
+      "band_width": 0.5000000000000003,
+      "num_reaching_forces": 5,
+      "closest_force": 3.25,
+      "closest_position_error": 0.0007058038376271669,
+      "invalid_reasons": {
+        "excessive_velocity": 15,
+        "excessive_lateral_drift": 3,
+        "excessive_orientation_drift": 1
+      },
+      "invalid_fraction": 0.1919191919191919,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 14.726875305175781,
+        "static_friction": 3.921162113547325,
+        "dynamic_friction": 2.7874236715955734,
+        "damping": 8.92393833398819
+      },
+      "sampled_axes": {
+        "mass": 14.726875305175781,
+        "static_friction": 3.921162113547325,
+        "dynamic_friction_ratio": 0.7108667254447937,
+        "damping": 8.92393833398819
+      },
+      "novel_axes": [
+        "mass_high",
+        "static_friction_high"
+      ],
+      "probe_displacement": 0.0004204166471026838,
+      "probe_velocity": 1.9470459733383905e-07,
+      "probe_moved": false,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 5.75,
+      "band_low": 5.75,
+      "band_high": 6.45,
+      "band_width": 0.8000000000000002,
+      "num_reaching_forces": 7,
+      "closest_force": 6.25,
+      "closest_position_error": 0.0005815806449391003,
+      "invalid_reasons": {
+        "no_measurable_motion": 15
+      },
+      "invalid_fraction": 0.15151515151515152,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 6.726174831390381,
+        "static_friction": 1.230661891400814,
+        "dynamic_friction": 0.21026760998869562,
+        "damping": 3.766518220305443
+      },
+      "sampled_axes": {
+        "mass": 6.726174831390381,
+        "static_friction": 1.230661891400814,
+        "dynamic_friction_ratio": 0.17085733413696289,
+        "damping": 3.766518220305443
+      },
+      "novel_axes": [
+        "dynamic_friction_ratio_low"
+      ],
+      "probe_displacement": 0.012604763731360435,
+      "probe_velocity": 0.037135154008865356,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 1.05,
+      "band_low": 1.05,
+      "band_high": 1.25,
+      "band_width": 0.29999999999999993,
+      "num_reaching_forces": 3,
+      "closest_force": 1.15,
+      "closest_position_error": 0.0017075609415769522,
+      "invalid_reasons": {
+        "mechanical_limit": 42,
+        "excessive_velocity": 58,
+        "excessive_lateral_drift": 57,
+        "excessive_orientation_drift": 46
+      },
+      "invalid_fraction": 2.0505050505050506,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 3.9413996934890747,
+        "static_friction": 2.711205706000328,
+        "dynamic_friction": 2.5909097389312103,
+        "damping": 14.517609238624573
+      },
+      "sampled_axes": {
+        "mass": 3.9413996934890747,
+        "static_friction": 2.711205706000328,
+        "dynamic_friction_ratio": 0.9556300848722457,
+        "damping": 14.517609238624573
+      },
+      "novel_axes": [
+        "mass_low",
+        "damping_high"
+      ],
+      "probe_displacement": 0.0019759463611990213,
+      "probe_velocity": -5.610984953818843e-05,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 5.05,
+      "band_low": 5.05,
+      "band_high": 5.45,
+      "band_width": 0.5000000000000003,
+      "num_reaching_forces": 5,
+      "closest_force": 5.25,
+      "closest_position_error": 0.0003042576368898209,
+      "invalid_reasons": {
+        "excessive_velocity": 15,
+        "excessive_lateral_drift": 19,
+        "excessive_orientation_drift": 13
+      },
+      "invalid_fraction": 0.47474747474747475,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 12.052700996398926,
+        "static_friction": 3.010397344827652,
+        "dynamic_friction": 0.8608115423118025,
+        "damping": 7.5694379806518555
+      },
+      "sampled_axes": {
+        "mass": 12.052700996398926,
+        "static_friction": 3.010397344827652,
+        "dynamic_friction_ratio": 0.2859461538493633,
+        "damping": 7.5694379806518555
+      },
+      "novel_axes": [
+        "mass_high",
+        "static_friction_high",
+        "dynamic_friction_ratio_low"
+      ],
+      "probe_displacement": 0.003496239660307765,
+      "probe_velocity": 0.008732886984944344,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 3.35,
+      "band_low": 3.35,
+      "band_high": 3.65,
+      "band_width": 0.3999999999999998,
+      "num_reaching_forces": 4,
+      "closest_force": 3.55,
+      "closest_position_error": 0.0014971535187214557,
+      "invalid_reasons": {
+        "excessive_velocity": 29,
+        "excessive_lateral_drift": 4,
+        "excessive_orientation_drift": 3,
+        "mechanical_limit": 1
+      },
+      "invalid_fraction": 0.37373737373737376,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 4.05687141418457,
+        "static_friction": 1.3201436698436737,
+        "dynamic_friction": 0.7867997464980299,
+        "damping": 13.661168277263641
+      },
+      "sampled_axes": {
+        "mass": 4.05687141418457,
+        "static_friction": 1.3201436698436737,
+        "dynamic_friction_ratio": 0.5959955453872681,
+        "damping": 13.661168277263641
+      },
+      "novel_axes": [
+        "damping_high"
+      ],
+      "probe_displacement": 0.008950415067374706,
+      "probe_velocity": 0.020251905545592308,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 2.55,
+      "band_low": 2.55,
+      "band_high": 2.85,
+      "band_width": 0.40000000000000024,
+      "num_reaching_forces": 4,
+      "closest_force": 2.65,
+      "closest_position_error": 0.0020565645769238527,
+      "invalid_reasons": {
+        "mechanical_limit": 25,
+        "excessive_velocity": 42,
+        "excessive_lateral_drift": 45,
+        "excessive_orientation_drift": 43
+      },
+      "invalid_fraction": 1.5656565656565657,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 9.279634952545166,
+        "static_friction": 4.220338046550751,
+        "dynamic_friction": 2.2406891769081487,
+        "damping": 2.0293257609009743
+      },
+      "sampled_axes": {
+        "mass": 9.279634952545166,
+        "static_friction": 4.220338046550751,
+        "dynamic_friction_ratio": 0.5309264689683914,
+        "damping": 2.0293257609009743
+      },
+      "novel_axes": [
+        "static_friction_high"
+      ],
+      "probe_displacement": 0.0005736844032071531,
+      "probe_velocity": -0.00012027331831632182,
+      "probe_moved": false,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 4.85,
+      "band_low": 4.85,
+      "band_high": 5.05,
+      "band_width": 0.30000000000000016,
+      "num_reaching_forces": 3,
+      "closest_force": 4.95,
+      "closest_position_error": 0.00020730631658807952,
+      "invalid_reasons": {
+        "excessive_velocity": 25,
+        "excessive_lateral_drift": 4,
+        "excessive_orientation_drift": 3,
+        "no_measurable_motion": 13
+      },
+      "invalid_fraction": 0.45454545454545453,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 17.267163276672363,
+        "static_friction": 0.4009492276236415,
+        "dynamic_friction": 0.35316231233617107,
+        "damping": 11.87511658668518
+      },
+      "sampled_axes": {
+        "mass": 17.267163276672363,
+        "static_friction": 0.4009492276236415,
+        "dynamic_friction_ratio": 0.8808155447244644,
+        "damping": 11.87511658668518
+      },
+      "novel_axes": [
+        "mass_high",
+        "static_friction_low",
+        "damping_high"
+      ],
+      "probe_displacement": 0.0069562774151563644,
+      "probe_velocity": 0.020428583025932312,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 2.75,
+      "band_low": 2.75,
+      "band_high": 3.25,
+      "band_width": 0.6,
+      "num_reaching_forces": 6,
+      "closest_force": 2.95,
+      "closest_position_error": 0.0011091087013483103,
+      "invalid_reasons": {
+        "excessive_velocity": 19
+      },
+      "invalid_fraction": 0.1919191919191919,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 17.07655143737793,
+        "static_friction": 3.1528514474630356,
+        "dynamic_friction": 2.0103586184992075,
+        "damping": 15.670608639717102
+      },
+      "sampled_axes": {
+        "mass": 17.07655143737793,
+        "static_friction": 3.1528514474630356,
+        "dynamic_friction_ratio": 0.6376318871974945,
+        "damping": 15.670608639717102
+      },
+      "novel_axes": [
+        "mass_high",
+        "static_friction_high",
+        "damping_high"
+      ],
+      "probe_displacement": 0.0011930378386750817,
+      "probe_velocity": -1.0128132998943329e-07,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 5.75,
+      "band_low": 5.75,
+      "band_high": 6.35,
+      "band_width": 0.6999999999999996,
+      "num_reaching_forces": 7,
+      "closest_force": 6.05,
+      "closest_position_error": 9.229800198226612e-05,
+      "invalid_reasons": {
+        "excessive_lateral_drift": 1
+      },
+      "invalid_fraction": 0.010101010101010102,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 4.349411487579346,
+        "static_friction": 4.0969477742910385,
+        "dynamic_friction": 3.343063888433454,
+        "damping": 10.136904776096344
+      },
+      "sampled_axes": {
+        "mass": 4.349411487579346,
+        "static_friction": 4.0969477742910385,
+        "dynamic_friction_ratio": 0.8159888952970504,
+        "damping": 10.136904776096344
+      },
+      "novel_axes": [
+        "static_friction_high",
+        "damping_high"
+      ],
+      "probe_displacement": 0.0006103841587901115,
+      "probe_velocity": 1.2607778216988663e-06,
+      "probe_moved": false,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 5.45,
+      "band_low": 5.45,
+      "band_high": 5.95,
+      "band_width": 0.6,
+      "num_reaching_forces": 3,
+      "closest_force": 5.45,
+      "closest_position_error": 0.0008266227319836672,
+      "invalid_reasons": {
+        "excessive_velocity": 13,
+        "excessive_lateral_drift": 5,
+        "excessive_orientation_drift": 5,
+        "no_measurable_motion": 15
+      },
+      "invalid_fraction": 0.3838383838383838,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 12.353544235229492,
+        "static_friction": 0.27548216888681054,
+        "dynamic_friction": 0.13481995934639837,
+        "damping": 4.040596842765808
+      },
+      "sampled_axes": {
+        "mass": 12.353544235229492,
+        "static_friction": 0.27548216888681054,
+        "dynamic_friction_ratio": 0.4893963187932968,
+        "damping": 4.040596842765808
+      },
+      "novel_axes": [
+        "mass_high",
+        "static_friction_low"
+      ],
+      "probe_displacement": 0.009312789887189865,
+      "probe_velocity": 0.029208164662122726,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 1.45,
+      "band_low": 1.45,
+      "band_high": 1.75,
+      "band_width": 0.4,
+      "num_reaching_forces": 4,
+      "closest_force": 1.55,
+      "closest_position_error": 0.0008458591997623499,
+      "invalid_reasons": {
+        "mechanical_limit": 22,
+        "excessive_velocity": 47,
+        "excessive_lateral_drift": 25,
+        "excessive_orientation_drift": 20
+      },
+      "invalid_fraction": 1.1515151515151516,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 11.644307136535645,
+        "static_friction": 3.798418313264847,
+        "dynamic_friction": 0.8065371631631454,
+        "damping": 1.7769904658198357
+      },
+      "sampled_axes": {
+        "mass": 11.644307136535645,
+        "static_friction": 3.798418313264847,
+        "dynamic_friction_ratio": 0.21233500279486178,
+        "damping": 1.7769904658198357
+      },
+      "novel_axes": [
+        "static_friction_high",
+        "dynamic_friction_ratio_low",
+        "damping_low"
+      ],
+      "probe_displacement": 0.0007259328267537057,
+      "probe_velocity": 5.081528229311516e-07,
+      "probe_moved": false,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 3.95,
+      "band_low": 3.95,
+      "band_high": 4.15,
+      "band_width": 0.30000000000000016,
+      "num_reaching_forces": 3,
+      "closest_force": 4.05,
+      "closest_position_error": 0.002921244094613945,
+      "invalid_reasons": {
+        "excessive_velocity": 36,
+        "excessive_lateral_drift": 11,
+        "no_measurable_motion": 12,
+        "mechanical_limit": 8,
+        "excessive_orientation_drift": 6
+      },
+      "invalid_fraction": 0.7373737373737373,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 3.6524006128311157,
+        "static_friction": 1.1058451756834984,
+        "dynamic_friction": 0.857618612197598,
+        "damping": 10.684809446334839
+      },
+      "sampled_axes": {
+        "mass": 3.6524006128311157,
+        "static_friction": 1.1058451756834984,
+        "dynamic_friction_ratio": 0.7755322635173798,
+        "damping": 10.684809446334839
+      },
+      "novel_axes": [
+        "mass_low",
+        "damping_high"
+      ],
+      "probe_displacement": 0.009427374228835106,
+      "probe_velocity": 0.021344877779483795,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 2.45,
+      "band_low": 2.45,
+      "band_high": 2.65,
+      "band_width": 0.2999999999999997,
+      "num_reaching_forces": 3,
+      "closest_force": 2.55,
+      "closest_position_error": 0.0005851391702890452,
+      "invalid_reasons": {
+        "mechanical_limit": 31,
+        "excessive_velocity": 46,
+        "excessive_lateral_drift": 48,
+        "excessive_orientation_drift": 48
+      },
+      "invalid_fraction": 1.7474747474747474,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 14.929326057434082,
+        "static_friction": 2.290898986160755,
+        "dynamic_friction": 2.0944741323193625,
+        "damping": 12.529912650585175
+      },
+      "sampled_axes": {
+        "mass": 14.929326057434082,
+        "static_friction": 2.290898986160755,
+        "dynamic_friction_ratio": 0.9142586141824722,
+        "damping": 12.529912650585175
+      },
+      "novel_axes": [
+        "mass_high",
+        "damping_high"
+      ],
+      "probe_displacement": 0.002021423541009426,
+      "probe_velocity": 3.2829117913024675e-07,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 5.45,
+      "band_low": 5.45,
+      "band_high": 5.95,
+      "band_width": 0.6,
+      "num_reaching_forces": 5,
+      "closest_force": 5.65,
+      "closest_position_error": 0.0013251001015305575,
+      "invalid_reasons": {
+        "excessive_velocity": 1
+      },
+      "invalid_fraction": 0.010101010101010102,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 15.251372337341309,
+        "static_friction": 4.337788224220276,
+        "dynamic_friction": 1.8289445946439633,
+        "damping": 12.052902340888977
+      },
+      "sampled_axes": {
+        "mass": 15.251372337341309,
+        "static_friction": 4.337788224220276,
+        "dynamic_friction_ratio": 0.42163067907094953,
+        "damping": 12.052902340888977
+      },
+      "novel_axes": [
+        "mass_high",
+        "static_friction_high",
+        "damping_high"
+      ],
+      "probe_displacement": 0.00042120422585867345,
+      "probe_velocity": 3.012246168054844e-07,
+      "probe_moved": false,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 5.45,
+      "band_low": 5.45,
+      "band_high": 5.75,
+      "band_width": 0.3999999999999998,
+      "num_reaching_forces": 4,
+      "closest_force": 5.55,
+      "closest_position_error": 0.00021573696867563386,
+      "invalid_reasons": {
+        "no_measurable_motion": 18,
+        "excessive_velocity": 1
+      },
+      "invalid_fraction": 0.1919191919191919,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 2.041780039668083,
+        "static_friction": 3.4266604483127594,
+        "dynamic_friction": 0.6451721314505682,
+        "damping": 13.959689199924469
+      },
+      "sampled_axes": {
+        "mass": 2.041780039668083,
+        "static_friction": 3.4266604483127594,
+        "dynamic_friction_ratio": 0.1882801465690136,
+        "damping": 13.959689199924469
+      },
+      "novel_axes": [
+        "mass_low",
+        "static_friction_high",
+        "dynamic_friction_ratio_low",
+        "damping_high"
+      ],
+      "probe_displacement": 0.0026521540712565184,
+      "probe_velocity": 3.869644842779962e-06,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 3.55,
+      "band_low": 3.55,
+      "band_high": 3.75,
+      "band_width": 0.30000000000000016,
+      "num_reaching_forces": 3,
+      "closest_force": 3.55,
+      "closest_position_error": 0.005966117279604083,
+      "invalid_reasons": {
+        "excessive_velocity": 43,
+        "excessive_lateral_drift": 46,
+        "excessive_orientation_drift": 40,
+        "mechanical_limit": 21
+      },
+      "invalid_fraction": 1.5151515151515151,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 13.965579986572266,
+        "static_friction": 2.59688301384449,
+        "dynamic_friction": 2.198832587120681,
+        "damping": 5.423993527889252
+      },
+      "sampled_axes": {
+        "mass": 13.965579986572266,
+        "static_friction": 2.59688301384449,
+        "dynamic_friction_ratio": 0.8467199236154557,
+        "damping": 5.423993527889252
+      },
+      "novel_axes": [
+        "mass_high"
+      ],
+      "probe_displacement": 0.0017901526298373938,
+      "probe_velocity": -0.0001600384566700086,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 5.15,
+      "band_low": 5.15,
+      "band_high": 5.55,
+      "band_width": 0.49999999999999944,
+      "num_reaching_forces": 4,
+      "closest_force": 5.25,
+      "closest_position_error": 0.002257291832938796,
+      "invalid_reasons": {
+        "excessive_velocity": 11
+      },
+      "invalid_fraction": 0.1111111111111111,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 5.956095457077026,
+        "static_friction": 2.03345887362957,
+        "dynamic_friction": 1.1656174889393502,
+        "damping": 14.332728147506714
+      },
+      "sampled_axes": {
+        "mass": 5.956095457077026,
+        "static_friction": 2.03345887362957,
+        "dynamic_friction_ratio": 0.5732191115617752,
+        "damping": 14.332728147506714
+      },
+      "novel_axes": [
+        "damping_high"
+      ],
+      "probe_displacement": 0.00628769863396883,
+      "probe_velocity": 0.011662104167044163,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 3.45,
+      "band_low": 3.45,
+      "band_high": 3.75,
+      "band_width": 0.3999999999999998,
+      "num_reaching_forces": 4,
+      "closest_force": 3.55,
+      "closest_position_error": 0.0014766318723559435,
+      "invalid_reasons": {
+        "excessive_velocity": 26,
+        "excessive_lateral_drift": 20,
+        "excessive_orientation_drift": 9,
+        "mechanical_limit": 3
+      },
+      "invalid_fraction": 0.5858585858585859,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 8.741633415222168,
+        "static_friction": 3.507995083928108,
+        "dynamic_friction": 2.152391150962971,
+        "damping": 3.4645642936229706
+      },
+      "sampled_axes": {
+        "mass": 8.741633415222168,
+        "static_friction": 3.507995083928108,
+        "dynamic_friction_ratio": 0.6135673224925995,
+        "damping": 3.4645642936229706
+      },
+      "novel_axes": [
+        "static_friction_high"
+      ],
+      "probe_displacement": 0.0008249770617112517,
+      "probe_velocity": 6.14672842402797e-07,
+      "probe_moved": false,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 4.55,
+      "band_low": 4.55,
+      "band_high": 4.85,
+      "band_width": 0.3999999999999998,
+      "num_reaching_forces": 4,
+      "closest_force": 4.75,
+      "closest_position_error": 0.0026014800881966893,
+      "invalid_reasons": {
+        "excessive_velocity": 26,
+        "no_measurable_motion": 9,
+        "excessive_lateral_drift": 4,
+        "excessive_orientation_drift": 3
+      },
+      "invalid_fraction": 0.42424242424242425,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 16.742816925048828,
+        "static_friction": 0.815436702221632,
+        "dynamic_friction": 0.22315726804123187,
+        "damping": 8.6183220744133
+      },
+      "sampled_axes": {
+        "mass": 16.742816925048828,
+        "static_friction": 0.815436702221632,
+        "dynamic_friction_ratio": 0.2736659601330757,
+        "damping": 8.6183220744133
+      },
+      "novel_axes": [
+        "mass_high",
+        "dynamic_friction_ratio_low"
+      ],
+      "probe_displacement": 0.007328858133405447,
+      "probe_velocity": 0.022479424253106117,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 2.35,
+      "band_low": 2.35,
+      "band_high": 2.75,
+      "band_width": 0.4999999999999999,
+      "num_reaching_forces": 5,
+      "closest_force": 2.55,
+      "closest_position_error": 0.0010160869918763582,
+      "invalid_reasons": {
+        "excessive_velocity": 27,
+        "excessive_lateral_drift": 4,
+        "mechanical_limit": 1,
+        "excessive_orientation_drift": 1
+      },
+      "invalid_fraction": 0.3333333333333333,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 16.222780227661133,
+        "static_friction": 3.6172605007886887,
+        "dynamic_friction": 3.4942312436413143,
+        "damping": 6.780490338802338
+      },
+      "sampled_axes": {
+        "mass": 16.222780227661133,
+        "static_friction": 3.6172605007886887,
+        "dynamic_friction_ratio": 0.965988278388977,
+        "damping": 6.780490338802338
+      },
+      "novel_axes": [
+        "mass_high",
+        "static_friction_high"
+      ],
+      "probe_displacement": 0.0002248798409709707,
+      "probe_velocity": -4.758475569133225e-08,
+      "probe_moved": false,
+      "reach_any_force": true,
+      "reach_within_task_range": false,
+      "required_force": 6.85,
+      "band_low": 6.85,
+      "band_high": 7.25,
+      "band_width": 0.5000000000000003,
+      "num_reaching_forces": 5,
+      "closest_force": 7.05,
+      "closest_position_error": 0.00033777252829167437,
+      "invalid_reasons": {
+        "no_measurable_motion": 24,
+        "excessive_lateral_drift": 2,
+        "excessive_velocity": 1
+      },
+      "invalid_fraction": 0.2727272727272727,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 8.230389595031738,
+        "static_friction": 0.9952436871826649,
+        "dynamic_friction": 0.4512752180922319,
+        "damping": 12.875410676002502
+      },
+      "sampled_axes": {
+        "mass": 8.230389595031738,
+        "static_friction": 0.9952436871826649,
+        "dynamic_friction_ratio": 0.45343188196420664,
+        "damping": 12.875410676002502
+      },
+      "novel_axes": [
+        "damping_high"
+      ],
+      "probe_displacement": 0.008923708461225033,
+      "probe_velocity": 0.02423817105591297,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 2.25,
+      "band_low": 2.25,
+      "band_high": 2.55,
+      "band_width": 0.3999999999999998,
+      "num_reaching_forces": 4,
+      "closest_force": 2.45,
+      "closest_position_error": 0.001079477928578848,
+      "invalid_reasons": {
+        "excessive_velocity": 33,
+        "mechanical_limit": 12,
+        "excessive_lateral_drift": 15,
+        "excessive_orientation_drift": 12
+      },
+      "invalid_fraction": 0.7272727272727273,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 5.452694654464722,
+        "static_friction": 2.4363162964582443,
+        "dynamic_friction": 1.7854355494917638,
+        "damping": 1.184988141991198
+      },
+      "sampled_axes": {
+        "mass": 5.452694654464722,
+        "static_friction": 2.4363162964582443,
+        "dynamic_friction_ratio": 0.7328422635793685,
+        "damping": 1.184988141991198
+      },
+      "novel_axes": [
+        "damping_low"
+      ],
+      "probe_displacement": 0.00455376785248518,
+      "probe_velocity": 0.0031820214353501797,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 3.65,
+      "band_low": 3.65,
+      "band_high": 3.85,
+      "band_width": 0.30000000000000016,
+      "num_reaching_forces": 3,
+      "closest_force": 3.75,
+      "closest_position_error": 7.564257830380838e-05,
+      "invalid_reasons": {
+        "excessive_velocity": 41,
+        "excessive_lateral_drift": 28,
+        "mechanical_limit": 20,
+        "excessive_orientation_drift": 23
+      },
+      "invalid_fraction": 1.1313131313131313,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 13.437761306762695,
+        "static_friction": 1.9351651147007942,
+        "dynamic_friction": 0.29776828290128193,
+        "damping": 11.027560889720917
+      },
+      "sampled_axes": {
+        "mass": 13.437761306762695,
+        "static_friction": 1.9351651147007942,
+        "dynamic_friction_ratio": 0.15387228750623763,
+        "damping": 11.027560889720917
+      },
+      "novel_axes": [
+        "mass_high",
+        "dynamic_friction_ratio_low",
+        "damping_high"
+      ],
+      "probe_displacement": 0.007617722265422344,
+      "probe_velocity": 0.022916512563824654,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 2.35,
+      "band_low": 2.35,
+      "band_high": 2.75,
+      "band_width": 0.4999999999999999,
+      "num_reaching_forces": 5,
+      "closest_force": 2.55,
+      "closest_position_error": 0.0006478173658251707,
+      "invalid_reasons": {
+        "excessive_velocity": 29,
+        "excessive_lateral_drift": 6,
+        "excessive_orientation_drift": 5,
+        "mechanical_limit": 2
+      },
+      "invalid_fraction": 0.42424242424242425,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 10.55617618560791,
+        "static_friction": 3.2001591622829437,
+        "dynamic_friction": 1.7323134833318576,
+        "damping": 9.760967254638672
+      },
+      "sampled_axes": {
+        "mass": 10.55617618560791,
+        "static_friction": 3.2001591622829437,
+        "dynamic_friction_ratio": 0.5413210391998291,
+        "damping": 9.760967254638672
+      },
+      "novel_axes": [
+        "static_friction_high"
+      ],
+      "probe_displacement": 0.0020225385669618845,
+      "probe_velocity": 3.003515018917824e-07,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 4.55,
+      "band_low": 4.55,
+      "band_high": 4.95,
+      "band_width": 0.5000000000000003,
+      "num_reaching_forces": 5,
+      "closest_force": 4.75,
+      "closest_position_error": 6.336919032037813e-05,
+      "invalid_reasons": {
+        "excessive_velocity": 17
+      },
+      "invalid_fraction": 0.1717171717171717,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 2.5530315041542053,
+        "static_friction": 1.702896624803543,
+        "dynamic_friction": 1.496345221499873,
+        "damping": 4.60673651099205
+      },
+      "sampled_axes": {
+        "mass": 2.5530315041542053,
+        "static_friction": 1.702896624803543,
+        "dynamic_friction_ratio": 0.8787058472633362,
+        "damping": 4.60673651099205
+      },
+      "novel_axes": [
+        "mass_low"
+      ],
+      "probe_displacement": 0.0067913425154984,
+      "probe_velocity": 0.010215317830443382,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 3.15,
+      "band_low": 3.15,
+      "band_high": 3.25,
+      "band_width": 0.2000000000000001,
+      "num_reaching_forces": 2,
+      "closest_force": 3.15,
+      "closest_position_error": 0.0025628971867263373,
+      "invalid_reasons": {
+        "mechanical_limit": 27,
+        "excessive_velocity": 47,
+        "excessive_lateral_drift": 44,
+        "excessive_orientation_drift": 43
+      },
+      "invalid_fraction": 1.6262626262626263,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 7.767738342285156,
+        "static_friction": 4.38108766078949,
+        "dynamic_friction": 1.3492172090195242,
+        "damping": 15.29924875497818
+      },
+      "sampled_axes": {
+        "mass": 7.767738342285156,
+        "static_friction": 4.38108766078949,
+        "dynamic_friction_ratio": 0.30796398371458056,
+        "damping": 15.29924875497818
+      },
+      "novel_axes": [
+        "static_friction_high",
+        "damping_high"
+      ],
+      "probe_displacement": 0.0007017938769422472,
+      "probe_velocity": 8.294591111734917e-07,
+      "probe_moved": false,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 4.75,
+      "band_low": 4.75,
+      "band_high": 4.95,
+      "band_width": 0.30000000000000016,
+      "num_reaching_forces": 3,
+      "closest_force": 4.75,
+      "closest_position_error": 0.0017956243478693124,
+      "invalid_reasons": {
+        "excessive_velocity": 17,
+        "excessive_lateral_drift": 2,
+        "no_measurable_motion": 16
+      },
+      "invalid_fraction": 0.35353535353535354,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 15.779183387756348,
+        "static_friction": 0.7629907131195068,
+        "dynamic_friction": 0.44173209296407023,
+        "damping": 6.390957593917847
+      },
+      "sampled_axes": {
+        "mass": 15.779183387756348,
+        "static_friction": 0.7629907131195068,
+        "dynamic_friction_ratio": 0.5789481908082962,
+        "damping": 6.390957593917847
+      },
+      "novel_axes": [
+        "mass_high"
+      ],
+      "probe_displacement": 0.008186119608581066,
+      "probe_velocity": 0.021977558732032776,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 2.25,
+      "band_low": 2.25,
+      "band_high": 2.75,
+      "band_width": 0.6,
+      "num_reaching_forces": 5,
+      "closest_force": 2.55,
+      "closest_position_error": 0.0012124584987759646,
+      "invalid_reasons": {
+        "excessive_velocity": 31,
+        "excessive_lateral_drift": 8,
+        "excessive_orientation_drift": 6,
+        "mechanical_limit": 2
+      },
+      "invalid_fraction": 0.47474747474747475,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 14.417132377624512,
+        "static_friction": 2.6771993041038513,
+        "dynamic_friction": 0.8888980536095832,
+        "damping": 3.1325716376304626
+      },
+      "sampled_axes": {
+        "mass": 14.417132377624512,
+        "static_friction": 2.6771993041038513,
+        "dynamic_friction_ratio": 0.33202535659074783,
+        "damping": 3.1325716376304626
+      },
+      "novel_axes": [
+        "mass_high"
+      ],
+      "probe_displacement": 0.005054431036114693,
+      "probe_velocity": 0.012959678657352924,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 3.15,
+      "band_low": 3.15,
+      "band_high": 3.45,
+      "band_width": 0.40000000000000024,
+      "num_reaching_forces": 4,
+      "closest_force": 3.25,
+      "closest_position_error": 0.0006419908255338724,
+      "invalid_reasons": {
+        "excessive_velocity": 31,
+        "excessive_lateral_drift": 6,
+        "mechanical_limit": 4,
+        "excessive_orientation_drift": 3
+      },
+      "invalid_fraction": 0.4444444444444444,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 3.1255319118499756,
+        "static_friction": 3.8910309970378876,
+        "dynamic_friction": 1.9867329929470878,
+        "damping": 5.096578508615494
+      },
+      "sampled_axes": {
+        "mass": 3.1255319118499756,
+        "static_friction": 3.8910309970378876,
+        "dynamic_friction_ratio": 0.5105929493904113,
+        "damping": 5.096578508615494
+      },
+      "novel_axes": [
+        "mass_low",
+        "static_friction_high"
+      ],
+      "probe_displacement": 0.0012173937866464257,
+      "probe_velocity": -0.000327194546116516,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 4.35,
+      "band_low": 4.35,
+      "band_high": 4.35,
+      "band_width": 0.1,
+      "num_reaching_forces": 1,
+      "closest_force": 4.35,
+      "closest_position_error": 0.0037897007772698943,
+      "invalid_reasons": {
+        "excessive_velocity": 37,
+        "excessive_lateral_drift": 33,
+        "excessive_orientation_drift": 30,
+        "mechanical_limit": 19
+      },
+      "invalid_fraction": 1.202020202020202,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 11.13989543914795,
+        "static_friction": 1.269028875976801,
+        "dynamic_friction": 1.008733278231373,
+        "damping": 14.938235938549042
+      },
+      "sampled_axes": {
+        "mass": 11.13989543914795,
+        "static_friction": 1.269028875976801,
+        "dynamic_friction_ratio": 0.7948859930038452,
+        "damping": 14.938235938549042
+      },
+      "novel_axes": [
+        "damping_high"
+      ],
+      "probe_displacement": 0.005677349865436554,
+      "probe_velocity": 0.01313622947782278,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 3.65,
+      "band_low": 3.65,
+      "band_high": 4.05,
+      "band_width": 0.4999999999999999,
+      "num_reaching_forces": 5,
+      "closest_force": 3.85,
+      "closest_position_error": 0.0007210239768028204,
+      "invalid_reasons": {
+        "excessive_velocity": 17
+      },
+      "invalid_fraction": 0.1717171717171717,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 12.865730285644531,
+        "static_friction": 4.123621836304665,
+        "dynamic_friction": 3.1211703656959657,
+        "damping": 13.379589080810547
+      },
+      "sampled_axes": {
+        "mass": 12.865730285644531,
+        "static_friction": 4.123621836304665,
+        "dynamic_friction_ratio": 0.7569002419710159,
+        "damping": 13.379589080810547
+      },
+      "novel_axes": [
+        "mass_high",
+        "static_friction_high",
+        "damping_high"
+      ],
+      "probe_displacement": 0.00037273624911904335,
+      "probe_velocity": 2.4272591758744966e-07,
+      "probe_moved": false,
+      "reach_any_force": true,
+      "reach_within_task_range": false,
+      "required_force": 6.55,
+      "band_low": 6.55,
+      "band_high": 6.85,
+      "band_width": 0.3999999999999998,
+      "num_reaching_forces": 4,
+      "closest_force": 6.75,
+      "closest_position_error": 0.001610867772251362,
+      "invalid_reasons": {
+        "no_measurable_motion": 18
+      },
+      "invalid_fraction": 0.18181818181818182,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 4.868444919586182,
+        "static_friction": 0.5055123493075371,
+        "dynamic_friction": 0.1168172825095431,
+        "damping": 8.224442809820175
+      },
+      "sampled_axes": {
+        "mass": 4.868444919586182,
+        "static_friction": 0.5055123493075371,
+        "dynamic_friction_ratio": 0.2310869015753269,
+        "damping": 8.224442809820175
+      },
+      "novel_axes": [
+        "dynamic_friction_ratio_low"
+      ],
+      "probe_displacement": 0.012662244029343128,
+      "probe_velocity": 0.03769674152135849,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 1.05,
+      "band_low": 1.05,
+      "band_high": 1.25,
+      "band_width": 0.29999999999999993,
+      "num_reaching_forces": 3,
+      "closest_force": 1.15,
+      "closest_position_error": 0.00024619083851576407,
+      "invalid_reasons": {
+        "mechanical_limit": 43,
+        "excessive_velocity": 58,
+        "excessive_lateral_drift": 59,
+        "excessive_orientation_drift": 54,
+        "safety_abort": 1
+      },
+      "invalid_fraction": 2.1717171717171717,
+      "safety_aborts": 1
+    },
+    {
+      "hidden_state": {
+        "mass": 9.590994834899902,
+        "static_friction": 2.90977443754673,
+        "dynamic_friction": 2.7214068034715257,
+        "damping": 11.475548803806305
+      },
+      "sampled_axes": {
+        "mass": 9.590994834899902,
+        "static_friction": 2.90977443754673,
+        "dynamic_friction_ratio": 0.9352638363838196,
+        "damping": 11.475548803806305
+      },
+      "novel_axes": [
+        "damping_high"
+      ],
+      "probe_displacement": 0.0011683565098792315,
+      "probe_velocity": -7.832189294276759e-05,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 5.55,
+      "band_low": 5.55,
+      "band_high": 5.95,
+      "band_width": 0.5000000000000003,
+      "num_reaching_forces": 5,
+      "closest_force": 5.55,
+      "closest_position_error": 0.0011987957637757118,
+      "invalid_reasons": {
+        "excessive_lateral_drift": 1,
+        "excessive_velocity": 6
+      },
+      "invalid_fraction": 0.0707070707070707,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 17.580955505371094,
+        "static_friction": 1.4125305190682411,
+        "dynamic_friction": 0.52207502993863,
+        "damping": 2.5681729465723038
+      },
+      "sampled_axes": {
+        "mass": 17.580955505371094,
+        "static_friction": 1.4125305190682411,
+        "dynamic_friction_ratio": 0.3696026548743248,
+        "damping": 2.5681729465723038
+      },
+      "novel_axes": [
+        "mass_high"
+      ],
+      "probe_displacement": 0.006466005463153124,
+      "probe_velocity": 0.019376680254936218,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 2.55,
+      "band_low": 2.55,
+      "band_high": 2.95,
+      "band_width": 0.5000000000000003,
+      "num_reaching_forces": 5,
+      "closest_force": 2.75,
+      "closest_position_error": 0.00016692848876118105,
+      "invalid_reasons": {
+        "excessive_velocity": 32,
+        "mechanical_limit": 2,
+        "excessive_lateral_drift": 5,
+        "excessive_orientation_drift": 2
+      },
+      "invalid_fraction": 0.41414141414141414,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 17.734405517578125,
+        "static_friction": 2.876969024538994,
+        "dynamic_friction": 2.6042054002656734,
+        "damping": 9.420460820198059
+      },
+      "sampled_axes": {
+        "mass": 17.734405517578125,
+        "static_friction": 2.876969024538994,
+        "dynamic_friction_ratio": 0.9051906287670135,
+        "damping": 9.420460820198059
+      },
+      "novel_axes": [
+        "mass_high"
+      ],
+      "probe_displacement": 0.0010831946274265647,
+      "probe_velocity": 2.060551054228199e-07,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 6.15,
+      "band_low": 6.15,
+      "band_high": 6.55,
+      "band_width": 0.49999999999999944,
+      "num_reaching_forces": 5,
+      "closest_force": 6.35,
+      "closest_position_error": 7.941483054310639e-05,
+      "invalid_reasons": {
+        "excessive_lateral_drift": 2,
+        "excessive_orientation_drift": 1
+      },
+      "invalid_fraction": 0.030303030303030304,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 4.96450662612915,
+        "static_friction": 3.825434610247612,
+        "dynamic_friction": 2.926517127495908,
+        "damping": 14.958799540996552
+      },
+      "sampled_axes": {
+        "mass": 4.96450662612915,
+        "static_friction": 3.825434610247612,
+        "dynamic_friction_ratio": 0.7650155931711198,
+        "damping": 14.958799540996552
+      },
+      "novel_axes": [
+        "static_friction_high",
+        "damping_high"
+      ],
+      "probe_displacement": 0.0008346433751285076,
+      "probe_velocity": -0.00010234477667836472,
+      "probe_moved": false,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 5.65,
+      "band_low": 5.65,
+      "band_high": 5.95,
+      "band_width": 0.3999999999999998,
+      "num_reaching_forces": 4,
+      "closest_force": 5.85,
+      "closest_position_error": 0.0012935410253703539,
+      "invalid_reasons": {
+        "no_measurable_motion": 13,
+        "excessive_velocity": 8,
+        "excessive_lateral_drift": 6,
+        "excessive_orientation_drift": 1
+      },
+      "invalid_fraction": 0.2828282828282828,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 12.957443237304688,
+        "static_friction": 1.070621445775032,
+        "dynamic_friction": 0.24448075695459054,
+        "damping": 5.112951159477234
+      },
+      "sampled_axes": {
+        "mass": 12.957443237304688,
+        "static_friction": 1.070621445775032,
+        "dynamic_friction_ratio": 0.228354062885046,
+        "damping": 5.112951159477234
+      },
+      "novel_axes": [
+        "mass_high",
+        "dynamic_friction_ratio_low"
+      ],
+      "probe_displacement": 0.008485612459480762,
+      "probe_velocity": 0.02624475583434105,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 1.75,
+      "band_low": 1.75,
+      "band_high": 2.15,
+      "band_width": 0.4999999999999999,
+      "num_reaching_forces": 4,
+      "closest_force": 1.85,
+      "closest_position_error": 0.0030068097636103686,
+      "invalid_reasons": {
+        "excessive_velocity": 42,
+        "mechanical_limit": 16,
+        "excessive_lateral_drift": 19,
+        "excessive_orientation_drift": 18
+      },
+      "invalid_fraction": 0.9595959595959596,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 11.044611930847168,
+        "static_friction": 4.057703733444214,
+        "dynamic_friction": 1.9479901487818043,
+        "damping": 8.066021263599396
+      },
+      "sampled_axes": {
+        "mass": 11.044611930847168,
+        "static_friction": 4.057703733444214,
+        "dynamic_friction_ratio": 0.48007204979658125,
+        "damping": 8.066021263599396
+      },
+      "novel_axes": [
+        "static_friction_high"
+      ],
+      "probe_displacement": 0.0005715821753256023,
+      "probe_velocity": 6.076879799365997e-07,
+      "probe_moved": false,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 4.35,
+      "band_low": 4.35,
+      "band_high": 5.25,
+      "band_width": 1.0000000000000004,
+      "num_reaching_forces": 4,
+      "closest_force": 5.05,
+      "closest_position_error": 8.359058992937762e-05,
+      "invalid_reasons": {
+        "excessive_velocity": 17,
+        "no_measurable_motion": 19
+      },
+      "invalid_fraction": 0.36363636363636365,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 3.033590078353882,
+        "static_friction": 0.3067781603895128,
+        "dynamic_friction": 0.2556400148683536,
+        "damping": 13.223384380340576
+      },
+      "sampled_axes": {
+        "mass": 3.033590078353882,
+        "static_friction": 0.3067781603895128,
+        "dynamic_friction_ratio": 0.8333057820796967,
+        "damping": 13.223384380340576
+      },
+      "novel_axes": [
+        "mass_low",
+        "static_friction_low",
+        "damping_high"
+      ],
+      "probe_displacement": 0.0174592025578022,
+      "probe_velocity": 0.03905379772186279,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 1.35,
+      "band_low": 1.35,
+      "band_high": 1.65,
+      "band_width": 0.3999999999999998,
+      "num_reaching_forces": 4,
+      "closest_force": 1.45,
+      "closest_position_error": 0.00186163410544396,
+      "invalid_reasons": {
+        "mechanical_limit": 42,
+        "excessive_velocity": 67,
+        "excessive_lateral_drift": 73,
+        "excessive_orientation_drift": 67
+      },
+      "invalid_fraction": 2.515151515151515,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 6.255865097045898,
+        "static_friction": 3.109221428632736,
+        "dynamic_friction": 1.0561400048380936,
+        "damping": 2.4704617485404015
+      },
+      "sampled_axes": {
+        "mass": 6.255865097045898,
+        "static_friction": 3.109221428632736,
+        "dynamic_friction_ratio": 0.33967989385128017,
+        "damping": 2.4704617485404015
+      },
+      "novel_axes": [
+        "static_friction_high"
+      ],
+      "probe_displacement": 0.004306803923100233,
+      "probe_velocity": 0.00968263391405344,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 2.85,
+      "band_low": 2.85,
+      "band_high": 3.35,
+      "band_width": 0.6,
+      "num_reaching_forces": 3,
+      "closest_force": 3.05,
+      "closest_position_error": 0.004040812235325569,
+      "invalid_reasons": {
+        "excessive_velocity": 46,
+        "mechanical_limit": 23,
+        "excessive_lateral_drift": 30,
+        "excessive_orientation_drift": 26
+      },
+      "invalid_fraction": 1.2626262626262625,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 14.259562492370605,
+        "static_friction": 1.4791624769568443,
+        "dynamic_friction": 0.9660072095291168,
+        "damping": 11.375591814517975
+      },
+      "sampled_axes": {
+        "mass": 14.259562492370605,
+        "static_friction": 1.4791624769568443,
+        "dynamic_friction_ratio": 0.653077146410942,
+        "damping": 11.375591814517975
+      },
+      "novel_axes": [
+        "mass_high",
+        "damping_high"
+      ],
+      "probe_displacement": 0.005584877450019121,
+      "probe_velocity": 0.013380352407693863,
+      "probe_moved": true,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 3.55,
+      "band_low": 3.55,
+      "band_high": 3.95,
+      "band_width": 0.5000000000000003,
+      "num_reaching_forces": 5,
+      "closest_force": 3.75,
+      "closest_position_error": 0.0012284982018172796,
+      "invalid_reasons": {
+        "excessive_velocity": 17
+      },
+      "invalid_fraction": 0.1717171717171717,
+      "safety_aborts": 0
+    },
+    {
+      "hidden_state": {
+        "mass": 15.936570167541504,
+        "static_friction": 3.5514062345027924,
+        "dynamic_friction": 0.9145563100272563,
+        "damping": 12.804707646369934
+      },
+      "sampled_axes": {
+        "mass": 15.936570167541504,
+        "static_friction": 3.5514062345027924,
+        "dynamic_friction_ratio": 0.2575194865465164,
+        "damping": 12.804707646369934
+      },
+      "novel_axes": [
+        "mass_high",
+        "static_friction_high",
+        "dynamic_friction_ratio_low",
+        "damping_high"
+      ],
+      "probe_displacement": 0.0005812746239826083,
+      "probe_velocity": 3.5273839671390306e-07,
+      "probe_moved": false,
+      "reach_any_force": true,
+      "reach_within_task_range": true,
+      "required_force": 4.55,
+      "band_low": 4.55,
+      "band_high": 4.95,
+      "band_width": 0.5000000000000003,
+      "num_reaching_forces": 5,
+      "closest_force": 4.75,
+      "closest_position_error": 0.0011461195303127114,
+      "invalid_reasons": {
+        "no_measurable_motion": 9,
+        "excessive_velocity": 9,
+        "excessive_lateral_drift": 2,
+        "excessive_orientation_drift": 1
+      },
+      "invalid_fraction": 0.21212121212121213,
+      "safety_aborts": 0
+    }
+  ]
+}

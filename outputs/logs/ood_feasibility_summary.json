@@ -1,0 +1,141 @@
+{
+  "source": "/home/zbh/Downloads/IsaacLab/9.2paper/outputs/logs/ood_feasibility.json",
+  "git_commit": "8de6955e67f3efcf230290cc1011df404a2b72db",
+  "counts": {
+    "states": 64,
+    "solvable_any_force": 64,
+    "solvable_within_task_range": 61,
+    "solvable_only_outside_task_range": 3,
+    "unsolvable_at_any_force": 0,
+    "fraction_solvable_within_task_range": 0.953125,
+    "fraction_solvable_any_force": 1.0
+  },
+  "required_force": {
+    "n": 64,
+    "min": 1.05,
+    "median": 3.75,
+    "max": 6.85,
+    "mean": 3.8171875
+  },
+  "band_width": {
+    "n": 64,
+    "min": 0.1,
+    "median": 0.40000000000000013,
+    "max": 1.0000000000000004,
+    "mean": 0.44062500000000004
+  },
+  "truncation": {
+    "allowed_range": [
+      0.5,
+      6.5
+    ],
+    "states_needing_more_than_allowed": 3,
+    "required_force_above_ceiling": {
+      "n": 3,
+      "min": 6.55,
+      "median": 6.85,
+      "max": 6.85,
+      "mean": 6.75
+    },
+    "solvable_states_at_the_ceiling": 3,
+    "solvable_states_at_the_floor": 0
+  },
+  "novel_axis_rates": {
+    "static_friction_high": {
+      "states": 27,
+      "failed": 3,
+      "failure_rate": 0.1111111111111111
+    },
+    "mass_high": {
+      "states": 28,
+      "failed": 2,
+      "failure_rate": 0.07142857142857142
+    },
+    "damping_high": {
+      "states": 30,
+      "failed": 1,
+      "failure_rate": 0.03333333333333333
+    },
+    "dynamic_friction_ratio_low": {
+      "states": 13,
+      "failed": 0,
+      "failure_rate": 0.0
+    },
+    "static_friction_low": {
+      "states": 4,
+      "failed": 0,
+      "failure_rate": 0.0
+    },
+    "mass_low": {
+      "states": 9,
+      "failed": 0,
+      "failure_rate": 0.0
+    },
+    "damping_low": {
+      "states": 4,
+      "failed": 0,
+      "failure_rate": 0.0
+    }
+  },
+  "failures": [
+    {
+      "novel_axes": [
+        "static_friction_high"
+      ],
+      "sampled_axes": {
+        "mass": 10.37006950378418,
+        "static_friction": 4.4775591641664505,
+        "dynamic_friction_ratio": 0.9332101732492447,
+        "damping": 4.214488252997398
+      },
+      "probe_moved": false,
+      "closest_position_error_mm": 1.9016282807569895,
+      "closest_force": 7.05,
+      "invalid_fraction": 0.2727272727272727,
+      "reach_any_force": true,
+      "required_force": 6.85
+    },
+    {
+      "novel_axes": [
+        "mass_high",
+        "static_friction_high"
+      ],
+      "sampled_axes": {
+        "mass": 16.222780227661133,
+        "static_friction": 3.6172605007886887,
+        "dynamic_friction_ratio": 0.965988278388977,
+        "damping": 6.780490338802338
+      },
+      "probe_moved": false,
+      "closest_position_error_mm": 0.33777252829167437,
+      "closest_force": 7.05,
+      "invalid_fraction": 0.2727272727272727,
+      "reach_any_force": true,
+      "required_force": 6.85
+    },
+    {
+      "novel_axes": [
+        "mass_high",
+        "static_friction_high",
+        "damping_high"
+      ],
+      "sampled_axes": {
+        "mass": 12.865730285644531,
+        "static_friction": 4.123621836304665,
+        "dynamic_friction_ratio": 0.7569002419710159,
+        "damping": 13.379589080810547
+      },
+      "probe_moved": false,
+      "closest_position_error_mm": 1.610867772251362,
+      "closest_force": 6.75,
+      "invalid_fraction": 0.18181818181818182,
+      "reach_any_force": true,
+      "required_force": 6.55
+    }
+  ],
+  "safety": {
+    "states_with_any_abort": 2,
+    "total_aborts": 2,
+    "median_invalid_fraction": 0.41414141414141414
+  }
+}

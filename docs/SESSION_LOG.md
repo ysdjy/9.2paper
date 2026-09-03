@@ -4,6 +4,73 @@ One entry per work session. Newest first.
 
 ---
 
+## 2026-09-03 — `agent/phase13-freeze-v1` — OOD feasibility pilot
+
+**Agent / task.** Claude Opus 5 — check whether `OOD_XI_RANGES` is a reasonable, solvable test
+domain under Setting V1. Oracle sweep only: no model evaluated, nothing trained, no Setting,
+Dataset, model or controller changed, `baselines/rma2/` untouched, OOD range **not** modified.
+
+### What "OOD" was made to mean
+
+The OOD box contains the training box, so ~13 % of its volume is in-distribution — the easy
+states. `sample_ood_hidden_states` draws Sobol over the OOD box and keeps only states with at
+least one axis outside the training range, by rejection so that *which* axis is novel stays
+varied. All 64 drawn states verified novel, across all seven possible directions, 35 novel on
+more than one axis. `dynamic_friction_ratio` shares its 1.0 ceiling with training, so that axis
+can only ever be novel from below.
+
+### It is solvable
+
+Swept `F_peak` 0.25–10.05 N at 0.10 N, **past** the task's 6.5 N ceiling on purpose, so that "no
+force works" can be told from "no force we allow works".
+
+| | |
+|---|---|
+| solvable within 0.5–6.5 N | **61 / 64 = 95.3 %** |
+| solvable at some force | **64 / 64 = 100 %** |
+| unsolvable at any swept force | **0** |
+
+Required force 1.05–6.85 N (median 3.75) against in-distribution 0.64–5.51 (median 2.91). Band
+width 0.10–1.00 N (median 0.40) against 0.30 — wider, so OOD targets are easier to hit once the
+force is known. 2 safety aborts in 6 336 state-force evaluations.
+
+**Truncation is marginal.** Three states are solvable only above the ceiling and need
+6.55–6.85 N — 0.05 to 0.35 N past it. Three more sit exactly at the ceiling; none at the floor.
+
+**Failures are all on high static friction.** `static_friction_high` fails 3 of 27 (11.1 %),
+`mass_high` 2 of 28, `damping_high` 1 of 30, and nothing fails on the low side of any axis or on
+the ratio. All three failures have `µ_s` ≥ 3.62 against a training maximum of 3.0.
+
+### The finding that matters more than the headline
+
+**The frozen probe does not break away 17 of 64 OOD states (26.6 %)**, every one with
+`µ_s ≥ 3.32`. Their probe displacement is 0.22–0.83 mm against a 6.7 mm in-distribution median.
+And **14 of those 17 are solvable**, needing 3.95–6.85 N — so for a quarter of this domain the
+task is achievable while the probe is nearly silent.
+
+D044's calibration enforced a "responsive" gate and it held for all 24 in-distribution states it
+was selected on. Out of distribution it fails for a quarter of the range, because breakaway is a
+force threshold and 3.5 N commanded delivers roughly 2.1–2.8 N to the drawer. Any OOD number
+should be reported beside the breakaway fraction, or it will conflate a hard task with an
+uninformative probe.
+
+### Recommendation
+
+**Keep the range.** It is entirely solvable in physics, 95.3 % solvable inside the frozen action
+range, with shifted but non-degenerate required forces and bands. Two things recorded rather than
+fixed, both decisions for a person: the 6.5 N ceiling truncates 4.7 % of the domain by a small
+margin (widening it would change frozen Setting V1), and the probe is under-powered above
+`µ_s` 3.3 (a probe limitation, and the probe is frozen).
+
+### Git state
+
+`agent/phase13-freeze-v1`. New: `docs/OOD_FEASIBILITY.md`, the sampler
+(`sample_ood_hidden_states`, `axes_outside`, `sampled_axis_values`), the summary
+(`analysis.ood_feasibility`), two scripts, and 34 unit tests. The pilot's sweep is 76 KB so it is
+committed whole. 536 unit and 105 integration tests pass.
+
+---
+
 ## 2026-09-03 — `agent/phase13-freeze-v1` — D047 quantified: slot sensitivity as an error bar
 
 **Agent / task.** Claude Opus 5 — since no warm-up can remove per-environment-slot variation,

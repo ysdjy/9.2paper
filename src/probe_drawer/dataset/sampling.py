@@ -42,7 +42,10 @@ __all__ = [
     "build_plan",
     "candidate_forces",
     "representative_hidden_states",
+    "axes_outside",
     "sample_hidden_states",
+    "sample_ood_hidden_states",
+    "sampled_axis_values",
     "scale_unit_box",
     "stable_permutation",
 ]
@@ -248,6 +251,110 @@ def sample_hidden_states(cfg: XiSamplerCfg | None = None) -> list[dict]:
         "damping": cfg.damping,
     }
     return scale_unit_box(unit, bounds)
+
+
+def sampled_axis_values(state: dict) -> dict:
+    r"""A hidden state back in the **sampled** parameterisation.
+
+    Stored states carry ``dynamic_friction`` as an absolute force, because that is what the
+    simulator is given. The sampling *ranges* are defined on the ratio
+    :math:`\mu_d / \mu_s`, so any question about whether a state lies inside a range has to
+    be asked in that coordinate. Comparing an absolute ``mu_d`` against a ratio bound is the
+    kind of mistake that yields a confident wrong answer, so the conversion lives here rather
+    than at each call site.
+    """
+    static = float(state["static_friction"])
+    if static <= 0.0:
+        raise ValueError(f"static_friction must be > 0 to recover a ratio, got {static}.")
+    return {
+        "mass": float(state["mass"]),
+        "static_friction": static,
+        "dynamic_friction_ratio": float(state["dynamic_friction"]) / static,
+        "damping": float(state["damping"]),
+    }
+
+
+def axes_outside(state: dict, ranges: dict) -> tuple[str, ...]:
+    """Which sampled axes of ``state`` fall outside ``ranges``, each with its direction.
+
+    Returns entries like ``"mass_high"`` or ``"damping_low"``, so a report can say *where* a
+    state is unusual rather than only that it is. Empty means the state lies inside every
+    range -- which, for a state drawn from an out-of-distribution box, means it is not
+    actually out of distribution.
+
+    Args:
+        state: A hidden state with ``mass``, ``static_friction``, ``dynamic_friction``,
+            ``damping``.
+        ranges: ``{axis: (low, high)}`` over :data:`SAMPLED_AXES`.
+    """
+    values = sampled_axis_values(state)
+    outside = []
+    for name in SAMPLED_AXES:
+        low, high = ranges[name]
+        if values[name] < low:
+            outside.append(f"{name}_low")
+        elif values[name] > high:
+            outside.append(f"{name}_high")
+    return tuple(outside)
+
+
+def sample_ood_hidden_states(
+    count: int,
+    training: dict,
+    ood: dict,
+    seed: int = 20260902,
+    oversample: int = 8,
+) -> list[dict]:
+    """Draw hidden states from the ``ood`` box that are **genuinely** outside ``training``.
+
+    The out-of-distribution box contains the training box, so about 87 % of its volume is
+    novel and 13 % is not. Drawing from it and calling every point OOD would quietly mix
+    in-distribution states into an OOD result -- and they are the easy ones, so the mixture
+    would flatter it. This draws a Sobol sequence over the OOD box and **keeps only points
+    with at least one axis outside the training range**.
+
+    Rejection rather than construction on purpose: forcing one axis out would fix *which* axis
+    is novel and change the joint distribution. Rejection leaves the conditional distribution
+    "OOD box, given not entirely inside training" intact, which is the population the question
+    is about.
+
+    Note that ``dynamic_friction_ratio`` shares its upper bound with the training range, so
+    that axis can only ever be novel from below.
+
+    Args:
+        count: How many states to return.
+        training: The in-distribution ranges, as ``XiRanges.as_dict()``.
+        ood: The wider ranges to draw from.
+        seed: Sobol scramble seed.
+        oversample: Multiplier on the Sobol draw before rejection. The default leaves ample
+            margin over the ~13 % expected rejection rate.
+
+    Raises:
+        ValueError: If ``count < 1``, if the OOD box does not contain the training box on
+            every axis, or if the oversampled draw yields too few novel points -- which would
+            otherwise silently return a short list.
+    """
+    if count < 1:
+        raise ValueError(f"count must be >= 1, got {count}.")
+    for name in SAMPLED_AXES:
+        (train_low, train_high), (ood_low, ood_high) = training[name], ood[name]
+        if ood_low > train_low or ood_high < train_high:
+            raise ValueError(
+                f"the OOD range for {name} ({ood_low}, {ood_high}) does not contain the "
+                f"training range ({train_low}, {train_high}); 'outside training' would then "
+                "not mean what this function assumes."
+            )
+
+    engine = SobolEngine(dimension=len(SAMPLED_AXES), scramble=True, seed=seed)
+    unit = engine.draw(count * oversample).double().tolist()
+    candidates = scale_unit_box(unit, ood)
+    novel = [state for state in candidates if axes_outside(state, training)]
+    if len(novel) < count:
+        raise ValueError(
+            f"only {len(novel)} of {len(candidates)} drawn states are outside the training "
+            f"range; raise oversample above {oversample} for {count} states."
+        )
+    return novel[:count]
 
 
 def _unit_draws(count: int, *parts: object) -> list[float]:

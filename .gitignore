@@ -29,6 +29,10 @@ outputs/videos/**
 # per-permutation deployment reports it aggregates are 640 KB each and regenerable, so they
 # stay out.
 !outputs/logs/slot_robustness.json
+# The OOD pilot is small enough to keep whole -- 76 KB for the sweep and 4 KB for the
+# summary -- and it is the evidence behind docs/OOD_FEASIBILITY.md.
+!outputs/logs/ood_feasibility.json
+!outputs/logs/ood_feasibility_summary.json
 
 # Large experiment snapshots
 backups/**

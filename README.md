@@ -64,6 +64,8 @@ RL policy；RMA² baseline 由 `baselines/rma2/` 独立负责，主方法不依�
 [x] Phase 13D  Dataset v1 pilot (96 xi x 3 probes x 32 candidates), nine-gate audit passed
 [x] Phase 13E  Full Dataset v1: 512 xi x 3 probes x 32 candidates = 49,152 rows, 9 gates passed
 [x] Phase 13F  3-seed main experiment + physical closed loop on 88 unseen drawers
+[x] Phase 13G  D047 slot-sensitivity quantified over 5 permutations (ordering holds 5/5)
+[x] Phase 13H  OOD feasibility pilot: 95.3 % of OOD_XI_RANGES solvable in range, 100 % at some force
 [ ]            SPC
 [ ]            VLM
 ```
