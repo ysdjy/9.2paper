@@ -194,6 +194,80 @@ audit), then the probe dataset, then Stage A on 10–50 hidden states as a tiny 
 
 ---
 
+## 2026-09-03 — `agent/phase12-2d-landscape` — Phase 12 (paused mid-phase)
+
+**Agent / task.** Claude Opus 5 — open the second execution axis, decide whether it buys
+structure, then two sub-phases the owner inserted: goal-distance feasibility, and a probe
+redesign with diagnostic videos. **Paused at the owner's request before Dataset v1.**
+
+**Phase 12A–12E: the 2-D gate, passed with a qualified verdict.**
+
+* 17 280 coarse + 40 448 fine episodes over `(F_peak, T)`. `T` is a clean parameter: `phi(t/T)`
+  matches the analytic profile at every `T` to 1e-4.
+* The region's location is unambiguously hidden-state dependent — centroid force against `mu_d`
+  at Spearman **+0.973**, regions spanning 91 % of the box, and the force axis cleanly
+  partitioned by dynamic friction.
+* Non-convexity is real but concentrated: midpoint failure median 6.4 %, 16 of 31 resolvable
+  states above 5 %, worst 66.7 %, correlating with `mu_s` at +0.556. The worst case has a
+  stick-slip ratio of 2.65 and six disconnected components.
+* **The finding that weakens the case:** `T` is the permissive axis. Every target rule lands it
+  within a 0.12–0.21 s standard deviation while the force coordinate sweeps 0.3–4.1 N at
+  rho +0.91 to +0.97. A regressor can output a constant `T` and a friction-driven `F`.
+* The centroid — the natural least-squares target — fails for 6.2 % of states at fine
+  resolution, down from an apparent 19.6 % on the coarse grid. `min_cost` and `max_margin`
+  succeed 100 % but tautologically; they are *selected from* the success set.
+
+**Goal distance: three constraints at three distances, none of them obvious.**
+
+* 40–60 mm: nothing binds. 100–250 mm: the terminal-velocity condition — every state can
+  *reach* 100 mm validly and almost none can *stop* there. From ~190 mm: the arm's joint range.
+  From ~350 mm: the drawer's own end stop, and not before.
+* `panda_joint2` is the culprit, running from −0.71 rad at grasp to its −1.7628 stop past
+  300 mm. Manipulability halves while pull-axis transmission *rises* and the Jacobian condition
+  stays flat, so it is joint-range exhaustion, not a singularity. Drift is the symptom.
+* Moving the cabinet +0.10 m buys 50–70 mm: joint margin at 200 mm 0.096 → 0.148, drift
+  2.17 → 0.72 mm, overall validity 46.5 → 55.2 %. +0.10 beats +0.15 because joint 6 tightens as
+  joint 2 loosens.
+* **At 150 mm the robot was never the limiter** — 15–16 of 16 states reach it validly at every
+  placement. Stopping is, and the stopping band sits against the top of the swept `T` range.
+
+**Probe: no `min_probe_duration`, and the new probe helps everything except damping.**
+
+* Only 5 of 1 536 probes fall below 0.20 s. Split by duration tercile the required-force `R²`
+  climbs 0.378 → 0.695, but the **RMSE is flat** at 0.332 / 0.293 / 0.330 N — the `R²` gradient
+  is a target-variance artefact. Duration is itself the strongest identifying feature
+  (rho +0.932 with `mu_s`), so a floor would censor it, selectively on low-friction drawers.
+* The response-triggered probe (ramp-up to `alpha*d_goal`, ramp-down over `beta*T_ramp`, then
+  coast) improves mass 47 %, required `T` 54 %, required `F` 40 % and `mu_d` 41 % in RMSE, and
+  makes `mu_s` **worse** — the old probe stops exactly at breakaway, when `mu_s` is most visible.
+* **Damping: 13 % better, still not identified.** The reason is arithmetic and separates the two
+  hypotheses the owner raised. The `b` range is not too narrow: it produces a 0.469 N force span
+  during execution, 1.88x the 0.25 N wrist noise floor. It is that the probe runs 2.5x slower,
+  so the same range spans only 0.186 N — 0.75x the floor. Sweeping `b` from 1 to 200 confirms
+  it: the only configuration whose span crosses the floor is the only one that recovers `b`.
+  Seeing damping costs ~18 mm of probe travel, 45 % of a 40 mm goal and 18 % of a 100 mm one.
+
+**Videos.** 21 annotated clips in `outputs/videos/diagnostics/` with `index.csv`, covering
+normal, high-friction, high-mass, high-drag, low-friction, the four 2-D failure corners, and
+100–390 mm. Most fail on purpose — the `(F, T)` pairs are hand-picked boundaries, not Oracle
+optima.
+
+**Not done.** Dataset v1 was not generated and no training was run, per the owner's
+instruction. `d_goal` is not frozen.
+
+**Open questions for whoever resumes.**
+
+1. Whether to move `d_goal` to 100 or 150 mm. 150 mm needs the cabinet at +0.10 m,
+   `fall_fraction >= 0.65` and `T` past 3 s — roughly twice the current 1.5 s. The sweep with
+   `T` extended to ~5 s has not been run and is the next thing to do.
+2. Whether to add a joint-margin term to the operating region (D042). It would change nothing
+   for 40 mm and would change `valid` for every dataset already generated.
+3. Whether the 2-D structure justifies landscape modelling. The honest reading is that it is
+   moderate and concentrated in sticky drawers, and that `T` is nearly degenerate for
+   prediction.
+
+---
+
 ## 2026-09-02 — `agent/phase11-dataset-v0` — Phase 11
 
 **Agent / task.** Claude Opus 5 — generate the first real dataset, train the first models,
