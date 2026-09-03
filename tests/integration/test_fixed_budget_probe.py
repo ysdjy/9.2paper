@@ -156,12 +156,29 @@ class TestItStaysAModeAndNotAThirdController:
 class TestArgumentValidation:
     @pytest.mark.parametrize(
         ("kwargs", "match"),
-        [({"peak_force": 0.0}, "peak_force must be > 0"), ({"duration": 0.0}, "duration must be > 0")],
+        [
+            ({"peak_force": -1.0}, "peak_force must be >= 0"),
+            ({"duration": 0.0}, "duration must be > 0"),
+        ],
     )
     def test_non_physical_arguments_are_refused(self, uniform_system, pull_system, kwargs, match) -> None:
         uniform_system("medium")
         with pytest.raises(ValueError, match=match):
             pull_system.probe.run_fixed_budget(**{**SETTING_V1_PROBE.as_kwargs(), **kwargs})
+
+    def test_the_null_amplitude_runs_and_leaves_the_drawer_alone(self, uniform_system, pull_system) -> None:
+        """Zero force is a legal amplitude -- the passive-observation control of
+        ``scripts/audit_probe_value.py`` -- and it must produce a real, recorded, motionless
+        history rather than an error or an empty one."""
+        uniform_system("medium")
+        result = pull_system.probe.run_fixed_budget(peak_force=0.0, duration=0.3)
+
+        assert result.termination_reason == [TerminationReason.DURATION_COMPLETED] * result.num_envs
+        assert result.history.num_steps == pull_system.probe.steps_for(0.3)
+        assert np.allclose(result.history.commanded_force, 0.0, atol=1e-9)
+        assert np.all(np.abs(result.final_displacement) < 3e-3), (
+            "with no pull force the drawer should barely move"
+        )
 
     def test_a_profile_beyond_the_safety_limit_is_refused_before_it_runs(
         self, uniform_system, pull_system

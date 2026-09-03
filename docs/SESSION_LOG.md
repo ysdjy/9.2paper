@@ -4,6 +4,75 @@ One entry per work session. Newest first.
 
 ---
 
+## 2026-09-03 — `agent/phase13-freeze-v1` — probe value audit: the active probe earns its budget
+
+**Agent / task.** Claude Opus 5 — test the method's founding premise. Is a dedicated active
+probe worth its 0.3 s, or would doing nothing, or doing much less, reveal as much? Oracle and
+ridge only; no network trained, probe not redesigned, nothing tuned.
+
+**Design.** The three histories are the *same* smoothstep trapezoid at three amplitudes — 3.5 N
+(frozen), 1.0 N (weak generic, a round number, not tuned) and 0.0 N (passive) — so they share
+the 18-step budget, the seven deployable channels, the nine-feature extractor and the ridge
+readout. Nothing varies but the amplitude. 64 in-distribution Sobol states, each history swept
+from its own post-probe snapshot.
+
+Two targets. **own** = the force each history's own state requires (deployment-faithful);
+**common** = the force the frozen probe's state requires, which isolates hidden-dynamics
+knowledge and, importantly, gives all three *one* target with sd 1.0242 N so `R²` is comparable.
+On the own-target the sds differ (1.02 / 0.69 / 0.71), which is exactly D043's confound.
+
+### Results, common target
+
+| history | RMSE | R² | best feature \|rho\| | breakaway |
+|---|---|---|---|---|
+| **frozen probe 3.5 N** | **0.2618 N** | **+0.935** | 0.970 (`final_velocity`) | **100.0 %** |
+| weak generic 1.0 N | 0.8285 N | +0.346 | 0.613 | 10.9 % |
+| passive 0.0 N | 2.1061 N | **−3.229** | 0.571 | 1.6 % |
+
+So **3.17× the error for the weak excitation and 8.05× for passive** (own-target: 2.13× and
+5.16×). In half-band units (0.20 N): 1.31× / 4.14× / 10.53×.
+
+### Why
+
+Static friction spans 0.5–3.0 N and only 60–80 % of a command reaches the drawer, so 1.0 N
+delivers ~0.6–0.8 N and breaks away just 10.9 % of drawers; its median post-probe displacement
+is **0.02 mm**. A weak excitation is not a weaker measurement, it is mostly *no* measurement —
+nine tenths of its histories are the same "did not move" signal the passive case gives. The
+passive history has 4 of 9 features constant and a negative `R²`: a ridge on what remains does
+worse than predicting the mean.
+
+The frozen probe also has 3 of 9 features constant, but by construction rather than by silence —
+a fixed budget fixes `duration` and `final_commanded_force`, and 3.5 N is high enough that every
+drawer breaks away at the same early sample, saturating `breakaway_force`. Its information is in
+the *response*, where `final_velocity` alone reaches |rho| = 0.970.
+
+### Answer, with two qualifications
+
+**Yes — the standardized active probe reveals the force requirement decisively better than no
+probe or a weak generic action**, on both targets, and it is the only one of the three that moves
+every drawer. The dedicated probe is doing real work and earns its place as the method's core.
+
+Qualifications, both stated rather than smoothed: the margin comes from **clearing breakaway**,
+not from fine shaping — this shows an amplitude that reliably moves the drawer is worth far more
+than one that does not, and says nothing about 3.5 N being optimal. And even the frozen probe's
+ridge readout is 0.262 N against a 0.20 N half-band, so a *linear* readout still misses the band
+more often than not; that is the standing reason the method uses a learned encoder instead.
+
+**Stopped here** as agreed for a large margin.
+
+### Git state
+
+`agent/phase13-freeze-v1`. New `docs/PROBE_VALUE.md`, `probe_drawer.analysis.probe_value`,
+`scripts/audit_probe_value.py`, 11 unit tests. One controller change: `run_fixed_budget` now
+accepts `peak_force = 0.0` as the documented null excitation, so all three histories run through
+one code path; a negative force is still refused. The unit test that asserted `0.0` raises was
+updated to the decided semantics rather than deleted — its intent was "refuse non-physical
+input", and zero force is physical. The matching integration test was updated the same way
+and gained a positive check that the null amplitude produces a real, recorded, motionless
+history. 589 unit and 106 integration tests pass.
+
+---
+
 ## 2026-09-03 — `agent/phase13-freeze-v1` — RMA² Stage B out of distribution
 
 **Agent / task.** Claude Opus 5 — evaluate the already-trained Stage B on the fixed 64 genuine

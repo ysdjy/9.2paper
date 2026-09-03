@@ -274,7 +274,11 @@ class ProbePullController(BasePullController):
         length.
 
         Args:
-            peak_force: Plateau force of the excitation (N).
+            peak_force: Plateau force of the excitation (N). **Zero is permitted** and means
+                the null excitation: the budget is spent holding the grasp with no pull force
+                at all, which is what ``scripts/audit_probe_value.py`` uses to measure how much
+                a *passive* observation of the same length reveals. It is a legitimate
+                amplitude rather than an oversight, so only a negative force is refused.
             duration: Total probe time (s), rise through release.
             on_step: Optional per-step observer, passed to ``run_profile``.
 
@@ -287,8 +291,8 @@ class ProbePullController(BasePullController):
             ValueError: On non-physical arguments, or if the profile would exceed the absolute
                 force safety limit.
         """
-        if peak_force <= 0.0:
-            raise ValueError(f"peak_force must be > 0 N, got {peak_force}.")
+        if peak_force < 0.0:
+            raise ValueError(f"peak_force must be >= 0 N, got {peak_force}.")
         if duration <= 0.0:
             raise ValueError(f"duration must be > 0 s, got {duration}.")
 

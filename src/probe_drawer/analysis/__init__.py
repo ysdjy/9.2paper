@@ -18,6 +18,7 @@ from .force_channel_analysis import (
 from .hidden_state_audit import CANDIDATES, AuditVerdict, HiddenStateCandidate, PaperRole, run_hidden_state_audit
 from .ood_evaluation import summarise_ood_evaluation
 from .ood_feasibility import summarise_ood_feasibility
+from .probe_value import summarise_probe_value
 from .readout import RIDGE_PENALTY, leave_one_out
 from .task_conditioning import summarise_task_conditioning
 
@@ -37,6 +38,7 @@ __all__ = [
     "leave_one_out",
     "run_hidden_state_audit",
     "summarise_ood_evaluation",
+    "summarise_probe_value",
     "summarise_ood_feasibility",
     "summarise_task_conditioning",
 ]

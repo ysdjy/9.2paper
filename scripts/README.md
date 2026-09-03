@@ -39,6 +39,7 @@ runnable: if a frozen parameter is ever questioned, this is where the answer was
 | `report_ood_evaluation.py` | the OOD deployment, stratified by feasibility and probe breakaway | `docs/OOD_EVALUATION.md` |
 | `audit_task_conditioning.py` | does `d_goal` change the action mapping enough to justify a multi-goal study? | `docs/TASK_CONDITIONING.md` |
 | `audit_affine_goal_baseline.py` | would one global slope already solve the multi-goal problem? | `docs/TASK_CONDITIONING.md` §8 |
+| `audit_probe_value.py` | is the active probe worth its budget against no probe and a weak one? | `docs/PROBE_VALUE.md` |
 | `validate_sequential_protocol.py` | the inference gap, and that the probe's state survives | `docs/SEQUENTIAL_PROTOCOL.md` |
 | `refine_task_space.py` | the Phase 10 task selection | `docs/EXPERIMENT_SPACE.md` |
 | `build_sequential_oracle.py` | the 1-D Oracle both datasets are judged against | `docs/ORACLE_LANDSCAPE.md` |

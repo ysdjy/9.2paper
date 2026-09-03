@@ -133,8 +133,7 @@ class TestFixedBudgetProbe:
     @pytest.mark.parametrize(
         ("kwargs", "match"),
         [
-            ({"peak_force": 0.0}, "peak_force must be > 0"),
-            ({"peak_force": -1.0}, "peak_force must be > 0"),
+            ({"peak_force": -1.0}, "peak_force must be >= 0"),
             ({"duration": 0.0}, "duration must be > 0"),
         ],
     )
@@ -145,6 +144,19 @@ class TestFixedBudgetProbe:
         args.update(kwargs)
         with pytest.raises(ValueError, match=match):
             ProbePullController.run_fixed_budget(None, **args)  # type: ignore[arg-type]
+
+    def test_the_null_amplitude_is_permitted_and_is_not_an_oversight(self) -> None:
+        """Zero force is the *passive observation* control, not bad input.
+
+        ``scripts/audit_probe_value.py`` compares the frozen 3.5 N probe against a 1.0 N weak
+        excitation and against spending the same budget applying nothing at all. All three are
+        the same trapezoid at three amplitudes, which is only one code path if zero is a legal
+        amplitude. A negative force is still refused.
+        """
+        # Called unbound, so it clears validation and then fails on the missing ``self.cfg``.
+        # Reaching that point is the assertion: no ValueError was raised for a zero amplitude.
+        with pytest.raises(AttributeError, match="cfg"):
+            ProbePullController.run_fixed_budget(None, peak_force=0.0, duration=0.3)  # type: ignore[arg-type]
 
     def test_it_takes_no_task_parameters(self) -> None:
         """The point of the mode: one excitation for every hidden state and every task.
