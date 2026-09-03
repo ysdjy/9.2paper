@@ -33,6 +33,8 @@ outputs/videos/**
 # summary -- and it is the evidence behind docs/OOD_FEASIBILITY.md.
 !outputs/logs/ood_feasibility.json
 !outputs/logs/ood_feasibility_summary.json
+!outputs/logs/ood_evaluation_summary.json
+!outputs/logs/ood_closed_loop.json
 
 # Large experiment snapshots
 backups/**

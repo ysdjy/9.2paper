@@ -1,0 +1,609 @@
+{
+  "source": "/home/zbh/Downloads/IsaacLab/9.2paper/outputs/logs/ood_closed_loop.json",
+  "git_commit": "c34ddf4e5d60e44e399be407b3c202b4ae6f6a7f",
+  "strata": {
+    "all": {
+      "description": "every out-of-distribution state, whatever the Oracle says",
+      "states": 64,
+      "methods": {
+        "A linear (1 feature)": {
+          "episodes": 64,
+          "states": 64,
+          "reach_pp": 18.75,
+          "reach_sd_across_seeds": 0.0,
+          "reach_per_seed": {},
+          "median_position_error_mm": 16.58558358903975,
+          "median_chosen_force": 4.325,
+          "chosen_force_range": [
+            0.5,
+            5.6
+          ],
+          "median_force_bias": 0.17499999999999993,
+          "mean_force_bias": 0.2484374999999999,
+          "under_forced_fraction": 0.40625
+        },
+        "ACE + PSP": {
+          "episodes": 192,
+          "states": 64,
+          "reach_pp": 47.39583333333333,
+          "reach_sd_across_seeds": 3.682847818679935,
+          "reach_per_seed": {
+            "0": 50.0,
+            "1": 50.0,
+            "2": 42.1875
+          },
+          "median_position_error_mm": 7.966482313349843,
+          "median_chosen_force": 4.35,
+          "chosen_force_range": [
+            0.8,
+            6.0
+          ],
+          "median_force_bias": 0.10000000000000009,
+          "mean_force_bias": 0.23671875,
+          "under_forced_fraction": 0.2708333333333333
+        },
+        "B ridge (summary)": {
+          "episodes": 64,
+          "states": 64,
+          "reach_pp": 20.3125,
+          "reach_sd_across_seeds": 0.0,
+          "reach_per_seed": {},
+          "median_position_error_mm": 15.071274503134196,
+          "median_chosen_force": 4.325,
+          "chosen_force_range": [
+            0.5,
+            5.8
+          ],
+          "median_force_bias": 0.20000000000000007,
+          "mean_force_bias": 0.29140625,
+          "under_forced_fraction": 0.375
+        },
+        "D GRU (history)": {
+          "episodes": 192,
+          "states": 64,
+          "reach_pp": 33.33333333333333,
+          "reach_sd_across_seeds": 3.210632293213009,
+          "reach_per_seed": {
+            "0": 32.8125,
+            "1": 29.6875,
+            "2": 37.5
+          },
+          "median_position_error_mm": 10.717221675440674,
+          "median_chosen_force": 4.324999999999999,
+          "chosen_force_range": [
+            0.5,
+            5.75
+          ],
+          "median_force_bias": 0.0,
+          "mean_force_bias": 0.09895833333333333,
+          "under_forced_fraction": 0.4947916666666667
+        },
+        "fixed force": {
+          "episodes": 64,
+          "states": 64,
+          "reach_pp": 7.8125,
+          "reach_sd_across_seeds": 0.0,
+          "reach_per_seed": {},
+          "median_position_error_mm": 72.46260801330209,
+          "median_chosen_force": 2.819376000000002,
+          "chosen_force_range": [
+            2.819376000000002,
+            2.819376000000002
+          ],
+          "median_force_bias": -0.9306239999999981,
+          "mean_force_bias": -0.9978114999999981,
+          "under_forced_fraction": 0.6875
+        },
+        "teacher (privileged)": {
+          "episodes": 192,
+          "states": 64,
+          "reach_pp": 59.375,
+          "reach_sd_across_seeds": 7.654655446197432,
+          "reach_per_seed": {
+            "0": 59.375,
+            "1": 50.0,
+            "2": 68.75
+          },
+          "median_position_error_mm": 6.020360736874869,
+          "median_chosen_force": 3.75,
+          "chosen_force_range": [
+            1.05,
+            6.5
+          ],
+          "median_force_bias": 0.05000000000000071,
+          "mean_force_bias": 0.0393229166666667,
+          "under_forced_fraction": 0.34375
+        }
+      },
+      "gaps": {
+        "teacher - ACE": 11.979166666666671,
+        "ACE - GRU": 14.0625,
+        "ACE - ridge": 27.08333333333333
+      }
+    },
+    "oracle_feasible": {
+      "description": "solvable by some force inside the frozen action range",
+      "states": 61,
+      "methods": {
+        "A linear (1 feature)": {
+          "episodes": 61,
+          "states": 61,
+          "reach_pp": 19.672131147540984,
+          "reach_sd_across_seeds": 0.0,
+          "reach_per_seed": {},
+          "median_position_error_mm": 16.125463787466295,
+          "median_chosen_force": 4.1,
+          "chosen_force_range": [
+            0.5,
+            5.6
+          ],
+          "median_force_bias": 0.20000000000000018,
+          "mean_force_bias": 0.3172131147540983,
+          "under_forced_fraction": 0.3770491803278688
+        },
+        "ACE + PSP": {
+          "episodes": 183,
+          "states": 61,
+          "reach_pp": 49.72677595628415,
+          "reach_sd_across_seeds": 3.8639714818937048,
+          "reach_per_seed": {
+            "0": 52.459016393442624,
+            "1": 52.459016393442624,
+            "2": 44.26229508196721
+          },
+          "median_position_error_mm": 7.685428578406567,
+          "median_chosen_force": 4.3,
+          "chosen_force_range": [
+            0.8,
+            5.95
+          ],
+          "median_force_bias": 0.14999999999999947,
+          "mean_force_bias": 0.2928961748633879,
+          "under_forced_fraction": 0.23497267759562843
+        },
+        "B ridge (summary)": {
+          "episodes": 61,
+          "states": 61,
+          "reach_pp": 21.311475409836063,
+          "reach_sd_across_seeds": 0.0,
+          "reach_per_seed": {},
+          "median_position_error_mm": 14.668742101639515,
+          "median_chosen_force": 4.1,
+          "chosen_force_range": [
+            0.5,
+            5.8
+          ],
+          "median_force_bias": 0.25,
+          "mean_force_bias": 0.3524590163934425,
+          "under_forced_fraction": 0.3442622950819672
+        },
+        "D GRU (history)": {
+          "episodes": 183,
+          "states": 61,
+          "reach_pp": 34.97267759562842,
+          "reach_sd_across_seeds": 3.3685322420595503,
+          "reach_per_seed": {
+            "0": 34.42622950819672,
+            "1": 31.147540983606557,
+            "2": 39.34426229508197
+          },
+          "median_position_error_mm": 10.194917116314178,
+          "median_chosen_force": 4.2,
+          "chosen_force_range": [
+            0.5,
+            5.75
+          ],
+          "median_force_bias": 0.0,
+          "mean_force_bias": 0.1565573770491803,
+          "under_forced_fraction": 0.46994535519125685
+        },
+        "fixed force": {
+          "episodes": 61,
+          "states": 61,
+          "reach_pp": 8.19672131147541,
+          "reach_sd_across_seeds": 0.0,
+          "reach_per_seed": {},
+          "median_position_error_mm": 70.4246090259403,
+          "median_chosen_force": 2.819376000000002,
+          "chosen_force_range": [
+            2.819376000000002,
+            2.819376000000002
+          ],
+          "median_force_bias": -0.830623999999998,
+          "mean_force_bias": -0.853574819672129,
+          "under_forced_fraction": 0.6721311475409836
+        },
+        "teacher (privileged)": {
+          "episodes": 183,
+          "states": 61,
+          "reach_pp": 62.295081967213115,
+          "reach_sd_across_seeds": 8.031113910764518,
+          "reach_per_seed": {
+            "0": 62.295081967213115,
+            "1": 52.459016393442624,
+            "2": 72.1311475409836
+          },
+          "median_position_error_mm": 5.75341228395701,
+          "median_chosen_force": 3.7,
+          "chosen_force_range": [
+            1.05,
+            6.2
+          ],
+          "median_force_bias": 0.05000000000000071,
+          "mean_force_bias": 0.05655737704918035,
+          "under_forced_fraction": 0.3114754098360656
+        }
+      },
+      "gaps": {
+        "teacher - ACE": 12.568306010928964,
+        "ACE - GRU": 14.754098360655732,
+        "ACE - ridge": 28.415300546448087
+      }
+    },
+    "responsive": {
+      "description": "the probe broke the drawer away",
+      "states": 47,
+      "methods": {
+        "A linear (1 feature)": {
+          "episodes": 47,
+          "states": 47,
+          "reach_pp": 21.27659574468085,
+          "reach_sd_across_seeds": 0.0,
+          "reach_per_seed": {},
+          "median_position_error_mm": 14.224247448146349,
+          "median_chosen_force": 3.2,
+          "chosen_force_range": [
+            0.5,
+            5.6
+          ],
+          "median_force_bias": 0.19999999999999996,
+          "mean_force_bias": 0.23617021276595748,
+          "under_forced_fraction": 0.40425531914893614
+        },
+        "ACE + PSP": {
+          "episodes": 141,
+          "states": 47,
+          "reach_pp": 60.28368794326241,
+          "reach_sd_across_seeds": 5.307315442232542,
+          "reach_per_seed": {
+            "0": 61.702127659574465,
+            "1": 65.95744680851064,
+            "2": 53.191489361702125
+          },
+          "median_position_error_mm": 6.2921283766627365,
+          "median_chosen_force": 3.3,
+          "chosen_force_range": [
+            0.8,
+            5.65
+          ],
+          "median_force_bias": 0.10000000000000009,
+          "mean_force_bias": 0.17695035460992906,
+          "under_forced_fraction": 0.24822695035460993
+        },
+        "B ridge (summary)": {
+          "episodes": 47,
+          "states": 47,
+          "reach_pp": 23.404255319148938,
+          "reach_sd_across_seeds": 0.0,
+          "reach_per_seed": {},
+          "median_position_error_mm": 14.547892753034835,
+          "median_chosen_force": 3.2,
+          "chosen_force_range": [
+            0.5,
+            5.6
+          ],
+          "median_force_bias": 0.15000000000000036,
+          "mean_force_bias": 0.23404255319148937,
+          "under_forced_fraction": 0.3829787234042553
+        },
+        "D GRU (history)": {
+          "episodes": 141,
+          "states": 47,
+          "reach_pp": 42.5531914893617,
+          "reach_sd_across_seeds": 3.474453535862664,
+          "reach_per_seed": {
+            "0": 42.5531914893617,
+            "1": 38.297872340425535,
+            "2": 46.808510638297875
+          },
+          "median_position_error_mm": 8.883891301229601,
+          "median_chosen_force": 3.25,
+          "chosen_force_range": [
+            0.5,
+            5.55
+          ],
+          "median_force_bias": -0.04999999999999982,
+          "mean_force_bias": 0.04751773049645389,
+          "under_forced_fraction": 0.5035460992907801
+        },
+        "fixed force": {
+          "episodes": 47,
+          "states": 47,
+          "reach_pp": 10.638297872340425,
+          "reach_sd_across_seeds": 0.0,
+          "reach_per_seed": {},
+          "median_position_error_mm": 47.4257710389793,
+          "median_chosen_force": 2.819376000000002,
+          "chosen_force_range": [
+            2.819376000000002,
+            2.819376000000002
+          ],
+          "median_force_bias": -0.33062399999999803,
+          "mean_force_bias": -0.4582835744680833,
+          "under_forced_fraction": 0.574468085106383
+        },
+        "teacher (privileged)": {
+          "episodes": 141,
+          "states": 47,
+          "reach_pp": 68.08510638297872,
+          "reach_sd_across_seeds": 9.19253999774164,
+          "reach_per_seed": {
+            "0": 63.829787234042556,
+            "1": 59.57446808510638,
+            "2": 80.85106382978722
+          },
+          "median_position_error_mm": 4.642487876117235,
+          "median_chosen_force": 3.3,
+          "chosen_force_range": [
+            1.05,
+            6.15
+          ],
+          "median_force_bias": 0.10000000000000009,
+          "mean_force_bias": 0.08404255319148939,
+          "under_forced_fraction": 0.22695035460992907
+        }
+      },
+      "gaps": {
+        "teacher - ACE": 7.801418439716315,
+        "ACE - GRU": 17.730496453900706,
+        "ACE - ridge": 36.87943262411347
+      }
+    },
+    "no_breakaway": {
+      "description": "the probe did not break the drawer away",
+      "states": 17,
+      "methods": {
+        "A linear (1 feature)": {
+          "episodes": 17,
+          "states": 17,
+          "reach_pp": 11.76470588235294,
+          "reach_sd_across_seeds": 0.0,
+          "reach_per_seed": {},
+          "median_position_error_mm": 25.489593367092304,
+          "median_chosen_force": 5.6,
+          "chosen_force_range": [
+            5.45,
+            5.6
+          ],
+          "median_force_bias": 0.14999999999999947,
+          "mean_force_bias": 0.2823529411764703,
+          "under_forced_fraction": 0.4117647058823529
+        },
+        "ACE + PSP": {
+          "episodes": 51,
+          "states": 17,
+          "reach_pp": 11.76470588235294,
+          "reach_sd_across_seeds": 4.802921064280742,
+          "reach_per_seed": {
+            "0": 17.647058823529413,
+            "1": 5.88235294117647,
+            "2": 11.76470588235294
+          },
+          "median_position_error_mm": 26.800303289201103,
+          "median_chosen_force": 5.7,
+          "chosen_force_range": [
+            5.35,
+            6.0
+          ],
+          "median_force_bias": 0.2999999999999998,
+          "mean_force_bias": 0.4019607843137256,
+          "under_forced_fraction": 0.3333333333333333
+        },
+        "B ridge (summary)": {
+          "episodes": 17,
+          "states": 17,
+          "reach_pp": 11.76470588235294,
+          "reach_sd_across_seeds": 0.0,
+          "reach_per_seed": {},
+          "median_position_error_mm": 25.909563666209586,
+          "median_chosen_force": 5.8,
+          "chosen_force_range": [
+            5.55,
+            5.8
+          ],
+          "median_force_bias": 0.34999999999999964,
+          "mean_force_bias": 0.44999999999999996,
+          "under_forced_fraction": 0.35294117647058826
+        },
+        "D GRU (history)": {
+          "episodes": 51,
+          "states": 17,
+          "reach_pp": 7.8431372549019605,
+          "reach_sd_across_seeds": 2.77296776935901,
+          "reach_per_seed": {
+            "0": 5.88235294117647,
+            "1": 5.88235294117647,
+            "2": 11.76470588235294
+          },
+          "median_position_error_mm": 23.638794641010456,
+          "median_chosen_force": 5.6,
+          "chosen_force_range": [
+            5.15,
+            5.75
+          ],
+          "median_force_bias": 0.20000000000000018,
+          "mean_force_bias": 0.24117647058823524,
+          "under_forced_fraction": 0.47058823529411764
+        },
+        "fixed force": {
+          "episodes": 17,
+          "states": 17,
+          "reach_pp": 0.0,
+          "reach_sd_across_seeds": 0.0,
+          "reach_per_seed": {},
+          "median_position_error_mm": 97.08881153492257,
+          "median_chosen_force": 2.819376000000002,
+          "chosen_force_range": [
+            2.819376000000002,
+            2.819376000000002
+          ],
+          "median_force_bias": -2.6306239999999983,
+          "mean_force_bias": -2.489447529411763,
+          "under_forced_fraction": 1.0
+        },
+        "teacher (privileged)": {
+          "episodes": 51,
+          "states": 17,
+          "reach_pp": 35.294117647058826,
+          "reach_sd_across_seeds": 9.605842128561482,
+          "reach_per_seed": {
+            "0": 47.05882352941176,
+            "1": 23.52941176470588,
+            "2": 35.294117647058826
+          },
+          "median_position_error_mm": 11.985119571909314,
+          "median_chosen_force": 5.3,
+          "chosen_force_range": [
+            3.65,
+            6.5
+          ],
+          "median_force_bias": -0.14999999999999947,
+          "mean_force_bias": -0.084313725490196,
+          "under_forced_fraction": 0.6666666666666666
+        }
+      },
+      "gaps": {
+        "teacher - ACE": 23.529411764705884,
+        "ACE - GRU": 3.92156862745098,
+        "ACE - ridge": 0.0
+      }
+    },
+    "no_breakaway_feasible": {
+      "description": "probe silent, but the task is still solvable in range",
+      "states": 14,
+      "methods": {
+        "A linear (1 feature)": {
+          "episodes": 14,
+          "states": 14,
+          "reach_pp": 14.285714285714285,
+          "reach_sd_across_seeds": 0.0,
+          "reach_per_seed": {},
+          "median_position_error_mm": 20.267817942658446,
+          "median_chosen_force": 5.6,
+          "chosen_force_range": [
+            5.45,
+            5.6
+          ],
+          "median_force_bias": 0.7999999999999998,
+          "mean_force_bias": 0.5892857142857141,
+          "under_forced_fraction": 0.2857142857142857
+        },
+        "ACE + PSP": {
+          "episodes": 42,
+          "states": 14,
+          "reach_pp": 14.285714285714285,
+          "reach_sd_across_seeds": 5.832118435198042,
+          "reach_per_seed": {
+            "0": 21.428571428571427,
+            "1": 7.142857142857142,
+            "2": 14.285714285714285
+          },
+          "median_position_error_mm": 22.109927120618515,
+          "median_chosen_force": 5.7,
+          "chosen_force_range": [
+            5.35,
+            5.95
+          ],
+          "median_force_bias": 0.8500000000000001,
+          "mean_force_bias": 0.6821428571428572,
+          "under_forced_fraction": 0.19047619047619047
+        },
+        "B ridge (summary)": {
+          "episodes": 14,
+          "states": 14,
+          "reach_pp": 14.285714285714285,
+          "reach_sd_across_seeds": 0.0,
+          "reach_per_seed": {},
+          "median_position_error_mm": 23.42793855350464,
+          "median_chosen_force": 5.75,
+          "chosen_force_range": [
+            5.55,
+            5.8
+          ],
+          "median_force_bias": 0.9750000000000001,
+          "mean_force_bias": 0.75,
+          "under_forced_fraction": 0.21428571428571427
+        },
+        "D GRU (history)": {
+          "episodes": 42,
+          "states": 14,
+          "reach_pp": 9.523809523809524,
+          "reach_sd_across_seeds": 3.367175148507369,
+          "reach_per_seed": {
+            "0": 7.142857142857142,
+            "1": 7.142857142857142,
+            "2": 14.285714285714285
+          },
+          "median_position_error_mm": 20.850878680357702,
+          "median_chosen_force": 5.574999999999999,
+          "chosen_force_range": [
+            5.15,
+            5.75
+          ],
+          "median_force_bias": 0.6750000000000003,
+          "mean_force_bias": 0.5226190476190476,
+          "under_forced_fraction": 0.35714285714285715
+        },
+        "fixed force": {
+          "episodes": 14,
+          "states": 14,
+          "reach_pp": 0.0,
+          "reach_sd_across_seeds": 0.0,
+          "reach_per_seed": {},
+          "median_position_error_mm": 97.00657729408704,
+          "median_chosen_force": 2.819376000000002,
+          "chosen_force_range": [
+            2.819376000000002,
+            2.819376000000002
+          ],
+          "median_force_bias": -1.980623999999998,
+          "mean_force_bias": -2.180623999999998,
+          "under_forced_fraction": 1.0
+        },
+        "teacher (privileged)": {
+          "episodes": 42,
+          "states": 14,
+          "reach_pp": 42.857142857142854,
+          "reach_sd_across_seeds": 11.664236870396085,
+          "reach_per_seed": {
+            "0": 57.14285714285714,
+            "1": 28.57142857142857,
+            "2": 42.857142857142854
+          },
+          "median_position_error_mm": 10.045864118728792,
+          "median_chosen_force": 4.875,
+          "chosen_force_range": [
+            3.65,
+            6.2
+          ],
+          "median_force_bias": -0.10000000000000053,
+          "mean_force_bias": -0.035714285714285726,
+          "under_forced_fraction": 0.5952380952380952
+        }
+      },
+      "gaps": {
+        "teacher - ACE": 28.57142857142857,
+        "ACE - GRU": 4.761904761904761,
+        "ACE - ridge": 0.0
+      }
+    }
+  },
+  "methods": [
+    "A linear (1 feature)",
+    "ACE + PSP",
+    "B ridge (summary)",
+    "D GRU (history)",
+    "fixed force",
+    "teacher (privileged)"
+  ]
+}

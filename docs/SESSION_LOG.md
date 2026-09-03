@@ -4,6 +4,70 @@ One entry per work session. Newest first.
 
 ---
 
+## 2026-09-03 — `agent/phase13-freeze-v1` — OOD evaluation: the probe is the limit
+
+**Agent / task.** Claude Opus 5 — deploy the existing Setting V1 checkpoints on the 64 genuine
+OOD hidden states from the feasibility pilot. No retraining; Setting V1, the probe,
+`OOD_XI_RANGES` and the action range all untouched; `baselines/rma2/` untouched.
+
+**How.** `evaluate_closed_loop.py` gained `--ood-report`, which swaps the *test population* for
+the sweep's states and carries its per-state feasibility and breakaway flags into the rows.
+Everything else is unchanged: same checkpoints, same frozen probe, same scaler fitted on the
+training split, three seeds in one run. The strata were fixed by the pilot **before** any model
+was evaluated, which is what stops a subset being chosen because it flatters something.
+
+### Results
+
+| | raw, n=64 | oracle-feasible, n=61 | responsive, n=47 | no-breakaway, n=17 | silent + feasible, n=14 |
+|---|---|---|---|---|---|
+| teacher (privileged) | 59.4 ± 7.7 % | 62.3 % | **68.1 %** | 35.3 % | 42.9 % |
+| **ACE + PSP** | **47.4 ± 3.7 %** | 49.7 % | **60.3 %** | 11.8 % | 14.3 % |
+| D GRU (history) | 33.3 ± 3.2 % | 35.0 % | 42.6 % | 7.8 % | 9.5 % |
+| B ridge (summary) | 20.3 % | 21.3 % | 23.4 % | 11.8 % | 14.3 % |
+| A linear (1 feature) | 18.8 % | 19.7 % | 21.3 % | 11.8 % | 14.3 % |
+| fixed force | 7.8 % | 8.2 % | 10.6 % | 0.0 % | 0.0 % |
+| `teacher − ACE` | +12.0 pp | +12.6 pp | **+7.8 pp** | +23.5 pp | **+28.6 pp** |
+| `ACE − GRU` | +14.1 pp | +14.8 pp | **+17.7 pp** | +3.9 pp | +4.8 pp |
+| `ACE − ridge` | +27.1 pp | +28.4 pp | **+36.9 pp** | **0.0 pp** | **0.0 pp** |
+
+Median position error tracks it: ACE 6.29 mm responsive, 22.11 mm on silent-and-feasible. Zero
+safety aborts. `stable_success` 0 % everywhere, as in distribution.
+
+### The question that was asked, answered
+
+**Can ACE infer "needs more force" from "it barely moved"? Yes — and that is all it infers.**
+
+It detects the regime unmistakably: median chosen force rises from **3.30 N on responsive states
+to 5.70 N on silent ones (+2.40 N)**, and only 19 % of its silent-and-feasible choices are
+*under* the requirement. It is not reading silence as "easy".
+
+What it loses is resolution. On those 14 states the Oracle requires 3.95–5.95 N — a real 2.00 N
+spread — and ACE picks within **5.35–5.95 N**, a 0.35 N spread. The rank correlation between what
+it chooses and what is needed falls from **+0.965 to +0.089**, while the teacher, reading `xi`,
+keeps **+0.877** with a 2.50 N spread. So ACE collapses to a near-constant "large force" reply,
+overshoots 26 of 42 episodes, and lands at a median 120.5 mm against a 100 mm goal.
+
+Nothing was clipped by the 6.5 N ceiling on that subset, so this is an inference limit and not an
+actuation one. The information exists in `xi`; the silent probe does not carry it.
+
+### The limitation, as a limitation
+
+Setting V1's probe cannot identify drawers with `µ_s` above roughly 3.3 N: at 3.5 N commanded, of
+which 60–80 % reaches the drawer, they do not break away, and a fixed-budget probe that produces
+no motion produces no information. Adaptation there degrades to the prior — right regime, wrong
+amount. **Reported, not fixed**: it is a probe limitation and the probe is frozen (D044). Any
+headline OOD figure should be published beside the breakaway fraction (47/64), because one number
+blends a regime where ACE is within 8 pp of the privileged bound with one where it is no better
+than a linear fit.
+
+### Git state
+
+`agent/phase13-freeze-v1`. New `docs/OOD_EVALUATION.md`, `analysis.ood_evaluation`,
+`scripts/report_ood_evaluation.py`, 12 unit tests. 548 unit and 105 integration tests pass.
+**Stopping here** as instructed.
+
+---
+
 ## 2026-09-03 — `agent/phase13-freeze-v1` — OOD feasibility pilot
 
 **Agent / task.** Claude Opus 5 — check whether `OOD_XI_RANGES` is a reasonable, solvable test

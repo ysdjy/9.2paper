@@ -36,6 +36,7 @@ runnable: if a frozen parameter is ever questioned, this is where the answer was
 | `validate_branching.py` | whether one probe may answer many candidates | `docs/COUNTERFACTUAL_BRANCHING.md` |
 | `report_slot_robustness.py` | how much the environment-slot assignment is worth, as an error bar | `docs/DECISIONS.md` D047, `docs/TRAINING_V1.md` §6 |
 | `sweep_ood_feasibility.py` + `analyze_ood_feasibility.py` | is `OOD_XI_RANGES` a solvable test domain under Setting V1? | `docs/OOD_FEASIBILITY.md` |
+| `report_ood_evaluation.py` | the OOD deployment, stratified by feasibility and probe breakaway | `docs/OOD_EVALUATION.md` |
 | `validate_sequential_protocol.py` | the inference gap, and that the probe's state survives | `docs/SEQUENTIAL_PROTOCOL.md` |
 | `refine_task_space.py` | the Phase 10 task selection | `docs/EXPERIMENT_SPACE.md` |
 | `build_sequential_oracle.py` | the 1-D Oracle both datasets are judged against | `docs/ORACLE_LANDSCAPE.md` |

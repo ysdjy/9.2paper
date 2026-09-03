@@ -66,6 +66,8 @@ RL policy；RMA² baseline 由 `baselines/rma2/` 独立负责，主方法不依�
 [x] Phase 13F  3-seed main experiment + physical closed loop on 88 unseen drawers
 [x] Phase 13G  D047 slot-sensitivity quantified over 5 permutations (ordering holds 5/5)
 [x] Phase 13H  OOD feasibility pilot: 95.3 % of OOD_XI_RANGES solvable in range, 100 % at some force
+[x] Phase 13I  OOD evaluation: ACE+PSP 47.4 % raw / 60.3 % where the probe responds,
+               11.8 % where it does not -- a probe limitation, reported not fixed
 [ ]            SPC
 [ ]            VLM
 ```
@@ -81,6 +83,16 @@ through a smoothstep trapezoid over 0.3 s, identical for every hidden state, run
 required force spans **0.70-5.40 N, a 7.7x range**, and the probe's nine deployable features
 recover it at leave-one-out RMSE **0.333 N** on a target sd of 1.411 N. Derivation:
 [docs/PROBE_V1.md](docs/PROBE_V1.md), decisions D044-D046.
+
+**Out of distribution, the limit is the probe.** On 64 genuinely out-of-distribution hidden
+states, ACE + PSP reaches **47.4 %** against a privileged teacher's 59.4 % and a summary-feature
+ridge's 20.3 %. Split by whether the frozen probe moves the drawer, the picture separates
+sharply: **60.3 %** where it does (within 7.8 pp of the teacher, 36.9 pp ahead of the ridge) and
+**11.8 %** where it does not -- where ACE's whole advantage over the ridge vanishes. It still
+infers the right *direction* (median chosen force rises 3.30 -> 5.70 N), but its choice collapses
+to a near-constant reply: rank correlation with the required force falls from +0.965 to +0.089
+while the teacher keeps +0.877. The probe cannot identify drawers above `mu_s` ~3.3 N, and that
+is reported as a limitation rather than fixed ([docs/OOD_EVALUATION.md](docs/OOD_EVALUATION.md)).
 
 **Success is now two numbers, not one.** `reach_success` (position + validity) is primary;
 `stable_success` adds the terminal velocity and is secondary. At Setting V1's operating point

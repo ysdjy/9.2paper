@@ -92,6 +92,18 @@ parser.add_argument(
         "instead of a caveat -- see scripts/report_slot_robustness.py."
     ),
 )
+parser.add_argument(
+    "--ood-report",
+    type=str,
+    default=None,
+    help=(
+        "Deploy on the hidden states from an OOD feasibility sweep instead of the dataset's "
+        "test split (docs/OOD_FEASIBILITY.md). Everything else is unchanged -- the same "
+        "checkpoints, the same frozen probe, the same scaler fitted on the training split -- "
+        "so the only difference is the population. The sweep's per-state feasibility and "
+        "breakaway flags are carried into the rows so the report can stratify on them."
+    ),
+)
 parser.add_argument("--output", type=str, default=None)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
@@ -132,7 +144,7 @@ from probe_drawer.models.baselines import STRONGEST_FEATURE, FeatureRegression, 
 from probe_drawer.training.trainer import TrainCfg  # noqa: E402,F401  (kept for config symmetry)
 from probe_drawer.protocols import capture_snapshot, restore_snapshot  # noqa: E402
 from probe_drawer.pull_system import PullSystem, PullSystemCfg  # noqa: E402
-from probe_drawer.dataset.schema import XI_DIMENSIONS  # noqa: E402
+from probe_drawer.dataset.schema import XI_DIMENSIONS, xi_id  # noqa: E402
 from probe_drawer.training import FeatureScaler, reference_force_per_probe  # noqa: E402
 from probe_drawer.utils import (  # noqa: E402
     collect_environment_info,
@@ -221,8 +233,35 @@ def main() -> None:
     store = DatasetStore(dataset_root)
     split_cfg = SplitCfg(**store.read_splits()["cfg"])
     split = split_samples(store.load_samples(), split_cfg)
-    xi_by_id = {row["xi_id"]: row["xi"] for row in store.hidden_states}
-    test_ids = sorted({sample.xi_id for sample in split.test})
+
+    # The training split is still needed either way: the two closed-form baselines are refitted
+    # from it, so an OOD deployment is a change of *test* population and nothing else.
+    oracle_by_id: dict[str, dict] = {}
+    if args_cli.ood_report:
+        ood_path = Path(args_cli.ood_report)
+        if not ood_path.is_absolute():
+            ood_path = project_root() / ood_path
+        ood = json.loads(ood_path.read_text())
+        # Content-addressed, so an OOD state's identity is its four values and joins back to
+        # the sweep without depending on row order.
+        xi_by_id = {xi_id(row["hidden_state"]): row["hidden_state"] for row in ood["rows"]}
+        oracle_by_id = {
+            xi_id(row["hidden_state"]): {
+                "reach_any_force": row["reach_any_force"],
+                "reach_within_task_range": row["reach_within_task_range"],
+                "oracle_required_force": row["required_force"],
+                "oracle_band_width": row["band_width"],
+                "probe_moved_in_sweep": row["probe_moved"],
+                "novel_axes": row["novel_axes"],
+            }
+            for row in ood["rows"]
+        }
+        population = f"out-of-distribution ({ood_path.name})"
+        test_ids = list(xi_by_id)
+    else:
+        xi_by_id = {row["xi_id"]: row["xi"] for row in store.hidden_states}
+        population = "in-distribution test split"
+        test_ids = sorted({sample.xi_id for sample in split.test})
     if args_cli.num_xi:
         test_ids = test_ids[: args_cli.num_xi]
     # Truncated first, then reordered, so every order covers the same population.
@@ -243,7 +282,7 @@ def main() -> None:
     print("\n" + "=" * 78)
     print(f"[deploy] run     : {run_root}")
     print(f"[deploy] dataset : {dataset_root} ({store.manifest.get('dataset_version')})")
-    print(f"[deploy] test xi : {len(test_ids)} hidden states, never seen in any split")
+    print(f"[deploy] test xi : {len(test_ids)} hidden states -- {population}")
     print(f"[deploy] seeds   : {list(args_cli.seeds)}")
     print(f"[deploy] batching: {args_cli.batch_order} order, slot permutation "
           f"{args_cli.slot_permutation}, warm-up "
@@ -415,6 +454,7 @@ def main() -> None:
                             "seed": seed,
                             "xi_id": state_id,
                             "xi": xi_by_id[state_id],
+                            **oracle_by_id.get(state_id, {}),
                             "chosen_force": float(forces[index]),
                             "total_displacement": verdict.total_displacement,
                             "final_velocity": verdict.terminal_velocity,
@@ -442,6 +482,8 @@ def main() -> None:
             "selection": {"grid_step": selection_cfg.step, "range": list(selection_cfg.force_range)},
             "task": task.as_dict(),
             "setting": manifest.get("setting", "v0"),
+            "population": population,
+            "ood_report": args_cli.ood_report,
             "batch_order": args_cli.batch_order,
             "warmup_steps": args_cli.warmup_steps,
             "slot_permutation": args_cli.slot_permutation,
