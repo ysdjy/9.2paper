@@ -157,11 +157,20 @@ class TestTaskReference:
 
 class TestExecutionIsolation:
     def test_the_execution_controller_never_sees_the_goal(self, sequential) -> None:
-        """``run`` still takes only a force and a duration (D004)."""
+        """``run`` takes a force, a duration and a step observer -- nothing goal-shaped (D004).
+
+        ``on_step`` was added for the diagnostic video recorder; it is called and never read
+        back, so it cannot influence the run. The name check is the part that matters and is
+        stricter than the exact list it replaces, which excluded a goal parameter only by
+        accident of enumeration.
+        """
         import inspect  # noqa: PLC0415
 
         parameters = list(inspect.signature(sequential.system.execution.run).parameters)
-        assert parameters == ["peak_force", "duration"]
+        assert parameters == ["peak_force", "duration", "on_step"]
+
+        forbidden = ("goal", "target", "reference", "setpoint", "desired", "criteria", "tolerance")
+        assert not [name for name in parameters for word in forbidden if word in name.lower()]
 
     def test_the_protocol_passes_no_goal_to_the_execution(self, uniform_system, sequential) -> None:
         uniform_system("medium")

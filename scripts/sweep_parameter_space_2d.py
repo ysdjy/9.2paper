@@ -92,7 +92,7 @@ from probe_drawer.utils import (  # noqa: E402
     git_commit,
     project_root,
 )
-from probe_drawer.analysis.landscape_2d import representative_hidden_states  # noqa: E402
+from probe_drawer.dataset.sampling import representative_hidden_states  # noqa: E402
 
 
 def build_system(num_envs: int) -> PullSystem:

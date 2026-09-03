@@ -36,7 +36,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
-from probe_drawer.analysis.landscape_2d import analyse_landscape, success_mask  # noqa: E402
+from probe_drawer.experimental.landscape_2d import analyse_landscape, success_mask  # noqa: E402
 from probe_drawer.analysis.sweep import SweepDataset  # noqa: E402
 from probe_drawer.experiment_plan import MAIN_TASK  # noqa: E402
 from probe_drawer.utils import project_root  # noqa: E402

@@ -74,9 +74,9 @@ from pathlib import Path  # noqa: E402
 import numpy as np  # noqa: E402
 
 from probe_drawer.analysis.probe_features import rank_correlation  # noqa: E402
-from probe_drawer.analysis.response_probe_features import extract_response_features  # noqa: E402
+from probe_drawer.experimental.response_probe_features import extract_response_features  # noqa: E402
 from probe_drawer.analysis.sweep import SweepDataset  # noqa: E402
-from probe_drawer.controllers import ResponseProbeCfg, ResponseProbeController  # noqa: E402
+from probe_drawer.experimental.response_probe import ResponseProbeCfg, ResponseProbeController  # noqa: E402
 from probe_drawer.dataset import DatasetStore  # noqa: E402
 from probe_drawer.envs import DynamicsParameters, DynamicsRandomizer  # noqa: E402
 from probe_drawer.experiment_plan import MAIN_TASK, RECOMMENDED_PROBE_CFG  # noqa: E402

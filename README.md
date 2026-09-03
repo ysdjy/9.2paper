@@ -6,8 +6,10 @@
 Probe——用已知的递增力输入去"试探"抽屉，并记录完整的力—位移—速度响应；随后由模型根据这段 Probe 历史
 预测：正式执行时应该用多大的峰值作用力 `F_peak`，才能在规定时间 `T` 内把抽屉拉到目标位移 `d_goal`。
 
-本仓库目前实现的是这套研究的**物理与控制底座**：官方环境验证、力驱动的 Probe / Execution 两个公开控制器、
-隐藏动力学随机化，以及它们的完整验证。**尚未**包含 ACE / PSP / SPC / VLM / RL policy。
+本仓库已实现完整的**物理底座 + 数据管线 + 适应模型**：官方环境验证、力驱动的 Probe / Execution 两个公开
+控制器、隐藏动力学随机化、连续 Sequential Protocol、counterfactual branching、无泄漏数据集、ACE、PSP、
+privileged teacher、direct-regression baselines，以及 Isaac Sim 物理闭环评估。**尚未**包含 SPC / VLM /
+RL policy；RMA² baseline 由 `baselines/rma2/` 独立负责，主方法不依赖它。
 
 ---
 
@@ -49,14 +51,16 @@ Probe——用已知的递增力输入去"试探"抽屉，并记录完整的力�
 [x] Phase 11G DataLoader with dynamic padding, train-only normalisation
 [x] Phase 11H/I/J Baselines, privileged teacher, ACE + PSP
 [x] Phase 11K/L Offline comparison, ablation, closed-loop Isaac Sim deployment
-[ ]          Training-data generation
-[ ]          ACE
-[ ]          PSP
-[ ]          SPC
+[x] Phase 12   2-D (F,T) landscape, goal-distance feasibility, probe redesign -- all
+               measured, all frozen OUT of the paper setting (see docs/DECISIONS.md D044-D046)
+[x] Phase 13A  Structure audit: two public controllers, experiments demoted, docs reconciled
+[~] Phase 13B  Setting V1 frozen; Dataset v1 pilot gated on a sanity check
+[ ]            SPC
+[ ]            VLM
 ```
 
-**The physics question is answered.** At the selected task, different hidden states need
-peak forces spanning **1.00-4.50 N -- a 4.5x range** -- with success bands only 0.50 N wide.
+**The physics question is answered.** At the Phase 10/11 task, different hidden states need
+peak forces spanning **0.20-4.30 N -- a 21.5x range** -- with success bands a median 0.20 N wide.
 One force cannot serve every drawer, and a standardised probe's response correlates with the
 force each drawer needs at **|rho| = 0.97**. Details: [docs/ORACLE_LANDSCAPE.md](docs/ORACLE_LANDSCAPE.md).
 
@@ -325,7 +329,9 @@ values actually measured (full table in [docs/VALIDATION.md](docs/VALIDATION.md)
   easy / medium / hard — consecutive ratios 2.30 and 2.38;
 * the drawer's internal resistance channel matches `-(mu_d + b*v)` to within 0.0099 N, and
   the derived delivered force agrees with the wrist sensor to within 0.134 N;
-* 106 of 108 hidden states have a succeeding peak force, spanning 1.00-4.50 N.
+* 105 of 108 hidden states have a succeeding peak force at the Phase 10 task, spanning
+  0.20-4.30 N (the Phase 9 reset Oracle's 106/108 over 1.00-4.50 N is superseded --
+  see `docs/SEQUENTIAL_PROTOCOL.md` for why the reset overstated the force).
 
 ## 9. Known limitations
 

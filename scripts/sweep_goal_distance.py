@@ -84,8 +84,8 @@ from pathlib import Path  # noqa: E402
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
 
-from probe_drawer.analysis.goal_distance import LongPullRecord  # noqa: E402
-from probe_drawer.analysis.landscape_2d import representative_hidden_states  # noqa: E402
+from probe_drawer.experimental.goal_distance import LongPullRecord  # noqa: E402
+from probe_drawer.dataset.sampling import representative_hidden_states  # noqa: E402
 from probe_drawer.analysis.sweep import force_grid  # noqa: E402
 from probe_drawer.controllers import ExecutionControllerCfg  # noqa: E402
 from probe_drawer.dataset import branch_order  # noqa: E402

@@ -34,13 +34,16 @@ from torch.quasirandom import SobolEngine
 from probe_drawer.dataset.schema import XI_DIMENSIONS, xi_id
 
 __all__ = [
+    "SAMPLED_AXES",
     "ForceSamplerCfg",
     "SamplingPlan",
     "XiSamplerCfg",
     "branch_order",
     "build_plan",
     "candidate_forces",
+    "representative_hidden_states",
     "sample_hidden_states",
+    "scale_unit_box",
 ]
 
 
@@ -139,6 +142,90 @@ class ForceSamplerCfg:
         }
 
 
+#: Order the four sampled coordinates appear in, before ``ratio`` becomes ``mu_dynamic``.
+SAMPLED_AXES = ("mass", "static_friction", "dynamic_friction_ratio", "damping")
+
+
+def scale_unit_box(unit, bounds: dict) -> list[dict]:
+    r"""Map points in :math:`[0,1]^4` onto hidden states.
+
+    One implementation, because both samplers need the same two things and getting either
+    wrong is silent: the affine scaling onto each axis's range, and
+    ``mu_dynamic = ratio * mu_static``, which is what keeps ``mu_d <= mu_s`` true by
+    construction rather than by rejection (D016).
+
+    Args:
+        unit: ``(n, 4)`` array-like of points in the unit box, ordered as
+            :data:`SAMPLED_AXES`.
+        bounds: ``{axis: (low, high)}`` for each of :data:`SAMPLED_AXES`.
+
+    Returns:
+        ``n`` dicts with ``mass``, ``static_friction``, ``dynamic_friction``, ``damping``.
+    """
+    import numpy as _np  # noqa: PLC0415 - kept local so the module imports without numpy at rest
+
+    values = _np.asarray(unit, dtype=float)
+    if values.ndim != 2 or values.shape[1] != len(SAMPLED_AXES):
+        raise ValueError(f"unit must be (n, {len(SAMPLED_AXES)}), got {values.shape}")
+    lows = _np.array([bounds[name][0] for name in SAMPLED_AXES])
+    highs = _np.array([bounds[name][1] for name in SAMPLED_AXES])
+    scaled = values * (highs - lows) + lows
+    return [
+        {
+            "mass": float(mass),
+            "static_friction": float(static),
+            "dynamic_friction": float(ratio * static),
+            "damping": float(damping),
+        }
+        for mass, static, ratio, damping in scaled
+    ]
+
+
+def representative_hidden_states(count: int = 48, seed: int = 20260902, ranges: dict | None = None) -> list[dict]:
+    r"""Hidden states covering the box's corners *and* its interior.
+
+    A sweep over ``easy``/``medium``/``hard`` presets walks one diagonal of the
+    four-dimensional box and would miss, for instance, a light drawer with high static
+    friction -- exactly the combination Phase 10 found hardest. So the first
+    :math:`2^4 = 16` states are the corners, and the rest are a scrambled Sobol fill.
+
+    Corners are pulled 5 % inside each bound: on the bound itself a coordinate sits at the
+    edge of what the randomiser accepts, and 5 % keeps every draw strictly inside a region
+    already known to run.
+
+    Distinct from :func:`sample_hidden_states`, which draws a plain Sobol sequence and is what
+    a *dataset* uses. This one guarantees corner coverage and is what a small **sweep** uses,
+    where 16-48 states have to span the box rather than sample it representatively.
+
+    Args:
+        count: Total states. At least 16, so the corners always fit.
+        seed: Sobol scrambling seed.
+        ranges: ``{axis: (low, high)}``. Defaults to the training ranges.
+
+    Raises:
+        ValueError: If ``count`` is below 16.
+    """
+    from probe_drawer.experiment_plan import TRAINING_XI_RANGES  # noqa: PLC0415 - avoids a cycle
+
+    if count < 16:
+        raise ValueError(f"count must be >= 16 so all 16 corners fit, got {count}.")
+    bounds = ranges or {
+        "mass": TRAINING_XI_RANGES.mass,
+        "static_friction": TRAINING_XI_RANGES.static_friction,
+        "dynamic_friction_ratio": TRAINING_XI_RANGES.dynamic_friction_ratio,
+        "damping": TRAINING_XI_RANGES.damping,
+    }
+    inset = 0.05
+    unit = [
+        [(1.0 - inset) if (index >> axis) & 1 else inset for axis in range(4)] for index in range(16)
+    ]
+    remaining = count - 16
+    if remaining:
+        engine = SobolEngine(dimension=4, scramble=True, seed=seed)
+        unit = unit + engine.draw(remaining).double().tolist()
+    return scale_unit_box(unit, bounds)
+
+
 def sample_hidden_states(cfg: XiSamplerCfg | None = None) -> list[dict]:
     """Draw the hidden states, in a stable order.
 
@@ -152,24 +239,14 @@ def sample_hidden_states(cfg: XiSamplerCfg | None = None) -> list[dict]:
     """
     cfg = cfg or XiSamplerCfg()
     engine = SobolEngine(dimension=4, scramble=True, seed=cfg.seed)
-    unit = engine.draw(cfg.num_states).double()
-
-    bounds = (cfg.mass, cfg.static_friction, cfg.dynamic_friction_ratio, cfg.damping)
-    scaled = torch.stack(
-        [unit[:, index] * (high - low) + low for index, (low, high) in enumerate(bounds)], dim=1
-    )
-
-    states = []
-    for mass, static, ratio, damping in scaled.tolist():
-        states.append(
-            {
-                "mass": mass,
-                "static_friction": static,
-                "dynamic_friction": ratio * static,
-                "damping": damping,
-            }
-        )
-    return states
+    unit = engine.draw(cfg.num_states).double().tolist()
+    bounds = {
+        "mass": cfg.mass,
+        "static_friction": cfg.static_friction,
+        "dynamic_friction_ratio": cfg.dynamic_friction_ratio,
+        "damping": cfg.damping,
+    }
+    return scale_unit_box(unit, bounds)
 
 
 def _unit_draws(count: int, *parts: object) -> list[float]:

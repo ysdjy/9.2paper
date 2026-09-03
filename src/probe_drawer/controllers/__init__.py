@@ -1,4 +1,9 @@
-"""Pull controllers: one shared hybrid OSC, two public task-level APIs.
+"""Pull controllers: one shared hybrid OSC, exactly two public task-level APIs.
+
+The two are :class:`ProbePullController` and :class:`ExecutionPullController`, and that is
+deliberate -- the paper's setting has one probe and one execution, so a third public
+controller would be a third thing a reader has to rule out. Phase 12's response-triggered
+probe lives in :mod:`probe_drawer.experimental` and is reachable only by its full path.
 
 None of these modules imports Isaac Lab at runtime -- the Isaac Lab types they use appear
 only in annotations -- so this package can be imported, and its configuration classes
@@ -11,19 +16,9 @@ from .execution_pull_controller import ExecutionControllerCfg, ExecutionPullCont
 from .force_profiles import ForceProfile, RampForceProfile, TrapezoidForceProfile
 from .hybrid_osc import HybridPullOSC, HybridPullOSCCfg
 from .probe_pull_controller import ProbeControllerCfg, ProbePullController
-from .response_probe import (
-    ProbePhase,
-    ResponseProbeCfg,
-    ResponseProbeController,
-    ResponseProbeResult,
-)
 from .types import HISTORY_CHANNELS, ExecutionResult, ProbeResult, PullHistory, TerminationReason
 
 __all__ = [
-    "ProbePhase",
-    "ResponseProbeCfg",
-    "ResponseProbeController",
-    "ResponseProbeResult",
     "HISTORY_CHANNELS",
     "BasePullController",
     "ExecutionControllerCfg",

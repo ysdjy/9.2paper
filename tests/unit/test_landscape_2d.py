@@ -1,4 +1,9 @@
-"""The 2-D topology detectors, checked against masks whose answers are known.
+"""The Phase 12 topology detectors, checked against masks whose answers are known.
+
+These live in :mod:`probe_drawer.experimental` and are not part of Setting V1. The tests stay
+because the Phase 12 conclusions rest on them: a midpoint-failure detector that fired on a
+convex blob, or a component counter that split a staircase, would have manufactured exactly
+the structure the phase was testing for.
 
 These metrics decide whether Phase 12 proceeds, so they are validated on hand-built shapes
 before being pointed at a sweep. A midpoint-failure detector that fires on a convex blob, or
@@ -11,12 +16,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from probe_drawer.analysis.landscape_2d import (
-    connected_components,
-    midpoint_failure_rate,
-    representative_hidden_states,
-)
-from probe_drawer.experiment_plan import TRAINING_XI_RANGES
+from probe_drawer.experimental.landscape_2d import connected_components, midpoint_failure_rate
 
 FULL = np.ones((9, 9), dtype=bool)
 
@@ -115,62 +115,3 @@ class TestMidpointFailure:
         mask = np.zeros((5, 5), dtype=bool)
         mask[2, 2] = True
         assert np.isnan(midpoint_failure_rate(mask, FULL[:5, :5])["rate"])
-
-
-class TestRepresentativeHiddenStates:
-    def test_the_first_sixteen_are_the_corners(self) -> None:
-        """A diagonal of presets would miss a light drawer with high static friction, which
-        Phase 10 found hardest."""
-        corners = representative_hidden_states(48)[:16]
-        ratios = [state["dynamic_friction"] / state["static_friction"] for state in corners]
-        for values in (
-            [state["mass"] for state in corners],
-            [state["static_friction"] for state in corners],
-            ratios,
-            [state["damping"] for state in corners],
-        ):
-            assert len(set(round(value, 6) for value in values)) >= 2
-
-    def test_every_axis_pairing_appears_among_the_corners(self) -> None:
-        """All 16 sign combinations, not just 16 arbitrary points."""
-        corners = representative_hidden_states(16)
-        low = {
-            "mass": TRAINING_XI_RANGES.mass[0],
-            "static_friction": TRAINING_XI_RANGES.static_friction[0],
-            "damping": TRAINING_XI_RANGES.damping[0],
-        }
-        high = {
-            "mass": TRAINING_XI_RANGES.mass[1],
-            "static_friction": TRAINING_XI_RANGES.static_friction[1],
-            "damping": TRAINING_XI_RANGES.damping[1],
-        }
-        signature = {
-            tuple(
-                state[name] > 0.5 * (low[name] + high[name]) for name in ("mass", "static_friction", "damping")
-            )
-            + (state["dynamic_friction"] / state["static_friction"] > 0.65,)
-            for state in corners
-        }
-        assert len(signature) == 16
-
-    def test_dynamic_friction_never_exceeds_static(self) -> None:
-        for state in representative_hidden_states(64):
-            assert state["dynamic_friction"] <= state["static_friction"] + 1e-12
-
-    def test_every_value_is_inside_the_training_box(self) -> None:
-        for state in representative_hidden_states(64):
-            assert TRAINING_XI_RANGES.mass[0] <= state["mass"] <= TRAINING_XI_RANGES.mass[1]
-            assert (
-                TRAINING_XI_RANGES.static_friction[0]
-                <= state["static_friction"]
-                <= TRAINING_XI_RANGES.static_friction[1]
-            )
-            assert TRAINING_XI_RANGES.damping[0] <= state["damping"] <= TRAINING_XI_RANGES.damping[1]
-
-    def test_it_is_reproducible_and_index_stable(self) -> None:
-        assert representative_hidden_states(32) == representative_hidden_states(32)
-        assert representative_hidden_states(64)[:32] == representative_hidden_states(32)
-
-    def test_fewer_than_sixteen_is_refused(self) -> None:
-        with pytest.raises(ValueError, match="16 corners"):
-            representative_hidden_states(8)

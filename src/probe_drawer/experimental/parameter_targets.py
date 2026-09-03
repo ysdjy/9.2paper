@@ -49,7 +49,7 @@ from dataclasses import asdict, dataclass
 
 import numpy as np
 
-from probe_drawer.analysis.landscape_2d import success_mask
+from probe_drawer.experimental.landscape_2d import success_mask
 from probe_drawer.evaluation.task_evaluator import SuccessCriteria
 
 __all__ = ["ParameterTarget", "TARGET_RULES", "compare_targets", "targets_for_state"]

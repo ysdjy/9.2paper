@@ -56,14 +56,14 @@ from pathlib import Path  # noqa: E402
 
 import numpy as np  # noqa: E402
 
-from probe_drawer.analysis.landscape_2d import representative_hidden_states, success_mask  # noqa: E402
+from probe_drawer.dataset.sampling import representative_hidden_states, success_mask  # noqa: E402
 from probe_drawer.analysis.probe_features import PROBE_FEATURES, extract_features  # noqa: E402
-from probe_drawer.analysis.response_probe_features import (  # noqa: E402
+from probe_drawer.experimental.response_probe_features import (  # noqa: E402
     RESPONSE_PROBE_FEATURES,
     extract_response_features,
 )
 from probe_drawer.analysis.sweep import SweepDataset  # noqa: E402
-from probe_drawer.controllers import ResponseProbeCfg, ResponseProbeController  # noqa: E402
+from probe_drawer.experimental.response_probe import ResponseProbeCfg, ResponseProbeController  # noqa: E402
 from probe_drawer.envs import DynamicsParameters, DynamicsRandomizer  # noqa: E402
 from probe_drawer.experiment_plan import MAIN_TASK, RECOMMENDED_PROBE_CFG, RECOMMENDED_PROBE_TASK  # noqa: E402
 from probe_drawer.pull_system import PullSystem, PullSystemCfg  # noqa: E402

@@ -286,3 +286,54 @@ outputs/dataset_v0/            <-- dataset/storage.py   (no simulator beyond thi
                        v
                   closed_loop.json --> scripts/plot_phase11.py
 ```
+
+---
+
+## Phase 13: the layering, made explicit
+
+Four phases of exploration left modules that answered a question and are kept for the answer.
+The risk was never that they exist — it is that the pipeline starts importing them and
+"experimental" stops meaning anything. So the boundary is now a package boundary with a test
+behind it.
+
+```
+                    baselines/rma2/            <-- another agent; may call in, never called
+                          |
+                          v
+    +---------------------------------------------+
+    |  probe_drawer  (the paper's pipeline)        |
+    |    controllers  dataset  envs  evaluation    |
+    |    models  protocols  sensors  training      |
+    +---------------------------------------------+
+                          |
+                          |  never imports downward
+                          v
+              probe_drawer.experimental          <-- Phase 12; reachable only by full path
+```
+
+`tests/unit/test_package_layering.py` walks every pipeline module's AST and fails if one
+imports `experimental` or `baselines`. It also pins the public controller surface at exactly
+two — `ProbePullController` and `ExecutionPullController` — because the paper's setting has
+one probe and one execution, and a third public controller is a third thing a reader has to
+rule out.
+
+### What is in `experimental/`, and why it is not deleted
+
+| module | question it answered | why it is out of the pipeline |
+|---|---|---|
+| `response_probe`, `response_probe_features` | is a response-triggered probe better? | better on mass, `T` and `mu_d`, worse on `mu_s`, damping still unidentified; and it depends on `d_goal`, which a standardised probe must not (D044) |
+| `landscape_2d`, `parameter_targets` | does a 2-D `(F, T)` action space buy structure? | real but moderate, and `T` is nearly degenerate for prediction (D045) |
+| `goal_distance` | which goal distances does the rig support? | this is what chose 100 mm — the most load-bearing module in the package, and still not pipeline code |
+
+### One concept, one implementation
+
+The two hidden-state samplers now share `dataset.sampling.scale_unit_box`, which owns the
+affine mapping onto each axis and `mu_dynamic = ratio * mu_static`. They remain two functions
+because they answer different questions — `sample_hidden_states` fills a box for a *dataset*,
+`representative_hidden_states` guarantees all 16 corners for a small *sweep* — but the part
+that is silently wrong if duplicated is written once.
+
+The response probe was **not** refactored into a shared base loop. Its three phases have
+per-environment, data-dependent transitions that `run_profile` cannot express, and extracting
+an abstraction for one experimental caller would add a layer without removing duplication. It
+reuses `BasePullController`'s sampling, safety and history machinery and writes its own loop.

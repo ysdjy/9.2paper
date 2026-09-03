@@ -33,7 +33,7 @@ from pathlib import Path
 
 import numpy as np
 
-from probe_drawer.analysis.landscape_2d import analyse_landscape, success_mask
+from probe_drawer.experimental.landscape_2d import analyse_landscape, success_mask
 from probe_drawer.analysis.sweep import SweepDataset
 from probe_drawer.experiment_plan import MAIN_TASK
 from probe_drawer.utils import git_commit, project_root

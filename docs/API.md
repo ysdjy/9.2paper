@@ -23,6 +23,20 @@ system.execution   # ExecutionPullController
 
 ---
 
+## The public surface, and its size
+
+Exactly two task-level controllers, and that is the whole point of this section: the paper's
+setting has one probe and one execution, so anything else a reader has to rule out is a cost.
+
+```python
+from probe_drawer.controllers import ProbePullController, ExecutionPullController
+```
+
+Phase 12's response-triggered probe is **not** here. It lives in
+`probe_drawer.experimental.response_probe` and is reachable only by that full path, so a line
+using it is visible in review as a line reaching into an experiment.
+`tests/unit/test_package_layering.py` holds the boundary.
+
 ## ProbePullController
 
 The standardised physical probe: a known, reproducible, monotonically non-decreasing pull

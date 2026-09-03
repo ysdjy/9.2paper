@@ -29,7 +29,7 @@ from dataclasses import asdict, dataclass
 
 import numpy as np
 
-from probe_drawer.controllers.response_probe import ProbePhase, ResponseProbeResult
+from probe_drawer.experimental.response_probe import ProbePhase, ResponseProbeResult
 
 __all__ = ["RESPONSE_PROBE_FEATURES", "ResponseProbeFeatures", "extract_response_features"]
 

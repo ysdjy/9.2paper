@@ -25,7 +25,7 @@ from pathlib import Path
 
 import numpy as np
 
-from probe_drawer.analysis.goal_distance import (
+from probe_drawer.experimental.goal_distance import (
     CANDIDATE_GOALS,
     DRAWER_LIMIT_MARGIN,
     JOINT_LIMIT_MARGIN,

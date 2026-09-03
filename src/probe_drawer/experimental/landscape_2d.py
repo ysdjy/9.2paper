@@ -28,8 +28,6 @@ from collections import deque
 from dataclasses import asdict, dataclass, field
 
 import numpy as np
-import torch
-from torch.quasirandom import SobolEngine
 
 from probe_drawer.evaluation.task_evaluator import SuccessCriteria
 
@@ -38,69 +36,8 @@ __all__ = [
     "analyse_landscape",
     "connected_components",
     "midpoint_failure_rate",
-    "representative_hidden_states",
     "success_mask",
 ]
-
-
-def representative_hidden_states(count: int = 48, seed: int = 20260902, ranges: dict | None = None) -> list[dict]:
-    r"""Hidden states chosen to cover the box's corners *and* its interior.
-
-    A sweep over ``easy``/``medium``/``hard`` presets walks one diagonal of the
-    four-dimensional box and would miss, for instance, a light drawer with high static
-    friction -- exactly the combination that turned out to be hardest in Phase 10. So the
-    first :math:`2^4 = 16` states are the corners in
-    :math:`[m, \mu_s, \text{ratio}, b]`, and the rest are a scrambled Sobol fill of the
-    interior.
-
-    Corners are pulled 5 % inside each bound. On the bound itself a coordinate is at the edge
-    of what the randomiser accepts and of what Phase 10 validated; 5 % keeps every draw
-    strictly inside a region already known to run.
-
-    Args:
-        count: Total states. Must be at least 16, so the corners always fit.
-        seed: Sobol scrambling seed.
-        ranges: ``{name: (low, high)}`` for ``mass``, ``static_friction``,
-            ``dynamic_friction_ratio``, ``damping``. Defaults to the training ranges.
-
-    Returns:
-        ``count`` dicts with ``mass``, ``static_friction``, ``dynamic_friction``, ``damping``.
-        ``dynamic_friction = ratio * static_friction``, so ``mu_d <= mu_s`` holds by
-        construction (D016).
-    """
-    from probe_drawer.experiment_plan import TRAINING_XI_RANGES  # noqa: PLC0415 - avoids a cycle
-
-    if count < 16:
-        raise ValueError(f"count must be >= 16 so all 16 corners fit, got {count}.")
-    bounds = ranges or {
-        "mass": TRAINING_XI_RANGES.mass,
-        "static_friction": TRAINING_XI_RANGES.static_friction,
-        "dynamic_friction_ratio": TRAINING_XI_RANGES.dynamic_friction_ratio,
-        "damping": TRAINING_XI_RANGES.damping,
-    }
-    order = ("mass", "static_friction", "dynamic_friction_ratio", "damping")
-    lows = np.array([bounds[name][0] for name in order], dtype=float)
-    highs = np.array([bounds[name][1] for name in order], dtype=float)
-    inset = 0.05
-
-    unit = np.array(
-        [[(1.0 - inset) if (index >> axis) & 1 else inset for axis in range(4)] for index in range(16)]
-    )
-    remaining = count - 16
-    if remaining:
-        engine = SobolEngine(dimension=4, scramble=True, seed=seed)
-        unit = np.vstack([unit, engine.draw(remaining).double().numpy()])
-
-    scaled = unit * (highs - lows) + lows
-    return [
-        {
-            "mass": float(mass),
-            "static_friction": float(static),
-            "dynamic_friction": float(ratio * static),
-            "damping": float(damping),
-        }
-        for mass, static, ratio, damping in scaled
-    ]
 
 
 def success_mask(dataset, xi_key: tuple[float, ...], criteria: SuccessCriteria) -> dict:
