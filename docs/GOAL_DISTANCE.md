@@ -147,6 +147,58 @@ this phase deliberately did not make while `T` was the variable under test.
 long pull is wanted, the fix is to reposition the base or re-grasp partway, not to relax the
 task.
 
+## 6b. Moving the cabinet: what it fixes, and what it does not
+
+The hypothesis was that long pulls fail because of the workspace. The joint data names the
+joint: **`panda_joint2`, the shoulder lift**, runs monotonically from −0.71 rad at the grasp
+to its −1.7628 stop past 300 mm. The arm leans further back as the drawer comes toward it and
+runs out of lean. So the cabinet was moved away along the robot's `+x` and a grasp re-recorded
+at each placement with `scripts/run_official_drawer.py --cabinet-x-offset`.
+
+| offset | TCP `x` at grasp | `j2` at grasp | `j2` budget before its stop | 150 mm drift | 200 mm feasible | overall valid |
+|---|---|---|---|---|---|---|
+| +0.00 | 0.454 | −0.711 | 159 mm | 1.27 mm | 0.0 % | 46.5 % |
+| +0.05 | 0.505 | −0.545 | 185 mm | 0.59 mm | 6.2 % | 50.9 % |
+| **+0.10** | 0.556 | −0.388 | **208 mm** | **0.47 mm** | **31.2 %** | **55.2 %** |
+| +0.15 | 0.606 | −0.240 | 231 mm | 0.50 mm | — | 54.9 % |
+
+**+0.10 m is the sweet spot, not the largest offset.** There is a trade-off: `panda_joint6` is
+the tightest joint *at grasp* and it **tightens** as the cabinet recedes — margin 0.115, 0.099,
+0.091, 0.090 — while `j2` loosens. At +0.15 the median margin at 150 mm falls back to 0.121
+against +0.10's 0.141.
+
+**What it fixes.** At 200 mm the joint margin goes 0.096 → 0.148 and the lateral drift
+2.17 mm → 0.72 mm. The whole posture-risk curve moves out by 50–70 mm, as the `j2` budget
+column predicts.
+
+**What it does not fix.** At 150 mm, at *every* placement including the original, 15–16 of 16
+hidden states reach the distance **and stay valid** — the robot was never the limiter there.
+Only 3–5 of 16 stop inside `ε_v`. The workspace was the right diagnosis for 200 mm and above,
+and the wrong one for 150 mm.
+
+### The fine grid at +0.10, and what still truncates it
+
+12 648 episodes, `F ∈ [3.0, 6.0]` at 0.1 N, `T ∈ [1.9, 3.5]` at 0.1 s, 24 hidden states,
+`fall_fraction = 0.65`:
+
+| `d_goal` | reach | reach + valid | **+ stopped** | joint margin | drift |
+|---|---|---|---|---|---|
+| 100 mm | 13/24 | 10/24 | 7/24 | 0.119 | 0.43 mm |
+| **150 mm** | 20/24 | **18/24** | **7/24** | **0.139** | **0.45 mm** |
+| 200 mm | 24/24 | 23/24 | 7/24 | 0.147 | 0.74 mm |
+| 250 mm | 24/24 | 23/24 | 6/24 | 0.127 | 1.14 mm |
+
+At 150 mm the robot is comfortable: margin 0.139 and 0.45 mm of drift, eleven times inside the
+5 mm bound. The stopping solutions form a dense diagonal band at **`F` 3.0–3.4 N, `T` 2.8–3.5 s**
+— and that band sits **against the top of the swept `T` range**. So the region very likely
+continues past `T = 3.5 s`, and 7 of 24 is a lower bound set by the grid rather than by the
+physics.
+
+**Provisional conclusion for a 150 mm task:** the robot supports it at +0.10 m, the ramp-down
+must be long (`fall ≥ 0.65`), and `T` must be allowed past 3 s — roughly twice the current
+1.5 s. Confirming how many of the 24 states become feasible needs one more sweep with
+`T` extended to ~5 s; that sweep has not been run.
+
 ## 7. Reproducing
 
 ```bash
