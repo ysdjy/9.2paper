@@ -56,6 +56,31 @@ parser.add_argument(
         "every seed has finished, or from an alternative comparison."
     ),
 )
+parser.add_argument(
+    "--warmup-steps",
+    type=int,
+    default=0,
+    help=(
+        "Discarded settle steps before each batch. Intended as the D047 fix -- so a batch that "
+        "has just executed a dozen pulls does not leave contact state in the next batch's "
+        "probe -- and **it does not work**: it halves the tail but leaves the median unchanged, "
+        "because the dominant cause turned out not to be cross-batch history at all. See "
+        "docs/DECISIONS.md D047, revised. Default 0, which is the behaviour the reported "
+        "results in docs/TRAINING_V1.md were produced with; raising it changes them."
+    ),
+)
+parser.add_argument(
+    "--batch-order",
+    choices=("sorted", "reversed", "within-batch-reversed"),
+    default="sorted",
+    help=(
+        "Order the test hidden states are batched in. 'sorted' is the reporting default. "
+        "'reversed' changes both which batch a drawer lands in and which environment slot it "
+        "occupies. 'within-batch-reversed' changes only the slot, keeping batch membership "
+        "identical -- the two together separate cross-batch history from per-environment "
+        "variation, which 'reversed' alone confounds (docs/DECISIONS.md D047)."
+    ),
+)
 parser.add_argument("--output", type=str, default=None)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
@@ -189,11 +214,23 @@ def main() -> None:
     test_ids = sorted({sample.xi_id for sample in split.test})
     if args_cli.num_xi:
         test_ids = test_ids[: args_cli.num_xi]
+    # Truncated first, then reordered, so every order covers the same population.
+    if args_cli.batch_order == "reversed":
+        test_ids = list(reversed(test_ids))
+    elif args_cli.batch_order == "within-batch-reversed":
+        width = min(args_cli.num_envs, len(test_ids))
+        test_ids = [
+            state_id
+            for start in range(0, len(test_ids), width)
+            for state_id in reversed(test_ids[start : start + width])
+        ]
     print("\n" + "=" * 78)
     print(f"[deploy] run     : {run_root}")
     print(f"[deploy] dataset : {dataset_root} ({store.manifest.get('dataset_version')})")
     print(f"[deploy] test xi : {len(test_ids)} hidden states, never seen in any split")
     print(f"[deploy] seeds   : {list(args_cli.seeds)}")
+    print(f"[deploy] batching: {args_cli.batch_order} order, "
+          f"warm-up {'system default' if args_cli.warmup_steps is None else args_cli.warmup_steps} steps")
 
     # --- the models, one set per seed ---
     def load(build, name: str, seed: int):
@@ -274,7 +311,9 @@ def main() -> None:
                 for state_id in padded_ids
             ]
             randomizer.apply(system.env, parameters)
-            system.reset()
+            # Randomise first, then warm up: the discarded settle has to happen under the
+            # dynamics this batch will use, or it seats the contacts for the wrong drawer.
+            system.warm_up(args_cli.warmup_steps)
 
             task_start = system.reader.drawer_position.clone()
             probe = run_probe_from_manifest(system, manifest)
@@ -386,6 +425,8 @@ def main() -> None:
             "selection": {"grid_step": selection_cfg.step, "range": list(selection_cfg.force_range)},
             "task": task.as_dict(),
             "setting": manifest.get("setting", "v0"),
+            "batch_order": args_cli.batch_order,
+            "warmup_steps": args_cli.warmup_steps,
             "git_commit": git_commit(),
             "environment": collect_environment_info().as_dict(),
             "rows": rows,

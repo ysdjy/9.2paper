@@ -6,6 +6,7 @@ is the exception -- it probes a live environment by design -- and is kept here b
 analysis rather than part of the experiment pipeline.
 """
 
+from .closed_loop_determinism import compare_batch_orders
 from .force_channel_analysis import (
     AUDIT_CASES,
     END_STOP_CASE,
@@ -27,6 +28,7 @@ __all__ = [
     "PaperRole",
     "analyse_end_stop_episode",
     "analyse_force_channels",
+    "compare_batch_orders",
     "leave_one_out",
     "run_hidden_state_audit",
 ]

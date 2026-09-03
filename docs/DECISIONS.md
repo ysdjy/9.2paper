@@ -1046,7 +1046,80 @@ the threshold can be revisited from stored data without regenerating anything.
 
 ---
 
-### D047 — Closed-loop absolute numbers are session-dependent; comparisons within a run are not
+### D047 (revised) — Closed-loop absolute numbers depend on the *environment slot*, not on batch history; the warm-up fix does not work
+
+**Decision.** Physical closed-loop results stay reported from **one deployment run in which every
+method is measured**, and absolute rates are quoted to the point rather than the decimal. The
+per-batch warm-up proposed in the first version of this decision was implemented, measured, and
+**rejected**: `--warmup-steps` defaults to `0`, which is the behaviour
+`docs/TRAINING_V1.md` was produced with. The original diagnosis below was wrong, and is kept
+because the correction is the useful part.
+
+**What the first version said.** That absolute numbers moved between sessions because
+`system.reset()` does not clear PhysX contact manifolds and friction anchors, so how many
+executions ran in earlier batches changed the *next* batch's probe. Evidence: batch 1 was
+bit-identical across two runs while batches 2 and 3 were not. The proposed fix was a discarded
+warm-up settle per batch, of the kind `PullSystem.warm_up` already does at build time.
+
+**What measuring it showed.** The warm-up was implemented (`PullSystem.warm_up` made public and
+called per batch after randomisation) and validated by deploying the same three seeds over the
+same 88 hidden states under two batch orders. The gates are in
+`probe_drawer.analysis.closed_loop_determinism`, fixed before the runs.
+
+| | probe median | probe p90 | probe max | ridge force agreement | worst reach Δ |
+|---|---|---|---|---|---|
+| no warm-up | 0.186 mm | 0.797 mm | 6.64 mm | 25.0 % | 5.7 pp |
+| 60-step warm-up | 0.170 mm | 0.701 mm | 3.34 mm | 28.4 % | 2.3 pp |
+| gate | ≤ 0.10 mm | ≤ 0.75 mm | — | ≥ 90 % | ≤ 2.0 pp |
+
+All three gates fail either way. The warm-up halves the **tail** and barely moves the median.
+
+**Why: reversing the batch order changes two things, and the first version conflated them.** A
+reversed order changes both which *batch* a drawer lands in and which *environment slot* it
+occupies. Separating them with a `within-batch-reversed` order — identical batch membership,
+only the slot changed — gives essentially the same disagreement:
+
+| permutation, 60-step warm-up | probe median | ridge agreement |
+|---|---|---|
+| batch **and** slot changed | 0.170 mm | 28.4 % |
+| **slot only** | 0.151 mm | 37.5 % |
+
+And the cleanest cut: under `within-batch-reversed`, **batch 1 has no prior history and no
+padding**, so nothing about session state can reach it. It is still **0 of 32 identical, median
+0.169 mm**. The same hidden state, probed in the same batch after the same history, measures
+differently according only to which of the 32 parallel environment slots it sits in.
+
+The cross-batch effect is real but **secondary**. Holding the order and slots fixed and changing
+only the branch count (3 seeds vs 1) gives median 0.104 mm without the warm-up and 0.116 mm with
+it — unchanged — while the max falls from 6.45 mm to 1.32 mm. So the warm-up does what it was
+designed to do, to the tail of the smaller of the two effects.
+
+**Scale.** Both effects are ≈ 0.1–0.17 mm against a median probe displacement of 6.7 mm — about
+2 %. They matter downstream only because a continuous force predictor on a 0.05 N selection grid
+amplifies a 2 % feature change into a different grid point; hence force agreement near 30 % from
+sub-tenth-millimetre probe differences. The fixed-force baseline, which ignores the probe, agrees
+100 % of the time under every permutation, which is the control.
+
+**Why the reported results are still sound.** Unchanged from the first version, and now on firmer
+ground: within one run there is one probe per batch and every method branches from one snapshot
+of it, so all methods see identical evidence *including* identical environment slots. The
+schedule is a property of the run, not of the contest. Every number in `docs/TRAINING_V1.md`
+comes from a single run measuring all six methods, and the observed schedule sensitivity
+(≤ 5.7 pp) is small against the gaps being claimed (32 pp over the best scalar baseline, 10 pp
+over the direct GRU). A 1–2 pp difference between two methods is not a result.
+
+**What would actually fix it, not attempted here.** Per-environment-slot variation in a GPU
+physics solver is not something a warm-up can remove — it is the same setup evaluated in a
+different position in the batch. The honest options are to *measure* it rather than eliminate it:
+deploy over several slot permutations and report the mean with a spread, which turns the
+sensitivity into an error bar at a cost of about 1.5 minutes per permutation. That changes the
+headline table, so it is a decision for the user rather than a patch.
+
+**Date.** 2026-09-03 (revised the same day, after the fix failed validation)
+
+---
+
+### D047 (original, superseded) — Closed-loop absolute numbers are session-dependent; comparisons within a run are not
 
 **Decision.** Physical closed-loop results are reported from **one deployment run in which every
 method is measured**, and absolute rates are quoted to the nearest point rather than the

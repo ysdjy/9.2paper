@@ -4,6 +4,68 @@ One entry per work session. Newest first.
 
 ---
 
+## 2026-09-03 — `agent/phase13-freeze-v1` — D047 investigated; the proposed fix does not work
+
+**Agent / task.** Claude Opus 5 — implement and validate the per-batch warm-up that D047
+proposed for closed-loop batch-order dependence. Nothing else: no Setting V1 changes, no
+regeneration, no retraining, `baselines/rma2/` untouched.
+
+**Outcome: the fix fails, and D047's diagnosis was wrong.** The dominant cause is not
+cross-batch state leakage; it is **per-environment-slot variation**. `--warmup-steps` therefore
+defaults to `0`, which reproduces the committed main table exactly (verified, all six methods).
+
+### What was done
+
+`PullSystem._warm_up` was made public as `warm_up(steps=None)` — one implementation, already
+used at build time, now callable per batch — and `evaluate_closed_loop.py` calls it after
+randomisation. `--batch-order` gained `reversed` and `within-batch-reversed` for validation, and
+the acceptance gates were fixed in `probe_drawer.analysis.closed_loop_determinism` **before** any
+run: probe median ≤ 0.10 mm and p90 ≤ 0.75 mm (10 % of `ε_d`), deterministic-method force
+agreement ≥ 90 % (the grid is 0.05 N), reach change ≤ 2.0 pp (two episodes in 88).
+
+### Measurements — same checkpoints, same 88 test states, two batch orders
+
+| | probe median | probe p90 | probe max | ridge force agreement | worst reach Δ | gates |
+|---|---|---|---|---|---|---|
+| before (no warm-up) | 0.186 mm | 0.797 mm | 6.64 mm | 25.0 % | 5.7 pp | all fail |
+| after (60-step warm-up) | 0.170 mm | 0.701 mm | 3.34 mm | 28.4 % | 2.3 pp | all fail |
+
+The warm-up halves the tail and barely moves the median.
+
+**Why — the first version conflated two effects.** Reversing the batch order changes both which
+batch a drawer lands in *and* which environment slot it occupies. Separating them:
+
+* **slot only** (`within-batch-reversed`, identical batch membership): median 0.151 mm — as bad
+  as changing both.
+* The decisive cut: under that permutation **batch 1 has no prior history and no padding**, and
+  is still **0 of 32 identical, median 0.169 mm**. Nothing about session state can reach batch 1,
+  so this is purely the environment slot.
+* The cross-batch effect is real but secondary: holding order and slots fixed and changing only
+  the branch count (3 seeds vs 1) gives median 0.104 mm without the warm-up and 0.116 mm with it
+  — unchanged — while the max falls 6.45 → 1.32 mm.
+
+**Scale.** Both are ≈ 0.1–0.17 mm against a 6.7 mm median probe displacement, about 2 %. They
+matter only because a continuous force predictor on a 0.05 N grid amplifies 2 % into a different
+grid point. The control: the fixed-force baseline, which ignores the probe, agrees 100 % under
+every permutation.
+
+**The reported results are unaffected.** Within one run every method branches from one snapshot
+of one probe, in the same slots, so all methods see identical evidence; the schedule is a
+property of the run, not the contest. The main table stands, with the caveat already in D047 that
+a 1–2 pp difference between methods is not a result.
+
+**Not attempted.** A warm-up cannot remove per-slot variation in a GPU physics solver. The honest
+option is to measure rather than eliminate it — deploy over several slot permutations and report
+a spread, ~1.5 min per permutation. That changes the headline table, so it is the user's call.
+
+### Git state
+
+`agent/phase13-freeze-v1`. The warm-up and the diagnostic orders are kept but **off by default**;
+D047 revised in place with the original retained beneath it as superseded. 494 unit and 105
+integration tests pass.
+
+---
+
 ## 2026-09-03 — `agent/phase13-freeze-v1` — Phase 13 Gate 4: Full Dataset v1 and the main experiment
 
 **Agent / task.** Claude Opus 5 — Gate 3 approved by the user with Setting V1 explicitly frozen.

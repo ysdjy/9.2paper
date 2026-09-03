@@ -60,7 +60,8 @@ class PullSystemCfg:
         device: Torch/PhysX device.
         episode_length_s: Environment time-out. Only a backstop -- the controllers manage
             their own durations.
-        warm_up_steps: Settle steps run and discarded at build time, so the first episode
+        warm_up_steps: Settle steps run and discarded at build time and, when a caller asks
+            for it, before each batch of episodes. So the first episode
             starts from the same contact state as every later one.
         cabinet_x_offset: Shift of the cabinet along the robot's ``+x`` (m). Non-zero needs a
             grasp recorded at that placement, because the canonical record is joint angles
@@ -81,7 +82,7 @@ class PullSystemCfg:
     device: str = "cuda:0"
     episode_length_s: float = 30.0
 
-    #: Settle steps run and discarded when the system is built. See ``PullSystem._warm_up``.
+    #: Settle steps run and discarded when the system is built. See ``PullSystem.warm_up``.
     warm_up_steps: int = 60
 
     video_folder: Path | str | None = None
@@ -160,18 +161,43 @@ class PullSystem:
         execution = ExecutionPullController(env, osc, reader, cfg.execution, cfg.safety)
 
         system = cls(env, wrapped_env, reader, osc, probe, execution, cfg)
-        system._warm_up()
+        system.warm_up()
         return system
 
-    def _warm_up(self) -> None:
-        """Run and discard one settle, so the first real episode matches later ones.
+    def warm_up(self, steps: int | None = None) -> None:
+        """Run and discard one settle, so the next episode matches the ones after it.
 
-        Measured: without this, the first probe after building the system terminated 7 %
-        earlier than every subsequent identical probe, because PhysX had not yet reached a
+        Called once at build time, and *again by a caller before each batch of episodes* when
+        that caller needs successive batches to be independent.
+
+        **At build time.** Without this, the first probe after building the system terminated
+        7 % earlier than every subsequent identical probe, because PhysX had not yet reached a
         steady contact state at the grasp. Discarding one settle removes the discrepancy.
+
+        **Between batches.** The same mechanism, arriving later:
+        :meth:`reset` writes joint states back but does not clear the contact manifolds and
+        friction anchors PhysX carries, so a batch that has just executed a dozen pulls leaves
+        the grasp in a different contact state than a fresh one, and the *next* batch's probe
+        measures a slightly different drawer. That made a deployment's numbers depend on the
+        order its batches ran in (``docs/DECISIONS.md`` D047). Settling at the grasp pose under
+        zero pull force lets the contacts re-form before anything is measured.
+
+        Apply the dynamics randomisation *before* calling this, so the settle happens under the
+        dynamics the batch will actually use.
+
+        Args:
+            steps: Settle steps to discard. Defaults to
+                :attr:`PullSystemCfg.warm_up_steps`. ``0`` is the **null case**: a single
+                reset and nothing else, which is exactly what a caller did before this method
+                existed. It is spelled out rather than left to fall out of a zero-length
+                settle so that measuring what the settle buys compares against the old
+                behaviour and not against a second reset.
         """
+        if steps == 0:
+            self.reset()
+            return
         self.reset()
-        self.osc.settle(self.cfg.warm_up_steps)
+        self.osc.settle(self.cfg.warm_up_steps if steps is None else steps)
         self.reset()
 
     @property
