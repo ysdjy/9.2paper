@@ -38,11 +38,14 @@ from __future__ import annotations
 import numpy as np
 
 __all__ = [
+    "EXPECTED_ORDERING",
     "FORCE_AGREEMENT_FLOOR",
     "MAX_PROBE_MEDIAN_MM",
     "MAX_PROBE_P90_MM",
     "MAX_REACH_DELTA_PP",
+    "REPORTED_GAPS",
     "compare_batch_orders",
+    "summarise_permutations",
 ]
 
 #: Largest acceptable median disagreement in probe displacement, same xi, two orders (mm).
@@ -145,4 +148,136 @@ def compare_batch_orders(first: dict, second: dict) -> dict:
         },
         "gates": gates,
         "passes": all(gates.values()),
+    }
+
+
+#: The ordering the paper claims, strongest first.
+#:
+#: Stated here rather than inferred from whichever run is being summarised, so "the ordering
+#: held" is a check against a fixed claim and not a restatement of the data.
+EXPECTED_ORDERING = (
+    "teacher (privileged)",
+    "ACE + PSP",
+    "D GRU (history)",
+    "B ridge (summary)",
+)
+
+#: The pairwise differences the paper reports, as ``(name, better, worse)``.
+REPORTED_GAPS = (
+    ("ACE + PSP - D GRU", "ACE + PSP", "D GRU (history)"),
+    ("ACE + PSP - B ridge", "ACE + PSP", "B ridge (summary)"),
+    ("teacher - ACE + PSP", "teacher (privileged)", "ACE + PSP"),
+)
+
+
+def _spread(values: list[float]) -> dict:
+    """Mean, population sd, and the range actually observed.
+
+    Population sd rather than a sample estimate: with five permutations the question is how
+    much *these* runs differed, not an inference about a wider population that does not exist.
+    The min-max is reported alongside because with n = 5 the range is the more honest summary
+    and a reader should see both.
+    """
+    array = np.asarray(values, dtype=float)
+    return {
+        "n": int(array.size),
+        "mean": float(array.mean()),
+        "sd": float(array.std()),
+        "min": float(array.min()),
+        "max": float(array.max()),
+        "values": [float(value) for value in array],
+    }
+
+
+def summarise_permutations(reports: list[dict]) -> dict:
+    """Aggregate several deployment runs that differ only in the slot permutation.
+
+    Turns D047's schedule sensitivity into an error bar: every run measures every method, so
+    the spread across runs is what the environment-slot assignment is worth, and the pairwise
+    gaps can be computed *within* each run before being aggregated -- which is the right order,
+    because a gap between two methods measured on the same slots is the quantity that matters.
+
+    Args:
+        reports: Two or more reports from ``scripts/evaluate_closed_loop.py``, over the same
+            hidden states and checkpoints, with different ``slot_permutation`` values.
+
+    Returns:
+        ``methods``, ``gaps``, ``probe_displacement``, ``ordering`` and ``permutations``.
+
+    Raises:
+        ValueError: If fewer than two reports are given, if they do not cover the same hidden
+            states, or if a permutation appears twice -- each of which would make the spread
+            mean something other than what it claims.
+    """
+    if len(reports) < 2:
+        raise ValueError(f"need at least two reports to measure a spread, got {len(reports)}.")
+
+    populations = {frozenset(_probe_by_xi(report)) for report in reports}
+    if len(populations) != 1:
+        raise ValueError("the reports cover different hidden states; the spread would be meaningless.")
+
+    labels = [report.get("slot_permutation", index) for index, report in enumerate(reports)]
+    if len(set(labels)) != len(labels):
+        raise ValueError(f"duplicate slot permutations {labels}; each run must be a distinct one.")
+
+    names = sorted(set.intersection(*(set(report["methods"]) for report in reports)))
+    rate = {
+        name: [report["methods"][name]["reach_success_rate"] * 100.0 for report in reports]
+        for name in names
+    }
+
+    methods = {
+        name: {
+            "reach_success_pp": _spread(rate[name]),
+            "median_position_error_mm": _spread(
+                [report["methods"][name]["median_position_error_mm"] for report in reports]
+            ),
+        }
+        for name in names
+    }
+
+    # Within-run differences, then aggregated. Differencing the aggregates instead would hide
+    # that a gap can be stable while both of its terms move together.
+    gaps = {}
+    for label, better, worse in REPORTED_GAPS:
+        if better not in rate or worse not in rate:
+            continue
+        gaps[label] = _spread(
+            [high - low for high, low in zip(rate[better], rate[worse], strict=True)]
+        )
+
+    ranked = [name for name in EXPECTED_ORDERING if name in rate]
+    per_run = [
+        all(
+            rate[ranked[position]][index] > rate[ranked[position + 1]][index]
+            for position in range(len(ranked) - 1)
+        )
+        for index in range(len(reports))
+    ]
+
+    # How much the *same* drawer's probe moved between permutations, pooled over every pair.
+    probe = [_probe_by_xi(report) for report in reports]
+    shared = sorted(probe[0])
+    pairwise = [
+        abs(probe[left][key] - probe[right][key]) * 1000.0
+        for left in range(len(probe))
+        for right in range(left + 1, len(probe))
+        for key in shared
+    ]
+
+    return {
+        "permutations": labels,
+        "methods": methods,
+        "gaps": gaps,
+        "probe_displacement": {
+            "pairs": len(probe) * (len(probe) - 1) // 2,
+            "median_mm": float(np.median(pairwise)),
+            "p90_mm": float(np.percentile(pairwise, 90)),
+            "max_mm": float(np.max(pairwise)),
+        },
+        "ordering": {
+            "claim": list(ranked),
+            "held_per_permutation": per_run,
+            "held_everywhere": all(per_run),
+        },
     }

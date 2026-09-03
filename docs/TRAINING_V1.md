@@ -93,12 +93,18 @@ so this is near the ceiling the setting allows.
 post-probe state — the only difference is that one predicts a success landscape and the other
 regresses a force. Two things make this the most interesting comparison:
 
-* the ordering is **strict across seeds**: worst ACE seed 89.8 % > best GRU seed 87.5 %;
-* the GRU is **3.6× more variable** (sd 5.1 vs 1.4, range 12.5 pp vs 3.4 pp). Predicting one
-  number from a probe is a less stable thing to learn than predicting whether a given force will
-  work.
+* it survives every environment-slot permutation tested — 5 of 5, gap +6.8 to +15.9 pp (§6);
+* the GRU is **~3× more variable** (per-cell sd 6.6 against ACE's 2.3 over 5 permutations × 3
+  seeds). Predicting one number from a probe is a less stable thing to learn than predicting
+  whether a given force will work.
 
 A single seed would have put this gap anywhere between 2.3 pp and 18.2 pp. It needed three.
+
+**One claim corrected.** An earlier version of this document said the ordering was "strict across
+seeds", on the evidence that in the reported run the worst ACE seed (89.8 %) beat the best GRU
+seed (87.5 %). That holds for that run and does **not** generalise: over 5 slot permutations × 3
+seeds the distributions overlap, ACE's worst cell being 89.8 % and the GRU's best 92.0 %. The
+accurate statement is in §6.
 
 ## 5. How precisely to read these numbers
 
@@ -114,7 +120,58 @@ snapshot, so every method is answered on identical evidence — and every number
 a single run in which all six methods were measured. It does mean a 1–2 pp difference between
 two methods is not a result.
 
-## 6. What this does and does not establish
+## 6. Robustness to the environment-slot permutation
+
+D047 established that absolute rates depend on which of the 32 parallel environment slots each
+drawer occupies, and that no warm-up removes it. Rather than leave that as a caveat it is
+measured: five deterministic slot permutations, each evaluating **all** methods and all three
+seeds in one run. Permutation 0 is the identity and reproduces §3 exactly, which is the
+correctness check. Report: `outputs/logs/slot_robustness.json`.
+
+The same drawer's probe displacement moves by a median of **0.154 mm** between permutations
+(p90 0.54, max 6.64) against a 6.7 mm median — about 2 %.
+
+| method | reach mean ± sd | min–max | median \|d−goal\| |
+|---|---|---|---|
+| teacher (privileged) | **98.5 ± 0.9 %** | 97.0–99.2 | 1.71 ± 0.14 mm |
+| **ACE + PSP** | **93.6 ± 1.5 %** | 91.3–95.8 | 2.69 ± 0.28 mm |
+| D GRU (history) | 81.9 ± 2.5 % | 78.4–86.0 | 4.55 ± 0.19 mm |
+| B ridge (summary) | 61.4 ± 3.6 % | 55.7–65.9 | 6.18 ± 0.52 mm |
+| A linear (1 feature) | 58.6 ± 4.2 % | 54.5–64.8 | 6.48 ± 0.51 mm |
+| fixed force | 9.1 ± 1.4 % | 8.0–11.4 | 31.33 ± 0.85 mm |
+
+The spread grows as the method gets weaker — 0.9 pp for the teacher, 4.2 pp for the
+single-feature fit. A method that picks forces near the middle of the success band is insensitive
+to a 2 % probe change; one that picks near the edge is not.
+
+**The gaps, differenced within each run and then aggregated:**
+
+| gap | mean ± sd | min–max |
+|---|---|---|
+| ACE + PSP − D GRU | **+11.7 ± 3.4 pp** | +6.8 to +15.9 |
+| ACE + PSP − B ridge | **+32.3 ± 3.2 pp** | +29.2 to +38.3 |
+| teacher − ACE + PSP | +4.9 ± 1.1 pp | +3.4 to +6.8 |
+
+**`teacher > ACE + PSP > D GRU > ridge` holds in 5 of 5 permutations.**
+
+**How strong is ACE over the direct GRU in the worst case?** Three answers at three levels of
+strictness, all worth stating:
+
+* seed-averaged, per permutation: ACE ahead in **5 of 5**, worst margin **+6.8 pp**;
+* paired by permutation *and* seed: ACE ahead in **14 of 15** cells, the exception being
+  permutation 2 seed 2 at −1.1 pp;
+* worst ACE seed against best GRU seed *within* a permutation: separated in **4 of 5**;
+  permutation 2 is the exception (ACE 90.9 % against GRU 92.0 %).
+
+So the mean gap is large and the ordering is robust, but the two are not disjoint at the level of
+one seed on one schedule — and that single overlap pits the GRU's best seed against ACE's
+weakest, which is exactly where the GRU's threefold variance shows.
+
+**The reported table in §3 is the conservative one.** Permutation 0 sits at the bottom of ACE's
+range (91.3 % against a 93.6 % mean) and gives the narrowest ACE−GRU gap of the five (+9.9 pp
+against a +11.7 pp mean). Nothing was selected for; it is simply the sorted order.
+
+## 7. What this does and does not establish
 
 Established: at Setting V1, adaptation from a single standardised probe recovers most of the
 privileged upper bound, and the landscape formulation beats direct force regression both in mean
@@ -124,7 +181,7 @@ Not established, and out of scope here: any cross-goal generalisation (`d_goal` 
 constant, so their place in the input is untested), placement rather than reaching, and anything
 about real hardware.
 
-## 7. Reproducing
+## 8. Reproducing
 
 ```bash
 python scripts/train_models.py --dataset outputs/dataset_v1 --seeds 0 1 2 \
@@ -132,4 +189,12 @@ python scripts/train_models.py --dataset outputs/dataset_v1 --seeds 0 1 2 \
 python scripts/evaluate_closed_loop.py --headless --run outputs/training/v1 \
     --dataset outputs/dataset_v1 --seeds 0 1 2 --num-xi 0 --num_envs 32
 python scripts/plot_phase11.py --dataset outputs/dataset_v1 --run outputs/training/v1
+
+# the slot-permutation robustness report (section 6)
+for k in 0 1 2 3 4; do
+  python scripts/evaluate_closed_loop.py --headless --run outputs/training/v1 \
+      --dataset outputs/dataset_v1 --seeds 0 1 2 --num-xi 0 --slot-permutation $k \
+      --output outputs/logs/slot_perm$k.json
+done
+python scripts/report_slot_robustness.py outputs/logs/slot_perm*.json
 ```

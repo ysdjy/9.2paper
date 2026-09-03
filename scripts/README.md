@@ -34,6 +34,7 @@ runnable: if a frozen parameter is ever questioned, this is where the answer was
 | `calibrate_fixed_probe.py` | **Setting V1's probe** (3.5 N, 0.3 s) and the `T_goal` comparison | `docs/PROBE_V1.md` |
 | `calibrate_probe.py` | the Phase 9 ramp probe's parameters (superseded by the above) | `docs/EXPERIMENT_SPACE.md` |
 | `validate_branching.py` | whether one probe may answer many candidates | `docs/COUNTERFACTUAL_BRANCHING.md` |
+| `report_slot_robustness.py` | how much the environment-slot assignment is worth, as an error bar | `docs/DECISIONS.md` D047, `docs/TRAINING_V1.md` §6 |
 | `validate_sequential_protocol.py` | the inference gap, and that the probe's state survives | `docs/SEQUENTIAL_PROTOCOL.md` |
 | `refine_task_space.py` | the Phase 10 task selection | `docs/EXPERIMENT_SPACE.md` |
 | `build_sequential_oracle.py` | the 1-D Oracle both datasets are judged against | `docs/ORACLE_LANDSCAPE.md` |

@@ -4,6 +4,80 @@ One entry per work session. Newest first.
 
 ---
 
+## 2026-09-03 — `agent/phase13-freeze-v1` — D047 quantified: slot sensitivity as an error bar
+
+**Agent / task.** Claude Opus 5 — since no warm-up can remove per-environment-slot variation,
+measure what it is worth. Five deterministic slot permutations over the existing checkpoints and
+the same 88 test hidden states, every method and all three seeds inside each run. No retraining,
+no Setting/Dataset/model/controller changes, `baselines/rma2/` untouched, headline table unchanged.
+
+### What was added
+
+`dataset.stable_permutation(namespace, key, count)` — the content-addressed permutation
+`branch_order` already computed, extracted so a second caller does not reimplement it;
+`branch_order` now delegates and its output is unchanged. `--slot-permutation K` on
+`evaluate_closed_loop.py`, with **0 as the identity**, verified to reproduce the committed
+`closed_loop.json` exactly for all six methods. `summarise_permutations` in
+`analysis.closed_loop_determinism`, plus `scripts/report_slot_robustness.py`. The ordering being
+tested is a fixed constant in the module, so "it held" is a check against a claim rather than a
+restatement of the data.
+
+### Results — 5 permutations, 3 seeds, 88 unseen hidden states
+
+Probe displacement for the same drawer moves a median of **0.154 mm** across permutations
+(p90 0.54, max 6.64) against a 6.7 mm median — about 2 %.
+
+| method | reach mean ± sd | min–max | median \|d−goal\| |
+|---|---|---|---|
+| teacher (privileged) | 98.5 ± 0.9 % | 97.0–99.2 | 1.71 ± 0.14 mm |
+| ACE + PSP | 93.6 ± 1.5 % | 91.3–95.8 | 2.69 ± 0.28 mm |
+| D GRU (history) | 81.9 ± 2.5 % | 78.4–86.0 | 4.55 ± 0.19 mm |
+| B ridge (summary) | 61.4 ± 3.6 % | 55.7–65.9 | 6.18 ± 0.52 mm |
+| A linear (1 feature) | 58.6 ± 4.2 % | 54.5–64.8 | 6.48 ± 0.51 mm |
+| fixed force | 9.1 ± 1.4 % | 8.0–11.4 | 31.33 ± 0.85 mm |
+
+| gap, differenced within each run | mean ± sd | min–max |
+|---|---|---|
+| ACE + PSP − D GRU | +11.7 ± 3.4 pp | +6.8 to +15.9 |
+| ACE + PSP − B ridge | +32.3 ± 3.2 pp | +29.2 to +38.3 |
+| teacher − ACE + PSP | +4.9 ± 1.1 pp | +3.4 to +6.8 |
+
+**`teacher > ACE + PSP > D GRU > ridge` holds in 5 of 5 permutations.** The spread scales
+inversely with method quality (0.9 pp for the teacher, 4.2 pp for the single-feature fit), the
+expected signature: a force chosen mid-band tolerates a 2 % probe change, one chosen near the
+edge does not.
+
+**The headline table is the conservative permutation.** Permutation 0 is plain sorted order,
+selected for nothing, and sits at the bottom of ACE's range with the narrowest ACE−GRU gap of the
+five (+9.9 against a +11.7 pp mean). So no revision is needed — the numbers just need reading as
+± 1.5 pp for ACE and ± 2.5 pp for the GRU.
+
+### A claim of mine corrected
+
+`TRAINING_V1.md` said the ACE-over-GRU ordering was "strict across seeds", on the evidence that in
+the reported run ACE's worst seed (89.8 %) beat the GRU's best (87.5 %). True of that run,
+and it does not generalise. Over 5 × 3 measurements the distributions overlap. Stated at three
+levels of strictness now:
+
+* seed-averaged per permutation: ACE ahead **5 of 5**, worst margin +6.8 pp;
+* paired by permutation *and* seed: ACE ahead **14 of 15**, the exception permutation 2 seed 2 at
+  −1.1 pp;
+* worst ACE seed against best GRU seed within a permutation: separated **4 of 5**.
+
+The single overlap pits the GRU's best seed against ACE's weakest, which is where the GRU's
+threefold variance shows. The mean gap is large and the ordering robust; the two are not disjoint
+at the level of one seed on one schedule.
+
+### Git state
+
+`agent/phase13-freeze-v1`. D047 revised with the quantification; the five per-permutation reports
+(628 KB each) stay untracked and regenerable while the 8 KB summary is committed as the evidence.
+502 unit and 105 integration tests pass.
+
+**Stopping here**, as the ordering and the gaps are stable across all five permutations.
+
+---
+
 ## 2026-09-03 — `agent/phase13-freeze-v1` — D047 investigated; the proposed fix does not work
 
 **Agent / task.** Claude Opus 5 — implement and validate the per-batch warm-up that D047

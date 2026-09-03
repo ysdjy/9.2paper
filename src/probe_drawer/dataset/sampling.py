@@ -44,6 +44,7 @@ __all__ = [
     "representative_hidden_states",
     "sample_hidden_states",
     "scale_unit_box",
+    "stable_permutation",
 ]
 
 
@@ -291,6 +292,31 @@ def candidate_forces(state_id: str, cfg: ForceSamplerCfg | None = None) -> tuple
     return tuple(forces)
 
 
+def stable_permutation(namespace: str, key: object, count: int) -> tuple[int, ...]:
+    """A deterministic permutation of ``range(count)``, derived from ``namespace`` and ``key``.
+
+    Content-addressed rather than drawn from a seeded PRNG, so the permutation depends only on
+    its arguments and not on how many times anything has been called before. Two processes, two
+    machines and two orderings of the surrounding code all produce the same answer.
+
+    ``namespace`` separates unrelated uses that might otherwise share a key: a probe id and a
+    permutation index could collide as strings, and two different shuffles keyed the same way
+    would be silently correlated.
+
+    Args:
+        namespace: What the permutation is for, e.g. ``"branch-order"``.
+        key: The thing being permuted for -- a probe id, a permutation index.
+        count: Length of the permutation. Must be >= 1.
+
+    Raises:
+        ValueError: If ``count < 1``.
+    """
+    if count < 1:
+        raise ValueError(f"count must be >= 1, got {count}.")
+    draws = _unit_draws(count, namespace, key)
+    return tuple(index for _, index in sorted(zip(draws, range(count), strict=True)))
+
+
 def branch_order(probe: str, count: int) -> tuple[int, ...]:
     """A deterministic permutation of ``range(count)``, for one probe.
 
@@ -302,10 +328,7 @@ def branch_order(probe: str, count: int) -> tuple[int, ...]:
     Keyed on the probe rather than the hidden state, so the three repeats of one hidden state
     use three different orders and the drift cannot align with force even across repeats.
     """
-    if count < 1:
-        raise ValueError(f"count must be >= 1, got {count}.")
-    draws = _unit_draws(count, "branch-order", probe)
-    return tuple(index for _, index in sorted(zip(draws, range(count), strict=True)))
+    return stable_permutation("branch-order", probe, count)
 
 
 @dataclass

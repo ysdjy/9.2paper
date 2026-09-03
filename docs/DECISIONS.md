@@ -1108,14 +1108,50 @@ comes from a single run measuring all six methods, and the observed schedule sen
 (≤ 5.7 pp) is small against the gaps being claimed (32 pp over the best scalar baseline, 10 pp
 over the direct GRU). A 1–2 pp difference between two methods is not a result.
 
-**What would actually fix it, not attempted here.** Per-environment-slot variation in a GPU
-physics solver is not something a warm-up can remove — it is the same setup evaluated in a
-different position in the batch. The honest options are to *measure* it rather than eliminate it:
-deploy over several slot permutations and report the mean with a spread, which turns the
-sensitivity into an error bar at a cost of about 1.5 minutes per permutation. That changes the
-headline table, so it is a decision for the user rather than a patch.
+**Not fixable by a warm-up, so it is measured instead — and it has been.** Per-environment-slot
+variation in a GPU physics solver is the same setup evaluated in a different position in the
+batch; nothing in the harness can remove it. So the sensitivity was turned into an error bar:
+five deterministic slot permutations (`--slot-permutation`, content-addressed via
+`dataset.stable_permutation`), each evaluating every method and all three seeds in one run.
+Permutation 0 is the identity and reproduces the committed table exactly, which is the
+correctness check. Report: `outputs/logs/slot_robustness.json`, `scripts/report_slot_robustness.py`.
 
-**Date.** 2026-09-03 (revised the same day, after the fix failed validation)
+Probe displacement for the same drawer moves a median of 0.154 mm across permutations (p90 0.54,
+max 6.64) against a 6.7 mm median — about 2 %, as measured above.
+
+| method | reach mean ± sd | min–max |
+|---|---|---|
+| teacher (privileged) | 98.5 ± 0.9 % | 97.0–99.2 |
+| ACE + PSP | 93.6 ± 1.5 % | 91.3–95.8 |
+| D GRU (history) | 81.9 ± 2.5 % | 78.4–86.0 |
+| B ridge (summary) | 61.4 ± 3.6 % | 55.7–65.9 |
+| A linear (1 feature) | 58.6 ± 4.2 % | 54.5–64.8 |
+| fixed force | 9.1 ± 1.4 % | 8.0–11.4 |
+
+| gap, differenced within each run | mean ± sd | min–max |
+|---|---|---|
+| ACE + PSP − D GRU | +11.7 ± 3.4 pp | +6.8 to +15.9 |
+| ACE + PSP − B ridge | +32.3 ± 3.2 pp | +29.2 to +38.3 |
+| teacher − ACE + PSP | +4.9 ± 1.1 pp | +3.4 to +6.8 |
+
+`teacher > ACE + PSP > D GRU > ridge` holds in **5 of 5** permutations. The spread scales
+inversely with method quality (0.9 pp for the teacher, 4.2 pp for the single-feature fit), which
+is the expected signature: a force chosen near the middle of the success band tolerates a 2 %
+probe change and one chosen near the edge does not.
+
+**The headline table is the conservative permutation.** Permutation 0 — plain sorted order, not
+selected for anything — sits at the bottom of ACE's range and gives the narrowest ACE−GRU gap of
+the five. So D047 does not need the reported numbers revised; it needs them read as
+`± 1.5 pp` for ACE and `± 2.5 pp` for the GRU, which
+`docs/TRAINING_V1.md` §6 now says.
+
+**One earlier claim was too strong and is corrected there.** With a single permutation it looked
+as though ACE beat the direct GRU strictly across seeds. Over 5 × 3 measurements the
+distributions overlap: ACE leads in 14 of 15 paired cells and in 5 of 5 seed-averaged
+permutations, but only 4 of 5 permutations separate ACE's worst seed from the GRU's best.
+
+**Date.** 2026-09-03 (revised the same day, after the fix failed validation; quantified the
+same day)
 
 ---
 

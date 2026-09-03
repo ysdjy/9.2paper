@@ -81,6 +81,17 @@ parser.add_argument(
         "variation, which 'reversed' alone confounds (docs/DECISIONS.md D047)."
     ),
 )
+parser.add_argument(
+    "--slot-permutation",
+    type=int,
+    default=0,
+    help=(
+        "Deterministically permute which environment slot each test drawer occupies. 0 is the "
+        "identity and reproduces the reported table; any other integer selects a different, "
+        "content-addressed permutation. Used to turn D047's slot sensitivity into an error bar "
+        "instead of a caveat -- see scripts/report_slot_robustness.py."
+    ),
+)
 parser.add_argument("--output", type=str, default=None)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
@@ -101,7 +112,7 @@ import torch  # noqa: E402
 
 from probe_drawer.analysis.probe_features import extract_features  # noqa: E402
 from probe_drawer.controllers import ExecutionControllerCfg  # noqa: E402
-from probe_drawer.dataset import DatasetStore, SplitCfg, split_samples  # noqa: E402
+from probe_drawer.dataset import DatasetStore, SplitCfg, split_samples, stable_permutation  # noqa: E402
 from probe_drawer.envs import DynamicsParameters, DynamicsRandomizer  # noqa: E402
 from probe_drawer.evaluation import (  # noqa: E402
     OperatingRegionCfg,
@@ -224,13 +235,19 @@ def main() -> None:
             for start in range(0, len(test_ids), width)
             for state_id in reversed(test_ids[start : start + width])
         ]
+    if args_cli.slot_permutation:
+        # Content-addressed, so permutation k is the same list on any machine and in any
+        # process -- a seeded PRNG would depend on how much had been drawn before it.
+        order = stable_permutation("slot-permutation", args_cli.slot_permutation, len(test_ids))
+        test_ids = [test_ids[index] for index in order]
     print("\n" + "=" * 78)
     print(f"[deploy] run     : {run_root}")
     print(f"[deploy] dataset : {dataset_root} ({store.manifest.get('dataset_version')})")
     print(f"[deploy] test xi : {len(test_ids)} hidden states, never seen in any split")
     print(f"[deploy] seeds   : {list(args_cli.seeds)}")
-    print(f"[deploy] batching: {args_cli.batch_order} order, "
-          f"warm-up {'system default' if args_cli.warmup_steps is None else args_cli.warmup_steps} steps")
+    print(f"[deploy] batching: {args_cli.batch_order} order, slot permutation "
+          f"{args_cli.slot_permutation}, warm-up "
+          f"{'system default' if args_cli.warmup_steps is None else args_cli.warmup_steps} steps")
 
     # --- the models, one set per seed ---
     def load(build, name: str, seed: int):
@@ -427,6 +444,7 @@ def main() -> None:
             "setting": manifest.get("setting", "v0"),
             "batch_order": args_cli.batch_order,
             "warmup_steps": args_cli.warmup_steps,
+            "slot_permutation": args_cli.slot_permutation,
             "git_commit": git_commit(),
             "environment": collect_environment_info().as_dict(),
             "rows": rows,

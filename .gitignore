@@ -25,6 +25,10 @@ outputs/videos/**
 !outputs/videos/diagnostics/
 !outputs/videos/diagnostics/index.csv
 !outputs/videos/diagnostics/manifest.json
+# The slot-permutation summary is the evidence behind D047's error bars and is 4 KB. The five
+# per-permutation deployment reports it aggregates are 640 KB each and regenerable, so they
+# stay out.
+!outputs/logs/slot_robustness.json
 
 # Large experiment snapshots
 backups/**

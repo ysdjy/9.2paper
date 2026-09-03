@@ -15,6 +15,7 @@ from probe_drawer.analysis.closed_loop_determinism import (
     MAX_PROBE_P90_MM,
     MAX_REACH_DELTA_PP,
     compare_batch_orders,
+    summarise_permutations,
 )
 
 METHODS = ("fixed force", "A linear (1 feature)", "B ridge (summary)", "ACE + PSP")
@@ -113,3 +114,111 @@ class TestItRefusesAMeaninglessComparison:
         forces = compare_batch_orders(first, second)["forces"]
         assert "ACE + PSP" not in forces
         assert set(forces) == {"fixed force", "A linear (1 feature)", "B ridge (summary)"}
+
+
+def permutation_report(label: int, rates: dict[str, float], probe_mm: float = 6.7) -> dict:
+    """A deployment report for one slot permutation, with the fields the summary reads."""
+    ids = [f"xi{index:03d}" for index in range(20)]
+    rows = [
+        {
+            "method": name,
+            "seed": None,
+            "xi_id": xi_id,
+            "probe_displacement": probe_mm / 1000.0,
+            "chosen_force": 3.0,
+        }
+        for name in rates
+        for xi_id in ids
+    ]
+    return {
+        "slot_permutation": label,
+        "num_test_states": len(ids),
+        "rows": rows,
+        "methods": {
+            name: {
+                "reach_success_rate": rate,
+                "median_position_error_mm": 2.0,
+                "per_seed": {},
+            }
+            for name, rate in rates.items()
+        },
+    }
+
+
+ORDERED = ("teacher (privileged)", "ACE + PSP", "D GRU (history)", "B ridge (summary)")
+
+
+class TestSummarisingPermutations:
+    def test_it_reports_mean_sd_and_the_observed_range(self) -> None:
+        reports = [
+            permutation_report(index, dict(zip(ORDERED, rates, strict=True)))
+            for index, rates in enumerate([(0.98, 0.90, 0.80, 0.60), (0.98, 0.94, 0.84, 0.64)])
+        ]
+        ace = summarise_permutations(reports)["methods"]["ACE + PSP"]["reach_success_pp"]
+        assert ace["mean"] == pytest.approx(92.0)
+        assert ace["min"] == pytest.approx(90.0)
+        assert ace["max"] == pytest.approx(94.0)
+        assert ace["sd"] == pytest.approx(2.0)
+
+    def test_gaps_are_differenced_within_each_run_before_aggregating(self) -> None:
+        """The case that matters: both terms move together, so the gap is stable even though
+        each method's own spread is large. Differencing the aggregates would show the same
+        mean but would hide that the *gap* never varied."""
+        reports = [
+            permutation_report(index, dict(zip(ORDERED, rates, strict=True)))
+            for index, rates in enumerate([(0.99, 0.85, 0.75, 0.55), (0.99, 0.95, 0.85, 0.65)])
+        ]
+        summary = summarise_permutations(reports)
+        assert summary["methods"]["ACE + PSP"]["reach_success_pp"]["sd"] == pytest.approx(5.0)
+        gap = summary["gaps"]["ACE + PSP - D GRU"]
+        assert gap["mean"] == pytest.approx(10.0)
+        assert gap["sd"] == pytest.approx(0.0), "the gap is identical in both runs"
+
+    def test_the_ordering_claim_is_fixed_not_inferred(self) -> None:
+        """Otherwise "the ordering held" would just restate whatever the data happened to be."""
+        reports = [
+            permutation_report(index, dict(zip(ORDERED, rates, strict=True)))
+            for index, rates in enumerate([(0.98, 0.90, 0.80, 0.60), (0.98, 0.90, 0.80, 0.60)])
+        ]
+        ordering = summarise_permutations(reports)["ordering"]
+        assert ordering["claim"] == list(ORDERED)
+        assert ordering["held_everywhere"]
+
+    def test_one_permutation_breaking_the_ordering_is_reported(self) -> None:
+        reports = [
+            permutation_report(index, dict(zip(ORDERED, rates, strict=True)))
+            for index, rates in enumerate([(0.98, 0.90, 0.80, 0.60), (0.98, 0.78, 0.82, 0.60)])
+        ]
+        ordering = summarise_permutations(reports)["ordering"]
+        assert ordering["held_per_permutation"] == [True, False]
+        assert not ordering["held_everywhere"]
+
+    def test_probe_displacement_is_pooled_over_every_pair(self) -> None:
+        reports = [
+            permutation_report(0, dict(zip(ORDERED, (0.98, 0.90, 0.80, 0.60), strict=True)), probe_mm=6.7),
+            permutation_report(1, dict(zip(ORDERED, (0.98, 0.90, 0.80, 0.60), strict=True)), probe_mm=6.9),
+            permutation_report(2, dict(zip(ORDERED, (0.98, 0.90, 0.80, 0.60), strict=True)), probe_mm=6.8),
+        ]
+        probe = summarise_permutations(reports)["probe_displacement"]
+        assert probe["pairs"] == 3
+        assert probe["max_mm"] == pytest.approx(0.2, abs=1e-6)
+
+
+class TestSummaryRefusesAMeaninglessSpread:
+    def test_a_single_report_is_not_a_spread(self) -> None:
+        report = permutation_report(0, dict(zip(ORDERED, (0.98, 0.90, 0.80, 0.60), strict=True)))
+        with pytest.raises(ValueError, match="at least two reports"):
+            summarise_permutations([report])
+
+    def test_the_same_permutation_twice_is_rejected(self) -> None:
+        """Two runs of one permutation measure repeatability, not slot sensitivity."""
+        rates = dict(zip(ORDERED, (0.98, 0.90, 0.80, 0.60), strict=True))
+        with pytest.raises(ValueError, match="duplicate slot permutations"):
+            summarise_permutations([permutation_report(1, rates), permutation_report(1, rates)])
+
+    def test_different_populations_are_rejected(self) -> None:
+        rates = dict(zip(ORDERED, (0.98, 0.90, 0.80, 0.60), strict=True))
+        first, second = permutation_report(0, rates), permutation_report(1, rates)
+        second["rows"] = [row for row in second["rows"] if row["xi_id"] != "xi000"]
+        with pytest.raises(ValueError, match="different hidden states"):
+            summarise_permutations([first, second])
