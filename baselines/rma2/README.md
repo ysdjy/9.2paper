@@ -34,8 +34,8 @@ is in [docs/RMA2_TO_DRAWER_MAPPING.md](docs/RMA2_TO_DRAWER_MAPPING.md) §4 and �
 [x] adaptation_premise: is the adaptation problem well posed? (offline audit, 12 tests)
 [x] Setting V1 design audit                    (docs/SETTING_V1_DESIGN_AUDIT.md)
 [x] Stage A: privileged direct adaptation      (xi -> z_priv -> ParameterHead -> F_peak*)
-[ ] Stage B: latent distillation               (tau_p -> z_probe ~= z_priv)
-[ ] Deployment + evaluation on the shared protocol
+[x] Stage B: latent distillation               (tau_p -> z_probe ~= z_priv)
+[x] Deployment + evaluation on the shared protocol (in-distribution)
 ```
 
 **§2 below is obsolete and has not yet been rewritten.** Its blocker -- that a
@@ -44,9 +44,21 @@ V1 refroze to 1-D, D044) and empirically refuted (the landscape model wins in 1-
 See [docs/SETTING_V1_DESIGN_AUDIT.md](docs/SETTING_V1_DESIGN_AUDIT.md) §0 for what replaces
 it, and §4 there for the list of stale text in this file and in the mapping.
 
-**Stage A is done**: it ties the privileged teacher at 95.8 % physical reach success, which
-says the bottleneck is the probe and not the point output.
-[docs/STAGE_A_RESULTS.md](docs/STAGE_A_RESULTS.md).
+**Stage A and Stage B are done**, and together they decompose the paper's headline gap.
+Deployed in one session on 88 unseen drawers with three seeds:
+
+| method | reach |
+|---|---|
+| Stage A, `xi` -> point | 97.3 % |
+| teacher, `xi` -> landscape | 97.0 % |
+| ACE + PSP, probe -> landscape | 93.9 % |
+| **Stage B, probe -> latent -> point** | **92.0 %** |
+| Direct GRU, probe -> point | 79.2 % |
+
+So of ACE + PSP's +14.8 pp over Direct GRU, **latent distillation accounts for +12.9 pp (87 %)
+and the success landscape for +1.9 pp (13 %)** -- and at the privileged level the landscape is
+worth nothing at all (-0.4 pp). [docs/STAGE_A_RESULTS.md](docs/STAGE_A_RESULTS.md),
+[docs/STAGE_B_RESULTS.md](docs/STAGE_B_RESULTS.md).
 
 ## 2. What blocks Stage A, and why it is not this baseline's to unblock
 

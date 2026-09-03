@@ -37,7 +37,16 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-__all__ = ["XI_DIMENSIONS", "ParameterHead", "PrivilegedEncoder", "StageAModel", "build_stage_a", "xi_moments"]
+__all__ = [
+    "XI_DIMENSIONS",
+    "ParameterHead",
+    "PrivilegedEncoder",
+    "StageAModel",
+    "StageBModel",
+    "build_stage_a",
+    "build_stage_b",
+    "xi_moments",
+]
 
 #: Order of the hidden state's four entries, matching ``ProbeBatch.xi``.
 #:
@@ -216,3 +225,104 @@ def build_stage_a(cfg, force_range: tuple[float, float], xi_ranges: dict) -> Sta
         xi_std=std,
         dropout=cfg.dropout,
     )
+
+
+class StageBModel(nn.Module):
+    r"""Stage B: ``probe_history -> z_probe -> F_peak*``, with the head frozen.
+
+    RMA²'s second stage, ported. The adapter learns to reproduce the privileged latent from
+    the probe alone, and **nothing else is trained**: the privileged encoder and the parameter
+    head come from Stage A and are frozen exactly as RMA² freezes its policy
+    (``algo/adaptation.py:47-53``). So the deployed force is Stage A's own head reading an
+    estimated latent instead of the true one, which is what makes the Stage A minus Stage B
+    difference a clean measurement of what the probe fails to recover.
+
+    The encoder is the main method's :class:`AdaptationContextEncoder` -- the same GRU class
+    ACE uses and the same one ``GruForceRegressor`` uses -- so all three probe-based methods
+    share an architecture and the comparison is about mechanism rather than about which
+    network was chosen (``docs/SETTING_V1_DESIGN_AUDIT.md`` §1, decision (a)).
+
+    ``xi`` is never read at deployment. It reaches this class only through
+    :attr:`privileged`, which exists to produce the distillation target during training and is
+    frozen throughout; :meth:`forward` has no path to it.
+    """
+
+    def __init__(self, adapter: nn.Module, privileged: PrivilegedEncoder, head: ParameterHead) -> None:
+        super().__init__()
+        self.adapter = adapter
+        self.privileged = privileged
+        self.head = head
+
+    def freeze_all_but_adapter(self) -> list[str]:
+        """Freeze the privileged encoder and the head, and report what was frozen.
+
+        Implemented as the ``requires_grad = False`` sweep over named parameters that the
+        official code uses, and it **returns** the names rather than doing it silently, so a
+        test can assert the freeze rather than trust it. A Stage B that quietly trained its
+        head would be Stage C wearing Stage B's name.
+        """
+        frozen = []
+        for name, parameter in self.named_parameters():
+            if not name.startswith("adapter."):
+                parameter.requires_grad_(False)
+                frozen.append(name)
+        return frozen
+
+    def latents(self, batch) -> tuple[torch.Tensor, torch.Tensor]:
+        r"""``(z_probe, z_priv)``, the second **detached** -- RMA²'s ``stopgrad``.
+
+        Detaching is what keeps the target fixed: without it the privileged encoder would
+        drift toward whatever the adapter finds easy to produce, and the distillation would be
+        measuring a moving target.
+        """
+        z_probe = self.adapter(batch.history, batch.lengths)
+        with torch.no_grad():
+            z_priv = self.privileged(self.normalise_xi(batch.xi))
+        return z_probe, z_priv.detach()
+
+    def normalise_xi(self, xi: torch.Tensor) -> torch.Tensor:
+        """Reuses Stage A's stored moments, which travel with the frozen encoder."""
+        return (xi - self._xi_mean) / self._xi_std
+
+    def context(self, batch) -> torch.Tensor:
+        return self.adapter(batch.history, batch.lengths)
+
+    def forward(self, batch) -> torch.Tensor:
+        """``(batch,)`` predicted ``F_peak``. Reads the probe, never ``xi``."""
+        return self.head(self.context(batch), batch.post_probe, batch.task_condition)
+
+
+def build_stage_b(stage_a: StageAModel, num_channels: int, psp_cfg) -> StageBModel:
+    """Assemble Stage B around a **trained** Stage A.
+
+    Args:
+        stage_a: A trained :class:`StageAModel`. Its encoder and head are taken by reference
+            and frozen; nothing about it is re-initialised.
+        num_channels: Probe history channels -- 7 under Setting V1.
+        psp_cfg: The main method's ``PspCfg``, so the adapter is literally the same class and
+            width ACE's encoder is.
+
+    Raises:
+        ValueError: If the main method's latent width and Stage A's disagree, which would make
+            the distillation target the wrong shape and is worth catching here rather than as
+            a matmul error mid-epoch.
+    """
+    from probe_drawer.models.psp import AdaptationContextEncoder  # noqa: PLC0415
+
+    latent = stage_a.head.net[0][0].in_features - 4
+    if psp_cfg.z_dim != latent:
+        raise ValueError(
+            f"the adapter would emit {psp_cfg.z_dim} dimensions but Stage A's head expects "
+            f"{latent}; the latent widths must match."
+        )
+    model = StageBModel(
+        adapter=AdaptationContextEncoder(num_channels, psp_cfg),
+        privileged=stage_a.encoder,
+        head=stage_a.head,
+    )
+    # The normalisation buffers belong to the frozen privileged branch, so they are carried
+    # over rather than recomputed -- a Stage B normalising xi differently from the Stage A it
+    # distils from would be chasing a target its teacher never produced.
+    model.register_buffer("_xi_mean", stage_a._xi_mean.clone())
+    model.register_buffer("_xi_std", stage_a._xi_std.clone())
+    return model

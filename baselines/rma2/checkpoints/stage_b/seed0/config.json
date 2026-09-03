@@ -1,0 +1,77 @@
+{
+  "stage_b": {
+    "epochs": 40,
+    "batch_size": 256,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0,
+    "seed": 0,
+    "device": "cuda"
+  },
+  "stage_a": {
+    "latent_dim": 16,
+    "encoder_units": [
+      128,
+      128
+    ],
+    "head_units": [
+      128,
+      128,
+      64
+    ],
+    "dropout": 0.0,
+    "epochs": 40,
+    "batch_size": 256,
+    "learning_rate": 0.003,
+    "weight_decay": 0.0001,
+    "seed": 0,
+    "device": "cpu"
+  },
+  "psp": {
+    "z_dim": 16,
+    "hidden": 96,
+    "gru_hidden": 64,
+    "gru_layers": 1,
+    "dropout": 0.1,
+    "condition_dim": 5,
+    "condition_fields": [
+      "candidate_peak_force",
+      "post_probe_displacement",
+      "post_probe_velocity",
+      "goal_displacement",
+      "duration"
+    ]
+  },
+  "force_range": [
+    0.5,
+    6.5
+  ],
+  "frozen": [
+    "privileged.net.0.0.weight",
+    "privileged.net.0.0.bias",
+    "privileged.net.0.1.weight",
+    "privileged.net.0.1.bias",
+    "privileged.net.1.0.weight",
+    "privileged.net.1.0.bias",
+    "privileged.net.1.1.weight",
+    "privileged.net.1.1.bias",
+    "privileged.net.2.0.weight",
+    "privileged.net.2.0.bias",
+    "privileged.net.2.1.weight",
+    "privileged.net.2.1.bias",
+    "head.net.0.0.weight",
+    "head.net.0.0.bias",
+    "head.net.0.1.weight",
+    "head.net.0.1.bias",
+    "head.net.1.0.weight",
+    "head.net.1.0.bias",
+    "head.net.1.1.weight",
+    "head.net.1.1.bias",
+    "head.net.2.0.weight",
+    "head.net.2.0.bias",
+    "head.net.2.1.weight",
+    "head.net.2.1.bias",
+    "head.net.3.weight",
+    "head.net.3.bias"
+  ],
+  "best_epoch": 38
+}

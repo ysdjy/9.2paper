@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 
-__all__ = ["StageACfg"]
+__all__ = ["StageACfg", "StageBCfg"]
 
 
 @dataclass(frozen=True)
@@ -66,3 +66,38 @@ class StageACfg:
         payload["encoder_units"] = list(self.encoder_units)
         payload["head_units"] = list(self.head_units)
         return payload
+
+
+@dataclass(frozen=True)
+class StageBCfg:
+    """Latent distillation. RMA²'s second stage, and its optimiser.
+
+    Args:
+        epochs: Passes over the training split.
+        batch_size: Rows per step, from the main project's pipeline.
+        learning_rate: Adam step size. **1e-4, RMA²'s own** (``algo/adaptation.py:53``), not
+            Stage A's 3e-3 -- the adapter is fitted to a fixed target and RMA² deliberately
+            moves it slowly.
+        weight_decay: ``0``, as in the official adapter, which uses a plain Adam.
+        seed: Torch and numpy seed. Stage B seed ``k`` distils from Stage A seed ``k``, so the
+            three runs are three independent teacher-student pairs.
+        device: ``"cpu"`` or ``"cuda"``.
+    """
+
+    epochs: int = 40
+    batch_size: int = 256
+    learning_rate: float = 1e-4
+    weight_decay: float = 0.0
+    seed: int = 0
+    device: str = "cpu"
+
+    def __post_init__(self) -> None:
+        if self.epochs < 1:
+            raise ValueError(f"epochs must be >= 1, got {self.epochs}.")
+        if self.learning_rate <= 0.0:
+            raise ValueError(f"learning_rate must be > 0, got {self.learning_rate}.")
+        if self.weight_decay < 0.0:
+            raise ValueError(f"weight_decay must be >= 0, got {self.weight_decay}.")
+
+    def as_dict(self) -> dict:
+        return asdict(self)

@@ -26,6 +26,7 @@ from isaaclab.app import AppLauncher
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--stage-a", type=str, default="baselines/rma2/checkpoints/stage_a")
+parser.add_argument("--stage-b", type=str, default="baselines/rma2/checkpoints/stage_b")
 parser.add_argument("--run", type=str, default="outputs/training/v1", help="Main run, for the references.")
 parser.add_argument("--dataset", type=str, default="outputs/dataset_v1")
 parser.add_argument("--seeds", type=int, nargs="+", default=(0, 1, 2))
@@ -66,7 +67,7 @@ from probe_drawer.experiment_plan import (  # noqa: E402
     TRAINING_XI_RANGES,
     MainTask,
 )
-from probe_drawer.models import PspCfg, build_teacher  # noqa: E402
+from probe_drawer.models import PspCfg, build_student, build_teacher  # noqa: E402
 from probe_drawer.models.baselines import GruForceRegressor  # noqa: E402
 from probe_drawer.protocols import capture_snapshot, restore_snapshot  # noqa: E402
 from probe_drawer.pull_system import PullSystem, PullSystemCfg  # noqa: E402
@@ -78,7 +79,8 @@ from probe_drawer.utils import (  # noqa: E402
     project_root,
 )
 from rma2.config import StageACfg  # noqa: E402
-from rma2.model import build_stage_a  # noqa: E402
+from rma2.config import StageBCfg  # noqa: E402,F401  (recorded in the report for provenance)
+from rma2.model import build_stage_a, build_stage_b  # noqa: E402
 
 
 class _Batch:
@@ -114,13 +116,18 @@ def probe_tensors(probe, count, channels, scaler):
     return padded, lengths
 
 
-def landscape_choice(model, batch, scaler, count, cfg):
-    """Scan the force grid through a success-landscape model and take each drawer's argmax."""
+def landscape_choice(head, context, batch, scaler, count, cfg):
+    """Scan the force grid through a success-landscape head and take each drawer's argmax.
+
+    The context is passed in already computed: it does not depend on the candidate force, so
+    re-encoding it per grid point would be waste, and taking it as an argument is what lets
+    one function serve both the privileged teacher and ACE + PSP.
+    """
 
     def score(forces: np.ndarray) -> np.ndarray:
         scaled = torch.tensor([scaler.transform_force(float(v)) for v in forces], dtype=torch.float32)
         with torch.no_grad():
-            logits = model.head(model.encoder(batch.xi), scaled, batch.post_probe, batch.task_condition)
+            logits = head(context, scaled, batch.post_probe, batch.task_condition)
         return torch.sigmoid(logits).numpy()
 
     return select_forces(score, count, cfg).force
@@ -130,12 +137,14 @@ def main() -> None:
     enable_unbuffered_stdout()
     started = time.perf_counter()
 
-    stage_a_root, run_root, dataset_root = (
+    stage_a_root, stage_b_root, run_root, dataset_root = (
         absolute(args_cli.stage_a),
+        absolute(args_cli.stage_b),
         absolute(args_cli.run),
         absolute(args_cli.dataset),
     )
     summary = json.loads((stage_a_root / "summary.json").read_text())
+    stage_b_summary = json.loads((stage_b_root / "summary.json").read_text())
     comparison = json.loads((run_root / "comparison.json").read_text())
     channels = tuple(comparison["channels"])
     scaler = FeatureScaler.from_dict(comparison["scaler"])
@@ -184,10 +193,30 @@ def main() -> None:
         for seed in seeds
     }
     teachers = {seed: load(lambda: build_teacher(psp), run_root, "teacher", seed) for seed in seeds}
+    students = {seed: load(lambda: build_student(len(channels), psp), run_root, "student", seed) for seed in seeds}
     grus = {
         seed: load(lambda: GruForceRegressor(len(channels), psp), run_root, "gru", seed)
         for seed in seeds
     }
+
+    def stage_b_for(seed: int):
+        """Stage B seed ``k`` is the adapter distilled from Stage A seed ``k``."""
+        scaffold = build_stage_b(
+            build_stage_a(
+                StageACfg(latent_dim=summary["cfg"]["latent_dim"]),
+                tuple(summary["force_range"]),
+                TRAINING_XI_RANGES.as_dict(),
+            ),
+            len(channels),
+            psp,
+        )
+        path = stage_b_root / f"seed{seed}" / "best.pt"
+        if not path.is_file():
+            raise FileNotFoundError(f"no Stage B checkpoint for seed {seed} at {path}.")
+        scaffold.load_state_dict(torch.load(path, weights_only=True)["state_dict"])
+        return scaffold.eval()
+
+    stage_b = {seed: stage_b_for(seed) for seed in seeds}
 
     selection = SelectionCfg(force_range=task.peak_force_range, step=0.05)
     region = OperatingRegionCfg()
@@ -196,6 +225,7 @@ def main() -> None:
 
     print("\n" + "=" * 96)
     print(f"[rma2] stage A   : {stage_a_root}")
+    print(f"[rma2] stage B   : {stage_b_root}")
     print(f"[rma2] reference : {run_root} (teacher, Direct GRU -- read only)")
     print(f"[rma2] test xi   : {len(test_ids)} in-distribution hidden states, unseen in any split")
     print(f"[rma2] seeds     : {list(seeds)}, all deployed in ONE session from shared snapshots")
@@ -261,16 +291,27 @@ def main() -> None:
             for seed in seeds:
                 with torch.no_grad():
                     raw = stage_a[seed](batch).numpy()
-                # Stage A already emits a force inside the allowed range; snapping it to the
-                # shared 0.05 N grid is what the other point regressors get, so it is applied
-                # here too rather than giving this baseline a continuous advantage.
-                choices.append(("RMA2 Stage A (privileged point)", seed, select_nearest(raw, selection).force))
+                # Both Stage A and Stage B emit a force already inside the allowed range;
+                # snapping it to the shared 0.05 N grid is what the other point regressors
+                # get, so it is applied here too rather than giving them a continuous edge.
+                choices.append(("RMA2 Stage A (xi -> point)", seed, select_nearest(raw, selection).force))
+                with torch.no_grad():
+                    distilled = stage_b[seed](batch).numpy()
+                choices.append(("RMA2 Stage B (probe -> latent -> point)", seed, select_nearest(distilled, selection).force))
+                with torch.no_grad():
+                    teacher_context = teachers[seed].encoder(batch.xi)
+                    student_context = students[seed].encoder(batch.history, batch.lengths)
                 choices.append(
-                    ("teacher (privileged landscape)", seed, landscape_choice(teachers[seed], batch, scaler, num_envs, selection))
+                    ("teacher (xi -> landscape)", seed,
+                     landscape_choice(teachers[seed].head, teacher_context, batch, scaler, num_envs, selection))
+                )
+                choices.append(
+                    ("ACE + PSP (probe -> landscape)", seed,
+                     landscape_choice(students[seed].head, student_context, batch, scaler, num_envs, selection))
                 )
                 with torch.no_grad():
                     predicted = grus[seed](batch).numpy()
-                choices.append(("D GRU (probe point)", seed, select_nearest(predicted, selection).force))
+                choices.append(("D GRU (probe -> point)", seed, select_nearest(predicted, selection).force))
 
             for method, seed, forces in choices:
                 restore_snapshot(system, snapshot)
@@ -340,6 +381,9 @@ def main() -> None:
         "task": task.as_dict(),
         "stage_a_cfg": summary["cfg"],
         "stage_a_offline_test_force_mae": summary["test_force_mae"],
+        "stage_b_cfg": stage_b_summary["cfg"],
+        "stage_b_offline_test_force_mae": stage_b_summary["test_force_mae"],
+        "stage_b_val_latent_mse": stage_b_summary["val_latent_mse"],
         "note": (
             "All methods deployed in one session from shared probe snapshots (D047). Absolute "
             "rates are not comparable to other sessions; differences within this table are."
@@ -354,16 +398,16 @@ def main() -> None:
     output.write_text(json.dumps(payload, indent=2, default=float))
 
     print("[rma2]")
-    print(f"[rma2] {'method':>32} {'reach':>8} {'+-sd':>6} {'|d-goal| med':>13} "
+    print(f"[rma2] {'method':>38} {'reach':>8} {'+-sd':>6} {'|d-goal| med':>13} "
           f"{'|F-ref| MAE':>12} {'F med':>8} {'invalid':>8} {'abort':>7}")
     for method, v in sorted(methods.items(), key=lambda i: -i[1]["reach_pp"]):
-        print(f"[rma2] {method:>32} {v['reach_pp']:7.1f}% {v['reach_sd_across_seeds']:5.1f} "
+        print(f"[rma2] {method:>38} {v['reach_pp']:7.1f}% {v['reach_sd_across_seeds']:5.1f} "
               f"{v['median_position_error_mm']:12.2f}mm {v['closed_loop_force_mae']:11.3f}N "
               f"{v['median_chosen_force']:7.2f}N {v['invalid_rate'] * 100:7.1f}% "
               f"{v['safety_abort_rate'] * 100:6.1f}%")
     print("[rma2]")
     for method, v in sorted(methods.items(), key=lambda i: -i[1]["reach_pp"]):
-        print(f"[rma2] {method:>32}  " + ", ".join(
+        print(f"[rma2] {method:>38}  " + ", ".join(
             f"seed {s} {r:.1f}%" for s, r in sorted(v["reach_per_seed"].items())
         ))
     print(f"[rma2]")

@@ -1,6 +1,7 @@
-# GENERATED SNAPSHOT -- the authoritative values live in rma2.config:StageACfg.
+# GENERATED SNAPSHOT -- the authoritative values live in rma2.config.
 _source:
   stage_a: rma2.config:StageACfg
+  stage_b: rma2.config:StageBCfg
 _provenance:
   latent_dim: matched to probe_drawer.models.PspCfg.z_dim (docs/SETTING_V1_DESIGN_AUDIT.md
     1)
@@ -8,6 +9,9 @@ _provenance:
     difference from Direct GRU is the model
   target: probe_drawer.training.metrics.reference_force_per_probe, shared with every
     other force regressor
+  stage_b_optimiser: Adam lr 1e-4, weight_decay 0, from the official RMA2 adapter
+    (algo/adaptation.py:53); epoch selected on validation latent MSE, never on force
+    error
 stage_a:
   latent_dim: 16
   encoder_units:
@@ -22,5 +26,12 @@ stage_a:
   batch_size: 256
   learning_rate: 0.003
   weight_decay: 0.0001
+  seed: 0
+  device: cpu
+stage_b:
+  epochs: 40
+  batch_size: 256
+  learning_rate: 0.0001
+  weight_decay: 0.0
   seed: 0
   device: cpu
