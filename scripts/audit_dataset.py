@@ -88,7 +88,8 @@ def _print(report: dict) -> None:
         f"{distributions['probes']} probes, {distributions['hidden_states']} hidden states"
     )
     print(
-        f"[audit] labels   : {distributions['positive_fraction'] * 100:.2f} % positive, "
+        f"[audit] labels   : {distributions['positive_fraction'] * 100:.2f} % "
+        f"{distributions['label']}, {distributions['strict_positive_fraction'] * 100:.2f} % strict, "
         f"{distributions['invalid_fraction'] * 100:.2f} % invalid {distributions['invalid_reasons'] or ''}"
     )
 

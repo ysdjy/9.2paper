@@ -103,8 +103,16 @@ ABLATIONS = {
 }
 
 
+def _label(sample, name: str) -> float:
+    """One row's label under the configured name, refusing an absent one (D046)."""
+    value = getattr(sample, name)
+    if value is None:
+        raise ValueError(f"this dataset does not record {name!r}; pass --label success.")
+    return float(value)
+
+
 def force_selection_score(
-    samples: list, predicted_force: np.ndarray, reference: dict[str, float]
+    samples: list, predicted_force: np.ndarray, reference: dict[str, float], label: str
 ) -> dict:
     """Score a model that outputs a *force* rather than a success probability.
 
@@ -116,17 +124,19 @@ def force_selection_score(
     """
     per_probe: dict[str, list[tuple[float, float, float]]] = defaultdict(list)
     for sample, prediction in zip(samples, predicted_force, strict=True):
-        per_probe[sample.probe_id].append((sample.candidate_peak_force, float(sample.success), float(prediction)))
+        per_probe[sample.probe_id].append(
+            (sample.candidate_peak_force, _label(sample, label), float(prediction))
+        )
 
     probes, forces, labels, scores = [], [], [], []
     for probe, rows in per_probe.items():
         # One prediction per probe: a force regressor does not vary with the candidate, and
         # averaging guards against tiny numerical differences between its rows.
         predicted = float(np.mean([row[2] for row in rows]))
-        for force, label, _ in rows:
+        for force, outcome, _ in rows:
             probes.append(probe)
             forces.append(force)
-            labels.append(label)
+            labels.append(outcome)
             # Closest candidate wins, so "score" is negative distance.
             scores.append(-abs(force - predicted))
 
@@ -232,6 +242,16 @@ def main() -> None:
     parser.add_argument("--baseline-epochs", type=int, default=40)
     parser.add_argument("--distillation-weight", type=float, default=0.5)
     parser.add_argument("--ablation", action="store_true", help="Run the encoder input ablation.")
+    parser.add_argument(
+        "--label",
+        type=str,
+        default=None,
+        choices=("reach_success", "success"),
+        help=(
+            "Which label to train and score on. Defaults to 'reach_success' for a Setting V1 "
+            "dataset and 'success' for Dataset v0, which predates the split (D046)."
+        ),
+    )
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--output", type=str, default=None)
     args = parser.parse_args()
@@ -244,6 +264,13 @@ def main() -> None:
     split_payload = store.read_splits()
     cfg = SplitCfg(**{key: value for key, value in split_payload["cfg"].items()})
     samples = store.load_samples()
+
+    # Default from the data rather than from a constant: a Dataset v0 row has no
+    # ``reach_success`` to train on, and picking the label here means the failure is a clear
+    # message at startup rather than a nan several epochs in (D046).
+    label_field = args.label or ("success" if samples[0].reach_success is None else "reach_success")
+    print(f"[train] label   : {label_field}")
+
     split = split_samples(samples, cfg)
     assert_no_leakage(split)
 
@@ -278,12 +305,12 @@ def main() -> None:
     # 1 -- the floor.
     fixed = FixedForceBaseline().fit(
         [sample.candidate_peak_force for sample in subsets["train"].samples],
-        [float(sample.success) for sample in subsets["train"].samples],
+        [_label(sample, label_field) for sample in subsets["train"].samples],
     )
     for name in ("val", "test"):
         predicted = fixed.predict(len(subsets[name].samples))
         results["fixed force"].append(
-            {"split": name, "seed": None, "force": fixed.force, **force_selection_score(subsets[name].samples, predicted, targets[name])}
+            {"split": name, "seed": None, "force": fixed.force, **force_selection_score(subsets[name].samples, predicted, targets[name], label_field)}
         )
     print(f"[train] fixed force baseline: {fixed.force:.2f} N")
 
@@ -298,7 +325,7 @@ def main() -> None:
         for name in ("val", "test"):
             predicted = model.predict(subsets[name].samples)
             results[label].append(
-                {"split": name, "seed": None, **force_selection_score(subsets[name].samples, predicted, targets[name])}
+                {"split": name, "seed": None, **force_selection_score(subsets[name].samples, predicted, targets[name], label_field)}
             )
 
     # 3-5 -- everything with a seed.
@@ -310,7 +337,7 @@ def main() -> None:
         for name in ("val", "test"):
             predicted = _predict_summary_mlp(mlp, subsets[name], SUMMARY_FEATURES)
             results["C MLP (summary)"].append(
-                {"split": name, "seed": seed, **force_selection_score(subsets[name].samples, predicted, targets[name])}
+                {"split": name, "seed": seed, **force_selection_score(subsets[name].samples, predicted, targets[name], label_field)}
             )
 
         gru = GruForceRegressor(len(channels), psp)
@@ -323,11 +350,14 @@ def main() -> None:
         for name in ("val", "test"):
             predicted = _predict_force(gru, subsets[name], None)
             results["D GRU (history)"].append(
-                {"split": name, "seed": seed, **force_selection_score(subsets[name].samples, predicted, targets[name])}
+                {"split": name, "seed": seed, **force_selection_score(subsets[name].samples, predicted, targets[name], label_field)}
             )
 
         teacher = train_teacher(
-            subsets["train"], subsets["val"], TrainCfg(epochs=args.epochs, seed=seed, device=args.device), psp
+            subsets["train"],
+            subsets["val"],
+            TrainCfg(epochs=args.epochs, seed=seed, device=args.device, label=label_field),
+            psp,
         )
         for name in ("val", "test"):
             results["teacher (privileged)"].append(
@@ -341,6 +371,7 @@ def main() -> None:
             device=args.device,
             distillation_weight=args.distillation_weight,
             latent_weight=0.0,
+            label=label_field,
         )
         student = train_student(
             subsets["train"], subsets["val"], student_cfg, len(channels), teacher.model, psp

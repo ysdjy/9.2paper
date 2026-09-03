@@ -53,6 +53,34 @@ run(
 ) -> ProbeResult
 ```
 
+### Two modes, one controller
+
+`ProbePullController` has two entry points, and they are different measurements rather than
+a parameterisation of one:
+
+| | `run(...)` | `run_fixed_budget(peak_force, duration)` |
+|---|---|---|
+| Shape | ramp from `initial_force` to `max_force`, then hold | smoothstep trapezoid, rise 10 %, release 35 % |
+| Ends when | the drawer has moved `target_displacement`, or a limit trips | the profile does, always |
+| Duration | varies with the drawer (0.10–0.93 s over Dataset v0) | fixed, identical for every hidden state |
+| Depends on the task | yes, through `target_displacement` | no |
+| Used by | Phase 8–11, Dataset v0 | **Setting V1**, Dataset v1 ([D044](DECISIONS.md#d044)) |
+
+It is a mode rather than a third controller class ([D045](DECISIONS.md#d045)); the public
+surface stays at two APIs. In fixed-budget mode `_stop_conditions` returns an empty tuple, so
+no task-level stop exists to fire and only the absolute safety limits can end the probe early.
+The flag is restored in a `finally`, so a later `run` keeps its stop conditions.
+
+```python
+from probe_drawer.experiment_plan import SETTING_V1_PROBE
+
+result = system.probe.run_fixed_budget(**SETTING_V1_PROBE.as_kwargs())   # 3.5 N, 0.3 s
+assert result.termination_reason == [TerminationReason.DURATION_COMPLETED] * result.num_envs
+```
+
+`reached_target` is always `False` in this mode — there is no target to reach; the field
+exists so both modes share a return type. Full derivation in [PROBE_V1.md](PROBE_V1.md).
+
 ### Stop conditions, in priority order
 
 | # | Condition | `termination_reason` |
@@ -295,13 +323,30 @@ from probe_drawer.evaluation import OperatingRegionCfg, SuccessCriteria, assess_
 
 validity = assess_validity(result, OperatingRegionCfg())          # is this usable evidence?
 report = evaluate_execution(result, criteria)                     # did it succeed?
-report.success            # (num_envs,) bool
+report.reach_success      # (num_envs,) bool -- PRIMARY
+report.stable_success     # (num_envs,) bool -- secondary
 report.verdicts[0].invalid_reasons
 ```
 
-`success = |d(T) - d_goal| <= eps_d AND |v(T)| <= eps_v AND valid` (D020). Validity subsumes
-safety: a safety-aborted episode is never valid. Neither function can reach the controllers
-or the environment, which is what keeps `d_goal` out of the control loop (D004).
+Two nested labels ([D046](DECISIONS.md#d046)):
+
+```
+reach_success  = |d(T) - d_goal| <= eps_d  AND  valid          <- primary
+stable_success = reach_success             AND  |v(T)| <= eps_v   <- secondary
+success        = stable_success                                <- the Dataset v0 name, unchanged
+```
+
+Both are derived properties of `displacement_ok`, `velocity_ok` and `valid`, so they cannot
+disagree, and the continuous quantities behind them (`displacement_error`,
+`terminal_velocity`) stay on every verdict — a threshold can be revisited from stored data, a
+discarded measurement cannot.
+
+`success` keeps its original name and meaning because Dataset v0's 49,152 rows were generated
+with it. New code should say which of the two it means.
+
+Validity subsumes safety: a safety-aborted episode is never valid, and so never a *reach*
+either. Neither function can reach the controllers or the environment, which is what keeps
+`d_goal` out of the control loop (D004).
 
 ---
 
@@ -390,6 +435,25 @@ written to the simulation. This is what implements the inference gap; contrast `
 which actively brakes the pull axis at 200 N·s/m up to 15 N.
 
 Raises `RuntimeError` if `capture_pose_reference()` has not been called.
+
+---
+
+## The frozen setting
+
+```python
+from probe_drawer.experiment_plan import SETTING_V1_PROBE, SETTING_V1_TASK
+
+SETTING_V1_PROBE.as_kwargs()   # {'peak_force': 3.5, 'duration': 0.3}
+SETTING_V1_TASK.criteria       # d_goal 0.10 m, eps_d 7.5 mm, eps_v 0.03 m/s, T 1.5 s
+```
+
+Frozen in Phase 13 and not to be re-tuned: the probe by `scripts/calibrate_fixed_probe.py`
+under the rule in `probe_drawer.analysis.fixed_probe_calibration`, `T_goal` by a 1.5 s vs
+2.0 s comparison, `d_goal` by decision. Derivations in [PROBE_V1.md](PROBE_V1.md) and
+[DECISIONS.md](DECISIONS.md#d044) D044–D046.
+
+`MAIN_TASK` and `RECOMMENDED_PROBE_TASK` remain as the Phase 11 setting, so Dataset v0 stays
+regenerable (`scripts/generate_dataset.py --setting v0`).
 
 ---
 

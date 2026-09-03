@@ -4,6 +4,110 @@ One entry per work session. Newest first.
 
 ---
 
+## 2026-09-03 — `agent/phase13-freeze-v1` — Phase 13: cleanup, then freeze Setting V1
+
+**Agent / task.** Claude Opus 5 — tidy the Phase 8–12 code and docs, then formally freeze the
+paper's setting and take Dataset v1 only as far as a gated pilot. Explicitly *not* to continue
+the Phase 12 `(F, T)` landscape, the 200–400 mm task, or the α/β probe tuning.
+
+### Gate 1 — the layering (commit `89822b9`)
+
+The public task-level API had drifted to three controllers. `ResponseProbeController` and the
+four Phase 12 analysis modules moved to a new `experimental/` package — by `git mv`, so they
+stay runnable and the Phase 12 evidence stays reproducible — and `tests/unit/test_package_layering.py`
+(16 tests) now enforces the boundary from the AST: no pipeline module may import an experiment,
+and exactly two controllers may be public.
+
+Documentation drift fixed: the README claimed ACE and PSP were not implemented (they are since
+Phase 11) and quoted a 4.5× force range where the measurement is 21.5×.
+
+**416 unit and 89 integration tests passed.**
+
+### Gate 2 — the frozen setting (commit `95f2f22`)
+
+**The probe.** Setting V1's probe is a fixed-budget excitation: 3.5 N through a smoothstep
+trapezoid over 0.3 s, identical for every hidden state, run to completion. No displacement
+stop, no `d_goal`, no waiting for the drawer to stop; only safety may end it early, so every
+history is the same length — confirmed on all 288 pilot probes at exactly 18 steps.
+
+Implemented as `ProbePullController.run_fixed_budget`, a **mode** rather than a third
+controller class (D045). `_stop_conditions` returns an empty tuple under the mode flag, which
+is honest where passing unreachable thresholds would have misreported why the probe ended.
+
+**How the two numbers were chosen.** `scripts/calibrate_fixed_probe.py`, under the rule in
+`probe_drawer.analysis.fixed_probe_calibration` written before the first run: four gates, then
+lowest leave-one-out RMSE of the required force, ties to the shorter probe.
+
+The first candidate set was **mis-centred** — H = 0.4–0.6 s, three of four failed the intrusion
+gate, and the survivor passed at 0.2992 against a 0.30 ceiling. Widened downward *once*, to a
+3×2 factorial, which separates the mechanisms cleanly: **the budget sets intrusion** (at
+F = 3.5 N, H 0.2 → 0.3 s takes median displacement 3.6 → 6.8 mm) while **the amplitude sets
+breakaway** (at H = 0.2 s, F = 3.5 N leaves 2 of 24 drawers motionless, F = 4.5 N moves all).
+F = 3.5 N / H = 0.3 s is the only cell that gets both from one point. A second 24-state draw
+held the ordering (0.363 vs 0.403 N) with the gap narrowing — real but modest.
+
+**`T_goal`.** 1.5 s vs 2.0 s on a 0.10 N grid: 1.5 s wins on reach coverage (24/24 vs 23/24)
+*and* band width (0.30 vs 0.20 N median). Longer is worse because more time means more
+displacement per newton, so the tolerance is crossed by a smaller force change.
+
+**Two success definitions (D046).** `reach_success` = position + validity, primary;
+`stable_success` adds terminal velocity, secondary and kept. Derived from the same three
+booleans so they cannot disagree; every continuous quantity stays on the row. `success` keeps
+its Dataset v0 name and meaning.
+
+### Gate 3 — the Dataset v1 pilot
+
+96 hidden states × 3 probes × 32 candidates = **9,216 rows**, all nine audit gates passed:
+6.16 % `reach_success`, 99.3 % of probes with ≥ 1 positive, 79.5 % with ≥ 2, only 2 probes with
+none. Success-against-force is a clean unimodal band peaking at 2.5–3.0 N. Split positive
+fractions balanced (6.12 / 5.87 / 6.60 %); branch-order decorrelation 0.79σ against a 3σ gate.
+
+One seed of the full chain: **ACE + PSP 77.8 %** test selection success, privileged teacher
+**86.7 %**, best scalar baseline **73.3 %**, single fixed force **13.3 %**.
+
+**485 unit and 105 integration tests passed.**
+
+### Findings worth carrying forward
+
+1. **`stable_success` is degenerate at this setting** — 0/24 at 1.5 s, 1/24 at 2.0 s. Reaching
+   100 mm inside 1.5 s leaves the drawer at 0.048–0.077 m/s where `eps_v` is 0.03. Setting V1
+   poses a *reaching* task, not a *placement* task. Reported as a limitation; the ramp-down was
+   deliberately **not** re-searched to make the drawer "just stop".
+2. **The audit was reading the wrong label.** The first pilot audit said 0.00 % positive
+   against a generation log saying 6.2 %, because it read `success` unconditionally — precisely
+   the conflation D046 exists to remove. Fixed, and it now names which label it reports.
+3. **Invalidity is not eating the positives.** 10.15 % of rows are invalid, but entirely above
+   4 N (51 % at 6.0–6.5 N) and only **12 of 580** in-tolerance rows were lost to it. The
+   operating region is rejecting high-force overshoots that fail on position anyway, so
+   D042 (no joint-limit term) stays as recorded.
+4. **A real duplicate, extracted.** The leave-one-out ridge readout existed twice, and the two
+   copies disagreed — `analyze_probe_duration.py`'s lacked the ridge penalty and so measured
+   conditioning rather than information. Now one module; the Phase 12 conclusion is unaffected
+   (it rested on RMSE being flat while R² tracked the target's sd) but a re-run prints slightly
+   different numbers, which is noted in the script.
+5. **A test of mine asserted something false.** "The commanded force is back at zero when the
+   probe ends" — it is not. A command is issued from the start of its control interval, so the
+   last sampled command is 6.8 % of peak. The docs now state the artefact and note that the
+   inference gap is what makes the handover unloaded.
+
+### Git state
+
+`agent/phase13-freeze-v1`, two commits: `89822b9` (Gate 1) and `95f2f22` (Gate 2/3), branched
+from `b86f098`. No history rewritten. Isaac Lab untouched.
+
+### Next
+
+**Full Dataset v1 is deliberately not started.** §H gates it on review of the pilot. When it
+runs, `scripts/generate_dataset.py --headless --setting v1` at the Dataset v0 scale
+(512 × 3 × 32) is the command; nothing in the setting should change to do it.
+
+Open question for the user: whether Setting V1 should stay a reaching task (`reach_success`
+primary, `stable_success` reported as ~0), or whether `d_goal` should come down or `eps_v` up
+so that both metrics are live. That is a paper-framing decision, not a tuning one, and it was
+left rather than taken.
+
+---
+
 ## 2026-09-02 — `agent/rma2-baseline-isolation` — RMA² baseline isolation
 
 **Agent / task.** Claude Opus 5 — move the RMA² baseline to `baselines/rma2/` under the

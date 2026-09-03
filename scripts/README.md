@@ -17,7 +17,7 @@ These run the paper's experiment. They are the ones that must keep working.
 | script | stage | Isaac Sim |
 |---|---|---|
 | `run_official_drawer.py` | record the grasp configuration (also `--cabinet-x-offset`) | yes |
-| `generate_dataset.py` | build a dataset from probes and branched executions | yes |
+| `generate_dataset.py` | build a dataset from probes and branched executions (`--setting v1`) | yes |
 | `audit_dataset.py` | nine gates plus the distributions; exits non-zero on failure | no |
 | `train_models.py` | baselines, privileged teacher, ACE + PSP, ablations | no |
 | `evaluate_closed_loop.py` | deploy on unseen hidden states, back in physics | yes |
@@ -31,7 +31,8 @@ runnable: if a frozen parameter is ever questioned, this is where the answer was
 | script | what it settled | doc |
 |---|---|---|
 | `sweep_goal_distance.py` + `analyze_goal_distance.py` | which goal distances the rig supports, and what bounds each | `docs/GOAL_DISTANCE.md` |
-| `calibrate_probe.py` | the Phase 9 probe parameters | `docs/EXPERIMENT_SPACE.md` |
+| `calibrate_fixed_probe.py` | **Setting V1's probe** (3.5 N, 0.3 s) and the `T_goal` comparison | `docs/PROBE_V1.md` |
+| `calibrate_probe.py` | the Phase 9 ramp probe's parameters (superseded by the above) | `docs/EXPERIMENT_SPACE.md` |
 | `validate_branching.py` | whether one probe may answer many candidates | `docs/COUNTERFACTUAL_BRANCHING.md` |
 | `validate_sequential_protocol.py` | the inference gap, and that the probe's state survives | `docs/SEQUENTIAL_PROTOCOL.md` |
 | `refine_task_space.py` | the Phase 10 task selection | `docs/EXPERIMENT_SPACE.md` |
@@ -44,7 +45,7 @@ modules in `probe_drawer.experimental`.
 
 | script | question it answered | outcome |
 |---|---|---|
-| `sweep_parameter_space_2d.py`, `analyze_landscape_2d.py`, `plot_phase12.py` | does a 2-D `(F, T)` action space buy structure? | real but moderate; `T` nearly degenerate for prediction. Frozen out of V1 (D045) |
+| `sweep_parameter_space_2d.py`, `analyze_landscape_2d.py`, `plot_phase12.py` | does a 2-D `(F, T)` action space buy structure? | real but moderate; `T` nearly degenerate for prediction. Frozen out of V1, and `T_goal` became a task condition instead (D044) |
 | `compare_probes.py` | is a response-triggered probe better? | better on mass, `T` and `mu_d`; worse on `mu_s`; damping still unidentified (D044) |
 | `analyze_damping_observability.py` | why is damping invisible — range, magnitude, or noise? | magnitude at probe speeds; the whole `b` range spans 0.75x the force noise floor |
 | `analyze_probe_duration.py` | should a `min_probe_duration` exist? | no — duration is itself the strongest feature (D043) |

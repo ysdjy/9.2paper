@@ -322,7 +322,7 @@ rule out.
 | module | question it answered | why it is out of the pipeline |
 |---|---|---|
 | `response_probe`, `response_probe_features` | is a response-triggered probe better? | better on mass, `T` and `mu_d`, worse on `mu_s`, damping still unidentified; and it depends on `d_goal`, which a standardised probe must not (D044) |
-| `landscape_2d`, `parameter_targets` | does a 2-D `(F, T)` action space buy structure? | real but moderate, and `T` is nearly degenerate for prediction (D045) |
+| `landscape_2d`, `parameter_targets` | does a 2-D `(F, T)` action space buy structure? | real but moderate, and `T` is nearly degenerate for prediction, so Setting V1 searches `F_peak` alone and treats `T_goal` as a task condition (D044) |
 | `goal_distance` | which goal distances does the rig support? | this is what chose 100 mm — the most load-bearing module in the package, and still not pipeline code |
 
 ### One concept, one implementation

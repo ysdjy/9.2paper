@@ -17,7 +17,8 @@ Oracle evidence rather than training samples.
 
 ```
 (xi, probe_history, probe_summary, post_probe_state,
- candidate_peak_force, T_goal, d_goal, d_total(T), v(T), success, validity)
+ candidate_peak_force, task_condition = (d_goal, T_goal),
+ d_total(T), v(T), position_error, reach_success, stable_success, validity)
 ```
 
 A sample is **not** "one episode". One probe is expensive and is naturally paired with many
@@ -36,14 +37,39 @@ consequence.
 | `probe_summary` | `dict` | DEPLOYABLE | Scalar features, from `analysis/probe_features.py`. |
 | `post_probe_state` | `dict` | DEPLOYABLE | `{displacement, velocity}` at the moment the execution starts. |
 | `candidate_peak_force` | `float` | input | `F_peak` this row asks about (N). |
-| `duration` | `float` | input | `T_goal` (s). |
+| `duration` | `float` | input | `T_goal` (s). A **task condition**, not something the model chooses. |
 | `goal_displacement` | `float` | input | `d_goal` (m), from **before** the probe. |
 | `final_total_displacement` | `float` | **label** | `d_total(T)` (m). |
-| `final_velocity` | `float` | **label** | `v(T)` (m/s). |
-| `success` | `bool` | **label** | Position **and** terminal velocity both within tolerance. |
+| `final_velocity` | `float` | **label** | `v(T)` (m/s). Kept whichever label is reported. |
+| `position_error` | `float` | **label** | Signed `d_total(T) - d_goal` (m). A derived property, so it cannot disagree with the two values behind it. |
+| `reach_success` | `bool \| None` | **label** | **Primary**: position within `eps_d` and valid. `None` on a Dataset v0 row, which predates the split. |
+| `stable_success` | `bool \| None` | **label** | **Secondary**: `reach_success` and `\|v(T)\| <= eps_v`. `None` on a v0 row. |
+| `success` | `bool` | **label** | The strict label, identical to `stable_success`. Unchanged in name and meaning since Dataset v0. |
+| `termination_reason` | `str \| None` | — | How the execution ended. `None` on a v0 row. |
 | `valid` | `bool` | — | Whether the episode stayed inside the operating region. |
 | `invalid_reasons` | `list[str]` | — | Why not, if not. |
 | `protocol` | `str` | — | Always `"sequential"`. A reset row is not a training sample and the constructor refuses one. |
+
+### Only the force varies within a probe
+
+Setting V1 searches `candidate_peak_force` and nothing else. `d_goal` and `T_goal` are
+constant across a dataset and are recorded per row because they are *conditions* the task
+hands the robot, not parameters the model picks — see [D044](DECISIONS.md#d044) and the
+`task_condition` property.
+
+### The two labels, and why `None` is honest
+
+`reach_success` is the primary metric and `stable_success` the secondary one
+([D046](DECISIONS.md#d046)). A Dataset v0 row carries neither: it records `success`, which
+meant the strict label, and a v0 *negative* could have failed on position or on terminal
+velocity without the row saying which. So they load as `None`, and reading one raises rather
+than substituting the other — training on the strict label while reporting the primary one's
+name is exactly the confusion the split exists to prevent.
+
+The first Dataset v1 pilot audit reported **0.00 % positive** against a generation log saying
+6.2 %, because the audit still read `success` unconditionally. At `d_goal` = 0.10 m almost
+nothing meets `eps_v`, so the two numbers are genuinely far apart, and the audit now names
+which label it is reporting.
 
 ### `xi` is present and is not an input
 

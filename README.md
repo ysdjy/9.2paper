@@ -11,6 +11,11 @@ Probe——用已知的递增力输入去"试探"抽屉，并记录完整的力�
 privileged teacher、direct-regression baselines，以及 Isaac Sim 物理闭环评估。**尚未**包含 SPC / VLM /
 RL policy；RMA² baseline 由 `baselines/rma2/` 独立负责，主方法不依赖它。
 
+论文正式设定 **Setting V1** 已于 Phase 13 冻结：Probe 为固定预算激励（3.5 N，0.3 s，对所有 xi 完全相同，
+不依赖 `d_goal`，跑完整个 profile），任务为 `d_goal = 100 mm` / `T_goal = 1.5 s`，只搜索 `F_peak`；
+`T_goal` 是任务条件而非适应参数。成功判据拆成 `reach_success`（主）与 `stable_success`（次）两个指标。
+详见 [docs/PROBE_V1.md](docs/PROBE_V1.md) 与 `docs/DECISIONS.md` D044–D046。
+
 ---
 
 ## 1. Current status
@@ -54,7 +59,10 @@ RL policy；RMA² baseline 由 `baselines/rma2/` 独立负责，主方法不依�
 [x] Phase 12   2-D (F,T) landscape, goal-distance feasibility, probe redesign -- all
                measured, all frozen OUT of the paper setting (see docs/DECISIONS.md D044-D046)
 [x] Phase 13A  Structure audit: two public controllers, experiments demoted, docs reconciled
-[~] Phase 13B  Setting V1 frozen; Dataset v1 pilot gated on a sanity check
+[x] Phase 13B  Setting V1 frozen: fixed-budget probe 3.5 N / 0.3 s, d_goal 100 mm, T_goal 1.5 s
+[x] Phase 13C  reach_success / stable_success split; Dataset v1 schema; task-conditioned PSP
+[x] Phase 13D  Dataset v1 pilot (96 xi x 3 probes x 32 candidates), nine-gate audit passed
+[ ] Phase 13E  Full Dataset v1 -- deliberately NOT started; gated on review of the pilot
 [ ]            SPC
 [ ]            VLM
 ```
@@ -63,6 +71,24 @@ RL policy；RMA² baseline 由 `baselines/rma2/` 独立负责，主方法不依�
 peak forces spanning **0.20-4.30 N -- a 21.5x range** -- with success bands a median 0.20 N wide.
 One force cannot serve every drawer, and a standardised probe's response correlates with the
 force each drawer needs at **|rho| = 0.97**. Details: [docs/ORACLE_LANDSCAPE.md](docs/ORACLE_LANDSCAPE.md).
+
+**Setting V1 (the paper's setting) is frozen.** A standardised fixed-budget probe -- 3.5 N
+through a smoothstep trapezoid over 0.3 s, identical for every hidden state, run to completion
+-- then a 100 mm goal in 1.5 s with only `F_peak` searched. At this operating point the
+required force spans **0.70-5.40 N, a 7.7x range**, and the probe's nine deployable features
+recover it at leave-one-out RMSE **0.333 N** on a target sd of 1.411 N. Derivation:
+[docs/PROBE_V1.md](docs/PROBE_V1.md), decisions D044-D046.
+
+**Success is now two numbers, not one.** `reach_success` (position + validity) is primary;
+`stable_success` adds the terminal velocity and is secondary. At Setting V1's operating point
+they are **24/24 and 0/24** -- reaching 100 mm inside 1.5 s leaves the drawer moving at
+0.05-0.08 m/s where `eps_v` is 0.03. Setting V1 therefore poses a *reaching* task, not a
+*placement* task; that is reported as a limitation rather than tuned away.
+
+On the Dataset v1 pilot (96 hidden states, 9,216 rows, all nine audit gates passed), one seed
+of the full chain gives **ACE + PSP 77.8 %** selection success on held-out drawers against a
+privileged teacher's **86.7 %**, the best scalar baseline's **73.3 %**, and a single fixed
+force's **13.3 %**.
 
 Phase 10 replaced that reset with the real thing — probe, a fixed inference gap, then the
 execution, with nothing reset or written in between — and re-selected the task against it. The

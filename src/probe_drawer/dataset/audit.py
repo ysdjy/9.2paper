@@ -297,7 +297,12 @@ def _check_split(split: DataSplit | None) -> dict:
 
     counts = split.counts()
     positives = {
-        name: sum(sample.success for sample in rows) / len(rows) if rows else 0.0
+        name: (
+            sum(sample.reach_success if sample.reach_success is not None else sample.success for sample in rows)
+            / len(rows)
+        )
+        if rows
+        else 0.0
         for name, rows in subsets.items()
     }
     empty = [name for name, rows in subsets.items() if not rows]
@@ -314,11 +319,33 @@ def _check_split(split: DataSplit | None) -> dict:
     }
 
 
+def _primary_label(row: dict) -> bool:
+    """The label a dataset should be judged on: ``reach_success`` where it exists.
+
+    A Setting V1 row records both (``docs/DECISIONS.md`` D046) and ``reach_success`` is the
+    primary metric; a Dataset v0 row records only ``success``, which meant the strict label.
+    Reading ``success`` unconditionally is what made the first v1 pilot audit report 0.00 %
+    positive against a generation log saying 6.2 % -- the exact conflation the split exists to
+    remove, since at ``d_goal`` = 0.10 m almost nothing meets the terminal-velocity condition.
+    """
+    reach = row.get("reach_success")
+    return bool(row["success"]) if reach is None else bool(reach)
+
+
+def _label_name(store: DatasetStore) -> str:
+    """Which label ``_distributions`` reported, so the number is never ambiguous."""
+    first = next(iter(store.candidates), {})
+    return "success" if first.get("reach_success") is None else "reach_success"
+
+
 def _distributions(store: DatasetStore) -> dict:
     """Reported, not gated: what the dataset actually looks like."""
     candidates = store.candidates
     forces = [row["candidate_peak_force"] for row in candidates]
-    successes = [bool(row["success"]) for row in candidates]
+    successes = [_primary_label(row) for row in candidates]
+    # Kept beside it: the two coincide on Dataset v0 and can differ sharply on v1, and a
+    # reader comparing the two datasets needs to see which is which.
+    strict = [bool(row["success"]) for row in candidates]
     valid = [bool(row["valid"]) for row in candidates]
     lengths = store.sequence_lengths()
     span = store.manifest.get("main_task", {}).get("peak_force_range", [min(forces), max(forces)])
@@ -326,7 +353,7 @@ def _distributions(store: DatasetStore) -> dict:
     # Positives per probe: the statistic that says whether the candidate budget is enough.
     per_probe: dict[str, int] = {}
     for row in candidates:
-        per_probe[row["probe_id"]] = per_probe.get(row["probe_id"], 0) + int(bool(row["success"]))
+        per_probe[row["probe_id"]] = per_probe.get(row["probe_id"], 0) + int(_primary_label(row))
     counts = Counter(per_probe.values())
 
     # Success against force, so an imbalance can be seen to be physical rather than a bug.
@@ -340,7 +367,7 @@ def _distributions(store: DatasetStore) -> dict:
                 "high": float(high),
                 "rows": len(inside),
                 "positive_fraction": (
-                    sum(bool(row["success"]) for row in inside) / len(inside) if inside else 0.0
+                    sum(_primary_label(row) for row in inside) / len(inside) if inside else 0.0
                 ),
             }
         )
@@ -357,7 +384,9 @@ def _distributions(store: DatasetStore) -> dict:
         "rows": len(candidates),
         "probes": len(store.probes),
         "hidden_states": len(store.hidden_states),
+        "label": _label_name(store),
         "positive_fraction": sum(successes) / len(candidates) if candidates else 0.0,
+        "strict_positive_fraction": sum(strict) / len(candidates) if candidates else 0.0,
         "invalid_fraction": 1.0 - (sum(valid) / len(candidates)) if candidates else 0.0,
         "invalid_reasons": dict(
             Counter(reason for row in candidates for reason in row.get("invalid_reasons", []))
