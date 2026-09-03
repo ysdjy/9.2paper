@@ -4,6 +4,75 @@ One entry per work session. Newest first.
 
 ---
 
+## 2026-09-03 — `agent/phase13-freeze-v1` — affine-in-goal baseline: one slope is enough
+
+**Agent / task.** Claude Opus 5 — test the caveat the previous audit raised: if the goal→force
+mapping is near-affine, would one global slope already solve the multi-goal problem? Offline
+only; nothing trained, no multi-goal dataset generated, Setting V1 untouched.
+
+**This reverses the previous entry's recommendation.** The measurement behind it stands; the
+conclusion drawn from it does not.
+
+### Replication first
+
+A fresh, independent 64-state plain-Sobol draw (seed 20260904) reproduced the earlier 32-state
+audit exactly: 64/64 solvable at all three goals, median band 0.40 N throughout, `|dF*|` 0.500 N
+per 20 mm at **1.29x** the band, transfer of the 100 mm optimum **0/64** both ways. Not a draw
+artefact.
+
+### The affine baseline
+
+Split 32 calibration / 32 held out by a content-addressed permutation fixed before any physics
+was read. Slope fitted on the calibration half only, applied as
+`F(g) = F_100 + k_global*(g - 0.10)`. Deliberately generous: the baseline is handed each
+held-out drawer's **correct** `F_100` from its own Oracle band centre, and the slope is fitted on
+the distribution it is tested on — so these are an upper bound.
+
+**k_global = 24.53 N/m** (0.491 N per 20 mm), from 32/32 calibration drawers with slopes
+18.8–30.0 (sd 3.0).
+
+| goal | affine reach | Oracle | gap | median \|d−goal\| |
+|---|---|---|---|---|
+| 80 mm | **100.0 %** | 100.0 % | **+0.0 pp** | 2.19 mm |
+| 100 mm | 100.0 % | 100.0 % | +0.0 pp | 0.77 mm |
+| 120 mm | **96.9 %** | 100.0 % | **+3.1 pp** | 2.21 mm |
+
+Held-out slopes 15.0–28.8 N/m (median 23.8, sd 3.1), so `|k_i − k_global|` is 2.97 N/m median
+(12.1 %) and 9.53 N/m worst (38.9 %).
+
+### Why the variation is absorbed
+
+Arithmetic again. The correction over 20 mm is 0.491 N; a median slope error costs 0.059 N of
+force, which is **30 % of the 0.200 N band half-width**, and the worst drawer's costs 0.191 N,
+which is **95 %** of it. So the median drawer has ample margin and the single worst sits exactly
+on the edge — and it is the only failure: `m` 4.96, `mu_s` 2.87, `b` 4.13, true slope **15.0 N/m,
+the population minimum**, 39 % below `k_global`. The rule asks it for 4.05 N where the Oracle
+wants 3.75 and it overshoots to 131.5 mm.
+
+### Verdict
+
+**Both halves are true: hidden dynamics measurably change the mapping (a 1.9x slope spread), and
+one global slope is still sufficient (100 / 100 / 96.9 % of Oracle).** So a multi-goal
+task-conditioned experiment is **not worth running as posed** — it would compete against a
+one-parameter rule that loses 3.1 pp at the hardest goal, and any win would rest on a single
+outlier drawer.
+
+Stopped here without generating a multi-goal dataset, which was the pre-agreed action above
+90 %. What would change the answer: a goal range wide enough for the mapping to stop being
+affine (200–400 mm, where the goal-distance study found the terminal-velocity term and then the
+drawer's own stop taking over), or a tighter `eps_d` that stops absorbing a 12 % slope error.
+Both change frozen Setting V1.
+
+### Git state
+
+`agent/phase13-freeze-v1`. `docs/TASK_CONDITIONING.md` §7 added and §6's verdict marked
+superseded in place. New `probe_drawer.analysis.affine_goal_baseline`,
+`scripts/audit_affine_goal_baseline.py`, 14 unit tests. The sweep script now accepts multiple
+batches and a plain-Sobol population draw; its previous single-batch restriction was over-strict,
+since every state is probed once regardless of batching. 578 unit and 105 integration tests pass.
+
+---
+
 ## 2026-09-03 — `agent/phase13-freeze-v1` — task-conditioning feasibility audit
 
 **Agent / task.** Claude Opus 5 — before any multi-goal model, check whether `d_goal` actually

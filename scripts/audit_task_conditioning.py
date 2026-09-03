@@ -28,7 +28,17 @@ import argparse
 from isaaclab.app import AppLauncher
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--num-xi", type=int, default=32, help="Representative in-distribution states.")
+parser.add_argument("--num-xi", type=int, default=32, help="In-distribution states to sweep.")
+parser.add_argument(
+    "--sampler",
+    choices=("representative", "sobol"),
+    default="representative",
+    help=(
+        "'representative' is the corners-plus-Sobol draw the calibrations use. 'sobol' is "
+        "a plain scrambled Sobol sequence -- the right choice when a *population* estimate "
+        "is wanted, since the corner inset over-weights the extremes."
+    ),
+)
 parser.add_argument("--num_envs", type=int, default=32)
 parser.add_argument(
     "--goals", type=float, nargs="+", default=(0.08, 0.10, 0.12), help="Goal displacements (m)."
@@ -60,7 +70,11 @@ import numpy as np  # noqa: E402
 from probe_drawer.analysis.sweep import force_grid  # noqa: E402
 from probe_drawer.analysis.task_conditioning import summarise_task_conditioning  # noqa: E402
 from probe_drawer.dataset import branch_order  # noqa: E402
-from probe_drawer.dataset.sampling import representative_hidden_states  # noqa: E402
+from probe_drawer.dataset import XiSamplerCfg  # noqa: E402
+from probe_drawer.dataset.sampling import (  # noqa: E402
+    representative_hidden_states,
+    sample_hidden_states,
+)
 from probe_drawer.envs import DynamicsParameters, DynamicsRandomizer  # noqa: E402
 from probe_drawer.evaluation import OperatingRegionCfg, assess_validity  # noqa: E402
 from probe_drawer.experiment_plan import (  # noqa: E402
@@ -85,17 +99,25 @@ def main() -> None:
     enable_unbuffered_stdout()
     started = time.perf_counter()
 
-    states = representative_hidden_states(args_cli.num_xi, seed=args_cli.seed)
+    if args_cli.sampler == "sobol":
+        states = sample_hidden_states(
+            XiSamplerCfg(
+                num_states=args_cli.num_xi,
+                seed=args_cli.seed,
+                mass=TRAINING_XI_RANGES.mass,
+                static_friction=TRAINING_XI_RANGES.static_friction,
+                dynamic_friction_ratio=TRAINING_XI_RANGES.dynamic_friction_ratio,
+                damping=TRAINING_XI_RANGES.damping,
+            )
+        )
+    else:
+        states = representative_hidden_states(args_cli.num_xi, seed=args_cli.seed)
     forces = force_grid(args_cli.force_low, args_cli.force_high, args_cli.force_step)
     task = SETTING_V1_TASK
     goals = list(args_cli.goals)
     region = OperatingRegionCfg()
     num_envs = min(args_cli.num_envs, len(states))
-    if num_envs < len(states):
-        raise ValueError(
-            f"this audit runs one batch so that every goal shares one probe; asked for "
-            f"{len(states)} states with num_envs={num_envs}."
-        )
+    batches = [states[start : start + num_envs] for start in range(0, len(states), num_envs)]
 
     print("\n" + "=" * 90)
     print(f"[cond] states  : {len(states)} representative in-distribution hidden states")
@@ -104,6 +126,7 @@ def main() -> None:
     print(f"[cond] F_peak  : {forces[0]:.2f}..{forces[-1]:.2f} N step {args_cli.force_step:g} "
           f"({len(forces)} values); the frozen action range is {list(task.peak_force_range)}")
     print(f"[cond] note    : one sweep, scored three ways -- no controller reads d_goal")
+    print(f"[cond] batches : {len(batches)} of <= {num_envs}")
 
     system = PullSystem.build(
         PullSystemCfg(
@@ -119,48 +142,57 @@ def main() -> None:
     displacement = np.zeros((len(states), len(forces)), dtype=float)
     valid = np.zeros((len(states), len(forces)), dtype=bool)
     velocity = np.zeros((len(states), len(forces)), dtype=float)
+    probe_displacement = np.zeros(len(states), dtype=float)
 
     try:
-        randomizer.apply(
-            system.env,
-            [
-                DynamicsParameters(
-                    name=f"xi{index:03d}",
-                    drawer_mass=state["mass"],
-                    joint_static_friction=state["static_friction"],
-                    joint_dynamic_friction=state["dynamic_friction"],
-                    joint_damping=state["damping"],
-                )
-                for index, state in enumerate(states)
-            ],
-        )
-        system.reset()
+        # Batching does not weaken the "one sweep, three readings" property: every hidden state
+        # is still probed exactly once and swept exactly once, and the goals still differ only
+        # in the scoring. It only means the probe is shared within a batch rather than across
+        # all states, which was never what the property needed.
+        for number, batch in enumerate(batches, start=1):
+            offset = (number - 1) * num_envs
+            padded = batch + [batch[-1]] * (num_envs - len(batch))
+            randomizer.apply(
+                system.env,
+                [
+                    DynamicsParameters(
+                        name=f"xi{offset + index:03d}",
+                        drawer_mass=state["mass"],
+                        joint_static_friction=state["static_friction"],
+                        joint_dynamic_friction=state["dynamic_friction"],
+                        joint_damping=state["damping"],
+                    )
+                    for index, state in enumerate(padded)
+                ],
+            )
+            system.reset()
 
-        task_start = system.reader.drawer_position.clone()
-        probe = system.probe.run_fixed_budget(**SETTING_V1_PROBE.as_kwargs())
-        system.osc.coast(SEQUENTIAL_TRANSITION_STEPS)
-        pre_execution = (system.reader.drawer_position - task_start).cpu().numpy().copy()
-        snapshot = capture_snapshot(system, label="task conditioning")
+            task_start = system.reader.drawer_position.clone()
+            probe = system.probe.run_fixed_budget(**SETTING_V1_PROBE.as_kwargs())
+            system.osc.coast(SEQUENTIAL_TRANSITION_STEPS)
+            pre_execution = (system.reader.drawer_position - task_start).cpu().numpy().copy()
+            probe_displacement[offset : offset + len(batch)] = pre_execution[: len(batch)]
+            snapshot = capture_snapshot(system, label=f"task conditioning batch {number}")
 
-        for position, index in enumerate(branch_order("task-conditioning", len(forces))):
-            force = forces[index]
-            restore_snapshot(system, snapshot)
-            result = system.execution.run(peak_force=force, duration=task.duration)
-            validity = assess_validity(result, region, pre_execution_displacement=pre_execution)
-            for env in range(len(states)):
-                displacement[env, index] = validity.verdicts[env].metrics["final_displacement"]
-                valid[env, index] = validity.verdicts[env].valid
-                velocity[env, index] = float(result.final_velocity[env])
-            if position % 25 == 0:
-                print(f"[cond] force {position + 1}/{len(forces)} F={force:.2f} N "
-                      f"({time.perf_counter() - started:.0f} s)")
+            for position, index in enumerate(branch_order(f"task-conditioning-{number}", len(forces))):
+                force = forces[index]
+                restore_snapshot(system, snapshot)
+                result = system.execution.run(peak_force=force, duration=task.duration)
+                validity = assess_validity(result, region, pre_execution_displacement=pre_execution)
+                for env in range(len(batch)):
+                    displacement[offset + env, index] = validity.verdicts[env].metrics["final_displacement"]
+                    valid[offset + env, index] = validity.verdicts[env].valid
+                    velocity[offset + env, index] = float(result.final_velocity[env])
+                if position % 25 == 0:
+                    print(f"[cond] batch {number}/{len(batches)} force {position + 1}/{len(forces)} "
+                          f"F={force:.2f} N ({time.perf_counter() - started:.0f} s)")
     finally:
         system.close()
 
     rows = [
         {
             "hidden_state": dict(state),
-            "probe_displacement": float(pre_execution[index]),
+            "probe_displacement": float(probe_displacement[index]),
             "forces": list(forces),
             "displacement": displacement[index].tolist(),
             "valid": valid[index].tolist(),
@@ -190,6 +222,7 @@ def main() -> None:
                 "task": task.as_dict(),
                 "xi_ranges": TRAINING_XI_RANGES.as_dict(),
                 "seed": args_cli.seed,
+                "sampler": args_cli.sampler,
                 "operating_region": region.as_dict(),
                 "git_commit": git_commit(),
                 "environment": collect_environment_info().as_dict(),

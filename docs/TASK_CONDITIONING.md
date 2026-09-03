@@ -82,7 +82,11 @@ failure is not a property of these drawers — it follows from the goal spacing 
 tolerance window, and no drawer stiffness could rescue it. Equally, goals spaced *inside* the
 window would transfer for free; the audit's unit tests pin both directions.
 
-## 6. Verdict
+## 6. Verdict (superseded by §7 — read both)
+
+> This section's conclusion was reversed by the affine-baseline pilot in §7. It is kept
+> because the measurement behind it stands; only the recommendation changed.
+
 
 **Yes — the task condition genuinely changes the action mapping, and by enough to be worth a
 multi-goal experiment.**
@@ -103,8 +107,80 @@ linearly, a multi-goal model could do well by learning little more than that slo
 multi-goal experiment should therefore report the comparison against an explicit *affine-in-goal*
 baseline, or it risks crediting conditioning for arithmetic.
 
-## 7. Reproducing
+## 7. The follow-up: one global slope is already enough
+
+§6's caveat has now been tested, and it decides the question the other way round.
+
+A **fresh, independent** 64-state plain-Sobol draw over the in-distribution ranges (seed
+20260904, `--sampler sobol`) reproduced §2–§4 exactly: 64/64 solvable at all three goals, median
+band 0.40 N throughout, `|ΔF*|` 0.500 N median per 20 mm at **1.29×** the band, and transfer of
+the 100 mm optimum **0/64** in both directions. So the earlier 32-state result was not a draw
+artefact.
+
+Then the affine baseline. The 64 states were split **32 calibration / 32 held out** by a
+content-addressed permutation fixed before any physics was read; the slope was fitted on the
+calibration half only, and applied as `F(g) = F_100 + k_global·(g − 0.10)`.
+
+Two allowances **in the baseline's favour**, because the question is whether a global slope
+*suffices* rather than whether it is deployable: it is handed each held-out drawer's **correct**
+`F_100` from that drawer's own Oracle band centre, and the slope is fitted on the same
+distribution it is tested on. These numbers are an upper bound.
+
+**`k_global` = 24.53 N/m** — 0.491 N per 20 mm — from 32/32 calibration drawers whose own slopes
+span 18.8–30.0 (sd 3.0).
+
+| goal | affine reach | Oracle | gap | median \|d−goal\| | signed median |
+|---|---|---|---|---|---|
+| 80 mm | **32/32 = 100.0 %** | 100.0 % | **+0.0 pp** | 2.19 mm | +0.20 mm |
+| 100 mm | 32/32 = 100.0 % | 100.0 % | +0.0 pp | 0.77 mm | −0.36 mm |
+| 120 mm | **31/32 = 96.9 %** | 100.0 % | **+3.1 pp** | 2.21 mm | −0.34 mm |
+
+Held-out per-drawer slopes run **15.0–28.8 N/m** (median 23.8, sd 3.1), so `|k_i − k_global|` is
+**2.97 N/m median (12.1 % relative), 9.53 N/m worst (38.9 %)**.
+
+### Why the variation does not matter
+
+Hidden dynamics **do** change the slope — a 1.9× spread across drawers — and the reason it is
+absorbed is arithmetic again:
+
+| | |
+|---|---|
+| correction applied over 20 mm | 0.491 N |
+| force error from a median slope error | **0.059 N** — 30 % of the half-band |
+| force error from the worst slope error | 0.191 N — **95 %** of the half-band |
+| band half-width | 0.200 N |
+
+So the median drawer's slope error is a third of the way to the band edge and the single worst
+drawer sits right on it. That drawer is the only failure: `m` 4.96, `µ_s` 2.87, `b` 4.13, whose
+true slope of **15.0 N/m is the population minimum**, 39 % below `k_global`. The affine rule
+asks it for 4.05 N where the Oracle wants 3.75 N, and it overshoots to 131.5 mm (+11.5 mm).
+
+### Verdict, reversing §6
+
+**Hidden dynamics measurably change the goal→force mapping, and a single global slope is
+nonetheless sufficient.** Both halves of that are true and neither cancels the other: the slope
+is genuinely drawer-dependent (15–29 N/m) but the induced force error is small against the
+success band, so one constant recovers 100 / 100 / 96.9 % of the Oracle.
+
+**A multi-goal task-conditioned experiment is therefore not worth running as posed.** It would
+be competing against a one-parameter rule that already loses only 3.1 pp at the hardest goal,
+and any model beating that would be doing so on a single outlier drawer. §6's recommendation
+stands but its conclusion inverts: the affine-in-goal baseline is not merely a control to report
+*beside* a multi-goal result — measured, it removes the reason to produce one.
+
+What would change the answer: a goal range wide enough that the mapping stops being affine
+(the goal-distance study found the terminal-velocity term failing from ~100 mm and the drawer's
+own stop from ~350 mm, so 200–400 mm is where curvature would live), or a tighter `ε_d` that
+stops absorbing a 12 % slope error. Both change Setting V1, which is frozen.
+
+## 8. Reproducing
 
 ```bash
+# the 32-state audit (sections 2-6)
 python scripts/audit_task_conditioning.py --headless
+
+# the 64-state fresh draw and the affine baseline (section 7)
+python scripts/audit_task_conditioning.py --headless --num-xi 64 --num_envs 32 \
+    --sampler sobol --seed 20260904 --output outputs/logs/affine_goal_sweep.json
+python scripts/audit_affine_goal_baseline.py
 ```

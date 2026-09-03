@@ -36,6 +36,8 @@ outputs/videos/**
 !outputs/logs/ood_evaluation_summary.json
 # The task-conditioning audit is 284 KB and is the evidence behind docs/TASK_CONDITIONING.md.
 !outputs/logs/task_conditioning_audit.json
+!outputs/logs/affine_goal_sweep.json
+!outputs/logs/affine_goal_baseline.json
 !outputs/logs/ood_closed_loop.json
 
 # Large experiment snapshots
