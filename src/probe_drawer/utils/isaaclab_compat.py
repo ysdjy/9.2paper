@@ -45,6 +45,11 @@ def enable_unbuffered_stdout() -> None:
     ``SimulationApp.close()`` terminates the process without flushing Python's buffers, so
     anything a script printed after launching the app is otherwise lost when stdout is a
     pipe or a file.  Every script in ``scripts/`` calls this right after the app launch.
+
+    The non-simulator scripts call it too, at the top of ``main``, for the weaker but related
+    reason: redirected stdout is block-buffered, so a run that takes an hour shows nothing at
+    all until a 4 KB buffer happens to fill. That makes a long training run indistinguishable
+    from a hung one.
     """
     for stream in (sys.stdout, sys.stderr):
         try:

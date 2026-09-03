@@ -36,7 +36,7 @@ from probe_drawer.analysis.readout import RIDGE_PENALTY, leave_one_out
 from probe_drawer.dataset import DatasetStore
 from probe_drawer.dataset.schema import XI_DIMENSIONS
 from probe_drawer.experiment_plan import MAIN_TASK
-from probe_drawer.utils import git_commit, project_root
+from probe_drawer.utils import enable_unbuffered_stdout, git_commit, project_root
 
 #: Candidate floors to evaluate, in seconds. Each is scored by what it would cost and buy.
 CANDIDATE_FLOORS = (0.20, 0.35, 0.50)
@@ -54,6 +54,7 @@ SHORT_PROBE = 0.20
 
 
 def main() -> None:
+    enable_unbuffered_stdout()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", type=str, default="outputs/dataset_v0")
     parser.add_argument("--output", type=str, default=None)

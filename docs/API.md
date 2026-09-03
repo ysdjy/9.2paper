@@ -455,6 +455,8 @@ under the rule in `probe_drawer.analysis.fixed_probe_calibration`, `T_goal` by a
 `MAIN_TASK` and `RECOMMENDED_PROBE_TASK` remain as the Phase 11 setting, so Dataset v0 stays
 regenerable (`scripts/generate_dataset.py --setting v0`).
 
+Results at this setting: [DATASET_V1.md](DATASET_V1.md) and [TRAINING_V1.md](TRAINING_V1.md).
+
 ---
 
 ## The dataset schema

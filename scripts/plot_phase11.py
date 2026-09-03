@@ -43,6 +43,7 @@ import numpy as np  # noqa: E402
 from probe_drawer.dataset import DatasetStore, SplitCfg, split_samples  # noqa: E402
 from probe_drawer.dataset.schema import XI_DIMENSIONS  # noqa: E402
 from probe_drawer.experiment_plan import MAIN_TASK  # noqa: E402
+from probe_drawer.analysis.probe_features import rank_correlation  # noqa: E402
 from probe_drawer.models.baselines import STRONGEST_FEATURE, FeatureRegression  # noqa: E402
 from probe_drawer.training import reference_force_per_probe  # noqa: E402
 from probe_drawer.utils import project_root  # noqa: E402
@@ -54,12 +55,21 @@ XI_LABELS = {
     "damping": "damping $b$ (N$\\cdot$s/m)",
 }
 
-#: Median success-band width the Phase 10 Oracle measured at the selected task.
+#: Median success-band width, per setting, measured on a force grid fine enough to resolve it.
 #:
 #: The reference figure I compares a predictor's error against: a force has to land inside a
-#: window this wide, so an error of the same size is a coin flip
-#: (``docs/ORACLE_LANDSCAPE.md``).
-SUCCESS_BAND_WIDTH = 0.20
+#: window this wide, so an error of the same size is a coin flip. Phase 10's 0.20 N came from
+#: the Oracle landscape (``docs/ORACLE_LANDSCAPE.md``); Setting V1's 0.30 N came from the
+#: ``T_goal`` comparison at a 0.10 N step (``outputs/logs/setting_v1_T1.5.json``, D044).
+#:
+#: Keyed by setting rather than replaced, because figure I is drawn for both datasets and the
+#: wrong band would silently change what the figure claims.
+SUCCESS_BAND_WIDTH = {"v0": 0.20, "v1": 0.30}
+
+
+def success_band_width(store: DatasetStore) -> float:
+    """The band for this dataset's setting, defaulting to Phase 10's for older manifests."""
+    return SUCCESS_BAND_WIDTH.get(store.manifest.get("setting", "v0"), 0.20)
 
 
 def plots_dir() -> Path:
@@ -115,18 +125,34 @@ def plot_sequence_lengths(store: DatasetStore, path: Path) -> Path:
     return path
 
 
+def primary_label(row: dict) -> bool:
+    """``reach_success`` where the dataset records it, else the Dataset v0 ``success``.
+
+    Plotting ``success`` unconditionally would draw a flat zero for every Setting V1 figure:
+    at ``d_goal`` = 0.10 m the strict label is essentially never true, and the primary metric
+    is ``reach_success`` (``docs/DECISIONS.md`` D046).
+    """
+    reach = row.get("reach_success")
+    return bool(row["success"]) if reach is None else bool(reach)
+
+
+def label_name(store: DatasetStore) -> str:
+    first = next(iter(store.candidates), {})
+    return "success" if first.get("reach_success") is None else "reach_success"
+
+
 def plot_force_success(store: DatasetStore, path: Path) -> Path:
     """C -- where in the force range the positives are, and how many per probe."""
     rows = store.candidates
     forces = np.array([row["candidate_peak_force"] for row in rows])
-    success = np.array([bool(row["success"]) for row in rows])
+    success = np.array([primary_label(row) for row in rows])
     per_probe = defaultdict(int)
     for row in rows:
-        per_probe[row["probe_id"]] += int(bool(row["success"]))
+        per_probe[row["probe_id"]] += int(primary_label(row))
     counts = np.array(list(per_probe.values()))
 
     figure, axes = plt.subplots(1, 2, figsize=(12.5, 4.6), constrained_layout=True)
-    low, high = MAIN_TASK.peak_force_range
+    low, high = store.manifest.get("main_task", {}).get("peak_force_range", MAIN_TASK.peak_force_range)
     edges = np.linspace(low, high, 25)
     centres = 0.5 * (edges[:-1] + edges[1:])
     rates = [
@@ -135,8 +161,8 @@ def plot_force_success(store: DatasetStore, path: Path) -> Path:
     ]
     axes[0].bar(centres, np.array(rates) * 100, width=(high - low) / 26, color="tab:blue", alpha=0.8)
     axes[0].set_xlabel("candidate $F_\\mathrm{peak}$ (N)")
-    axes[0].set_ylabel("success rate (%)")
-    axes[0].set_title(f"success against force ({success.mean() * 100:.1f} % overall)")
+    axes[0].set_ylabel(f"{label_name(store)} rate (%)")
+    axes[0].set_title(f"{label_name(store)} against force ({success.mean() * 100:.1f} % overall)")
     axes[0].grid(alpha=0.3, axis="y")
 
     axes[1].hist(counts, bins=range(int(counts.max()) + 2), color="tab:blue", alpha=0.8)
@@ -173,7 +199,18 @@ def plot_split_balance(store: DatasetStore, path: Path) -> Path:
     axes[1].set_ylabel("hidden states")
     axes[1].set_title("groups -- disjoint by construction")
 
-    rates = [np.mean([sample.success for sample in subsets[name]]) * 100 if subsets[name] else 0.0 for name in names]
+    rates = [
+        np.mean(
+            [
+                sample.success if sample.reach_success is None else sample.reach_success
+                for sample in subsets[name]
+            ]
+        )
+        * 100
+        if subsets[name]
+        else 0.0
+        for name in names
+    ]
     axes[2].bar(names, rates, color="tab:orange", alpha=0.8)
     axes[2].set_ylabel("positive rate (%)")
     axes[2].set_title("label balance")
@@ -185,17 +222,18 @@ def plot_split_balance(store: DatasetStore, path: Path) -> Path:
     return path
 
 
-def plot_scalar_residual(store: DatasetStore, path: Path) -> Path:
+def plot_scalar_residual(store: DatasetStore, path: Path, feature: str = STRONGEST_FEATURE) -> Path:
     """I -- why 0.91 is not enough.
 
     Left: the scalar feature against the force each probe needs, with the fit. Right: the
     fit's residual, against the width of the window a force must land in. When the residual
     distribution is wider than the band, a strong correlation still misses.
     """
+    band = success_band_width(store)
     cfg = SplitCfg(**store.read_splits()["cfg"])
     split = split_samples(store.load_samples(), cfg)
     targets = reference_force_per_probe(split.train)
-    model = FeatureRegression(features=(STRONGEST_FEATURE,)).fit(
+    model = FeatureRegression(features=(feature,)).fit(
         split.train, [targets[sample.probe_id] for sample in split.train]
     )
 
@@ -204,33 +242,34 @@ def plot_scalar_residual(store: DatasetStore, path: Path) -> Path:
     for sample in split.test:
         if sample.probe_id not in seen:
             seen[sample.probe_id] = (
-                float(sample.probe_summary[STRONGEST_FEATURE]),
+                float(sample.probe_summary[feature]),
                 test_targets[sample.probe_id],
             )
-    feature = np.array([value for value, _ in seen.values()])
+    feature_values = np.array([value for value, _ in seen.values()])
     required = np.array([value for _, value in seen.values()])
-    predicted = model.predict([_Row({STRONGEST_FEATURE: value}) for value in feature])
+    predicted = model.predict([_Row({feature: value}) for value in feature_values])
     residual = predicted - required
 
     figure, axes = plt.subplots(1, 2, figsize=(12.5, 5.0), constrained_layout=True)
-    axes[0].plot(feature, required, "o", markersize=4, alpha=0.5, label="test probes")
-    order = np.argsort(feature)
-    axes[0].plot(feature[order], predicted[order], "-", color="tab:red", linewidth=2, label="linear fit")
-    axes[0].set_xlabel(STRONGEST_FEATURE.replace("_", " "))
+    axes[0].plot(feature_values, required, "o", markersize=4, alpha=0.5, label="test probes")
+    order = np.argsort(feature_values)
+    axes[0].plot(feature_values[order], predicted[order], "-", color="tab:red", linewidth=2, label="linear fit")
+    axes[0].set_xlabel(feature.replace("_", " "))
     axes[0].set_ylabel("required $F_\\mathrm{peak}$ (N)")
-    axes[0].set_title(f"the scalar predictor (Spearman |rho| = 0.91 in Phase 10)")
+    rho = abs(rank_correlation(list(feature_values), list(required)))
+    axes[0].set_title(f"the scalar predictor (Spearman |rho| = {rho:.3f} on this dataset)")
     axes[0].grid(alpha=0.3)
     axes[0].legend()
 
     axes[1].hist(residual, bins=40, color="tab:blue", alpha=0.75, label="prediction error")
     axes[1].axvspan(
-        -SUCCESS_BAND_WIDTH / 2,
-        SUCCESS_BAND_WIDTH / 2,
+        -band / 2,
+        band / 2,
         color="tab:green",
         alpha=0.25,
-        label=f"success band ({SUCCESS_BAND_WIDTH:.2f} N wide)",
+        label=f"success band ({band:.2f} N wide)",
     )
-    inside = float(np.mean(np.abs(residual) <= SUCCESS_BAND_WIDTH / 2)) * 100
+    inside = float(np.mean(np.abs(residual) <= band / 2)) * 100
     axes[1].set_xlabel("predicted $-$ required force (N)")
     axes[1].set_ylabel("test probes")
     axes[1].set_title(
@@ -311,20 +350,25 @@ def plot_run_figures(run: Path, directory: Path) -> list[Path]:
 
 def plot_closed_loop(payload: dict, path: Path) -> Path:
     """H -- the number the paper reports: physical success on unseen drawers."""
-    methods = sorted(payload["methods"], key=lambda name: -payload["methods"][name]["success_rate"])
+    # The closed-loop report keys changed with the metric split; fall back for older files.
+    def rate(name: str) -> float:
+        values = payload["methods"][name]
+        return float(values.get("reach_success_rate", values.get("success_rate", 0.0)))
+
+    methods = sorted(payload["methods"], key=lambda name: -rate(name))
     figure, axes = plt.subplots(1, 2, figsize=(13.0, 5.0), constrained_layout=True)
 
     positions = np.arange(len(methods))
     axes[0].barh(
         positions,
-        [payload["methods"][name]["success_rate"] * 100 for name in methods],
+        [rate(name) * 100 for name in methods],
         alpha=0.85,
         color="tab:blue",
     )
     axes[0].set_yticks(positions)
     axes[0].set_yticklabels(methods, fontsize=9)
     axes[0].invert_yaxis()
-    axes[0].set_xlabel("physical task success (%)")
+    axes[0].set_xlabel("physical reach success (%)")
     axes[0].set_title(f"{payload['num_test_states']} unseen hidden states")
     axes[0].grid(alpha=0.3, axis="x")
 
@@ -354,20 +398,47 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--run", type=str, default=None)
+    parser.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help=(
+            "Directory for the figures. Defaults to outputs/plots/<dataset_version>/, so "
+            "drawing these for Dataset v1 does not overwrite the Dataset v0 figures -- the "
+            "filenames are fixed, and two settings' figures under one name are worse than "
+            "either alone."
+        ),
+    )
     args = parser.parse_args()
 
     root = Path(args.dataset)
     if not root.is_absolute():
         root = project_root() / root
     store = DatasetStore(root)
-    directory = plots_dir()
+    # Figure I must plot the feature the run actually used for baseline A, or the figure and
+    # the table it explains would be about different baselines.
+    strongest = STRONGEST_FEATURE
+    if args.run:
+        candidate = Path(args.run)
+        if not candidate.is_absolute():
+            candidate = project_root() / candidate
+        payload = candidate / "comparison.json"
+        if payload.exists():
+            strongest = json.loads(payload.read_text()).get("strongest_feature", STRONGEST_FEATURE)
+    if args.output:
+        directory = Path(args.output)
+        if not directory.is_absolute():
+            directory = project_root() / directory
+    else:
+        directory = plots_dir() / str(store.manifest.get("dataset_version", "unversioned"))
+    directory.mkdir(parents=True, exist_ok=True)
 
     written = [
         plot_xi_coverage(store, directory / "phase11_a_xi_coverage.png"),
         plot_sequence_lengths(store, directory / "phase11_b_sequence_lengths.png"),
         plot_force_success(store, directory / "phase11_c_force_success.png"),
         plot_split_balance(store, directory / "phase11_d_split_balance.png"),
-        plot_scalar_residual(store, directory / "phase11_i_scalar_residual.png"),
+        plot_scalar_residual(store, directory / "phase11_i_scalar_residual.png", strongest),
     ]
 
     if args.run:

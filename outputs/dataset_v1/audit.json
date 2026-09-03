@@ -1,0 +1,432 @@
+{
+  "dataset": {
+    "root": "/home/zbh/Downloads/IsaacLab/9.2paper/outputs/dataset_v1",
+    "dataset_version": "v1",
+    "counts": {
+      "hidden_states": 512,
+      "probes": 1536,
+      "candidates": 49152
+    },
+    "history_files": 1536
+  },
+  "manifest": {
+    "dataset_version": "v1",
+    "schema_version": "1.1",
+    "setting": "v1",
+    "probe_mode": "fixed_budget",
+    "created_at": "2026-09-03T02:52:13.272484+00:00",
+    "git_commit": "7103dcc25300edefa329d7485391d134a4852e50",
+    "protocol": "sequential: reset -> probe -> inference gap -> branched executions",
+    "counterfactual_labels": "post-probe snapshot restored before each candidate",
+    "seed": 20260902,
+    "sampling": {
+      "num_hidden_states": 512,
+      "probe_repeats": 3,
+      "candidates_per_probe": 32,
+      "num_probes": 1536,
+      "num_candidates": 49152,
+      "xi_sampler": {
+        "method": "scrambled Sobol",
+        "num_states": 512,
+        "seed": 20260902,
+        "parameterisation": [
+          "mass",
+          "static_friction",
+          "dynamic_friction_ratio",
+          "damping"
+        ],
+        "mass": [
+          4.0,
+          12.0
+        ],
+        "static_friction": [
+          0.5,
+          3.0
+        ],
+        "dynamic_friction_ratio": [
+          0.3,
+          1.0
+        ],
+        "damping": [
+          2.0,
+          10.0
+        ]
+      },
+      "force_sampler": {
+        "method": "label-independent stratified with per-hidden-state jitter",
+        "count": 32,
+        "force_range": [
+          0.5,
+          6.5
+        ],
+        "jitter": 0.4,
+        "seed": 20260902,
+        "reads_labels": false
+      }
+    },
+    "probe_task": {
+      "peak_force": 3.5,
+      "duration": 0.3
+    },
+    "probe_cfg": {
+      "ramp_duration": 1.0,
+      "ramp_shape": "linear",
+      "hold_after_max_force": 0.0,
+      "max_probe_duration": 1.5,
+      "settle_steps": 30,
+      "fixed_rise_fraction": 0.1,
+      "fixed_fall_fraction": 0.35,
+      "fixed_shape": "smoothstep"
+    },
+    "execution_cfg": {
+      "rise_fraction": 0.1,
+      "fall_fraction": 0.35,
+      "shape": "smoothstep",
+      "settle_steps": 0,
+      "zero_force_cleanup_steps": 2,
+      "post_execution_settle_steps": 0
+    },
+    "sequential_transition_steps": 8,
+    "main_task": {
+      "duration": 1.5,
+      "goal_displacement": 0.1,
+      "displacement_tolerance": 0.0075,
+      "velocity_tolerance": 0.03,
+      "peak_force_range": [
+        0.5,
+        6.5
+      ]
+    },
+    "operating_region": {
+      "mechanical_margin_fraction": 0.8,
+      "max_displacement": 0.32000000000000006,
+      "drawer_travel_limit": 0.4,
+      "max_peak_velocity": 0.25,
+      "max_lateral_drift": 0.005,
+      "max_orientation_drift_deg": 5.0,
+      "min_displacement": 0.001
+    },
+    "history_channels": [
+      "commanded_force",
+      "drawer_position",
+      "drawer_velocity",
+      "drawer_acceleration",
+      "tcp_pull_axis_position",
+      "tcp_pull_axis_velocity",
+      "tcp_pull_axis_acceleration"
+    ],
+    "diagnostic_channels": [
+      "time",
+      "measured_force",
+      "drawer_velocity_raw",
+      "drawer_acceleration_raw",
+      "tcp_lateral_error",
+      "tcp_orientation_error"
+    ],
+    "num_envs": 32,
+    "environment": {
+      "os": "Linux 5.15.0-1097-realtime",
+      "python": "3.11.15",
+      "python_executable": "/home/zbh/anaconda3/envs/env_isaaclab/bin/python",
+      "torch": "2.7.1+cu128",
+      "cuda": "12.8",
+      "gpu": "NVIDIA GeForce RTX 5080",
+      "isaacsim": "5.1.0.0",
+      "isaaclab": "0.49.0",
+      "isaaclab_root": "/home/zbh/Downloads/IsaacLab",
+      "project_root": "/home/zbh/Downloads/IsaacLab/9.2paper",
+      "project_git_commit": "7103dcc25300edefa329d7485391d134a4852e50",
+      "registered_drawer_envs": {}
+    },
+    "counts": {
+      "hidden_states": 512,
+      "probes": 1536,
+      "candidates": 49152
+    }
+  },
+  "checks": {
+    "identifiers_unique": {
+      "unique_hidden_states": 512,
+      "unique_probes": 1536,
+      "unique_candidates": 49152,
+      "duplicates": {},
+      "passes": true
+    },
+    "probe_references_resolve": {
+      "dangling_probe_references": [],
+      "dangling_hidden_state_references": [],
+      "missing_history_files": [],
+      "passes": true
+    },
+    "probes_belong_to_one_hidden_state": {
+      "candidates_disagreeing_with_their_probe": [],
+      "probes_per_hidden_state": {
+        "3": 512
+      },
+      "passes": true
+    },
+    "repeats_share_a_candidate_grid": {
+      "hidden_states_checked": 512,
+      "hidden_states_with_inconsistent_grids": [],
+      "passes": true
+    },
+    "finite_values": {
+      "non_finite_rows": [],
+      "non_finite_histories": [],
+      "unreadable_histories": [],
+      "histories_shorter_than_two_steps": [],
+      "passes": true
+    },
+    "no_privileged_fields_in_model_input": {
+      "hidden_state_recorded": true,
+      "privileged_fields_reachable_from_model_input": [],
+      "history_channels": [
+        "commanded_force",
+        "drawer_acceleration",
+        "drawer_position",
+        "drawer_velocity",
+        "tcp_pull_axis_acceleration",
+        "tcp_pull_axis_position",
+        "tcp_pull_axis_velocity"
+      ],
+      "diagnostics_kept_out_of_history": true,
+      "passes": true
+    },
+    "counts_match_the_manifest": {
+      "declared": {
+        "hidden_states": 512,
+        "probes": 1536,
+        "candidates": 49152
+      },
+      "actual": {
+        "hidden_states": 512,
+        "probes": 1536,
+        "candidates": 49152
+      },
+      "planned": {
+        "hidden_states": 512,
+        "probes": 1536,
+        "candidates": 49152
+      },
+      "passes": true
+    },
+    "branch_index_decorrelated_from_force": {
+      "probes_checked": 1536,
+      "candidates_per_probe": 32,
+      "mean_correlation": -0.0022511942126653994,
+      "max_abs_correlation": 0.5976304501732296,
+      "null_standard_error": 0.004582722344417291,
+      "tolerance": 0.013748167033251872,
+      "sigmas": 0.4912351313205397,
+      "passes": true
+    },
+    "split_has_no_leakage": {
+      "level": "xi_id",
+      "counts": {
+        "level": "xi_id",
+        "rows": {
+          "train": 34464,
+          "val": 6240,
+          "test": 8448
+        },
+        "groups": {
+          "train": 359,
+          "test": 88,
+          "val": 65
+        }
+      },
+      "positive_fraction": {
+        "train": 0.059366295264623954,
+        "val": 0.058493589743589744,
+        "test": 0.06096117424242424
+      },
+      "empty_subsets": [],
+      "overlapping_groups": {},
+      "passes": true
+    }
+  },
+  "distributions": {
+    "hidden_states_with_incomplete_xi": 0,
+    "rows": 49152,
+    "probes": 1536,
+    "hidden_states": 512,
+    "label": "reach_success",
+    "positive_fraction": 0.059529622395833336,
+    "strict_positive_fraction": 0.0,
+    "invalid_fraction": 0.1011962890625,
+    "invalid_reasons": {
+      "excessive_velocity": 4413,
+      "excessive_lateral_drift": 2587,
+      "excessive_orientation_drift": 1614,
+      "mechanical_limit": 334,
+      "no_measurable_motion": 42,
+      "safety_abort": 45
+    },
+    "force_range": [
+      0.519131,
+      6.481215
+    ],
+    "force_histogram": {
+      "edges": [
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        3.0,
+        3.5,
+        4.0,
+        4.5,
+        5.0,
+        5.5,
+        6.0,
+        6.5
+      ],
+      "counts": [
+        4116,
+        4044,
+        4128,
+        4158,
+        4014,
+        4116,
+        4212,
+        3948,
+        4128,
+        4152,
+        3951,
+        4185
+      ]
+    },
+    "success_vs_force": [
+      {
+        "low": 0.5,
+        "high": 1.0,
+        "rows": 4116,
+        "positive_fraction": 0.0012147716229348883
+      },
+      {
+        "low": 1.0,
+        "high": 1.5,
+        "rows": 4044,
+        "positive_fraction": 0.023491592482690407
+      },
+      {
+        "low": 1.5,
+        "high": 2.0,
+        "rows": 4128,
+        "positive_fraction": 0.07606589147286821
+      },
+      {
+        "low": 2.0,
+        "high": 2.5,
+        "rows": 4158,
+        "positive_fraction": 0.12578162578162577
+      },
+      {
+        "low": 2.5,
+        "high": 3.0,
+        "rows": 4014,
+        "positive_fraction": 0.12157448928749377
+      },
+      {
+        "low": 3.0,
+        "high": 3.5,
+        "rows": 4116,
+        "positive_fraction": 0.10495626822157435
+      },
+      {
+        "low": 3.5,
+        "high": 4.0,
+        "rows": 4212,
+        "positive_fraction": 0.08855650522317189
+      },
+      {
+        "low": 4.0,
+        "high": 4.5,
+        "rows": 3948,
+        "positive_fraction": 0.08080040526849037
+      },
+      {
+        "low": 4.5,
+        "high": 5.0,
+        "rows": 4128,
+        "positive_fraction": 0.06031976744186047
+      },
+      {
+        "low": 5.0,
+        "high": 5.5,
+        "rows": 4152,
+        "positive_fraction": 0.025289017341040464
+      },
+      {
+        "low": 5.5,
+        "high": 6.0,
+        "rows": 3951,
+        "positive_fraction": 0.005821311060491015
+      },
+      {
+        "low": 6.0,
+        "high": 6.5,
+        "rows": 4185,
+        "positive_fraction": 0.0
+      }
+    ],
+    "positives_per_probe": {
+      "0": 17,
+      "1": 331,
+      "2": 974,
+      "3": 209,
+      "4": 5
+    },
+    "probes_with_no_positive": 17,
+    "probes_with_at_least_one": 1519,
+    "probes_with_at_least_two": 1188,
+    "sequence_length": {
+      "min": 18,
+      "max": 18,
+      "mean": 18.0,
+      "distinct": 1,
+      "histogram": {
+        "18": 1536
+      }
+    },
+    "xi_ranges": {
+      "mass": [
+        4.003585398197174,
+        11.994923114776611
+      ],
+      "static_friction": [
+        0.5034943060018122,
+        2.995940178632736
+      ],
+      "dynamic_friction": [
+        0.16617857316876905,
+        2.8417002783001846
+      ],
+      "damping": [
+        2.001061759889126,
+        9.993965148925781
+      ]
+    },
+    "dynamic_friction_never_exceeds_static": true
+  },
+  "gates": [
+    "identifiers_unique",
+    "probe_references_resolve",
+    "probes_belong_to_one_hidden_state",
+    "repeats_share_a_candidate_grid",
+    "finite_values",
+    "no_privileged_fields_in_model_input",
+    "split_has_no_leakage",
+    "counts_match_the_manifest",
+    "branch_index_decorrelated_from_force"
+  ],
+  "failed_gates": [],
+  "all_gates_passed": true,
+  "split_cfg": {
+    "level": "xi_id",
+    "train_fraction": 0.7,
+    "val_fraction": 0.15,
+    "salt": "phase11"
+  }
+}

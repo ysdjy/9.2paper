@@ -1043,3 +1043,49 @@ is what Phase 12 was paused to avoid continuing. The terminal velocity is kept o
 the threshold can be revisited from stored data without regenerating anything.
 
 **Date.** 2026-09-03
+
+---
+
+### D047 — Closed-loop absolute numbers are session-dependent; comparisons within a run are not
+
+**Decision.** Physical closed-loop results are reported from **one deployment run in which every
+method is measured**, and absolute rates are quoted to the nearest point rather than the
+decimal. Cross-run comparison of absolute values is not sound. No fix is applied in Phase 13;
+the harness change it implies is recorded here for a later phase.
+
+**Reason.** Found while re-running `evaluate_closed_loop.py` after making baseline A use its
+proper feature. Two runs of the *same checkpoints* on the *same dataset* disagreed by up to
+5.7 pp — including on deterministic baselines whose fit had not changed.
+
+It is not GPU non-determinism: two runs of identical code are **bit-reproducible**, all six
+methods to the digit. The cause is cross-batch state leakage in the deployment loop:
+
+| | identical probe displacement | identical chosen force |
+|---|---|---|
+| batch 1 | **32 / 32** | **32 / 32** |
+| batch 2 | 0 / 32 | 8 / 32 |
+| batch 3 | 1 / 24 | 13 / 24 |
+
+Batch 1 is exact because nothing ran before it. From batch 2 on, the probe itself differs,
+because `system.reset()` plus `DynamicsRandomizer.apply()` does not restore everything PhysX
+carries — the same non-restorable contact manifolds and friction anchors that
+`docs/COUNTERFACTUAL_BRANCHING.md` documents for snapshots. So how many branch executions ran
+in earlier batches changes the drawer's state at the *next* batch's probe, and a different
+probe gives different features, a different chosen force, and occasionally a different label.
+
+**Why the reported results are still sound.** Within one run there is exactly one probe per
+batch, and every method branches from one snapshot of the state that probe left. All methods
+therefore see identical evidence and identical initial conditions, which is the comparison the
+paper makes. What varies between sessions is the shared starting point, not the contest.
+
+The effect is also small against what is being claimed: the largest session-to-session shift
+observed was 5.7 pp, while ACE + PSP leads the best scalar baseline by 32 pp and the direct GRU
+by 10 pp. It does mean a 1-2 pp difference between two methods should not be read as real.
+
+**The fix, not applied here.** A discarded warm-up episode per batch, of the kind Phase 8 added
+for initialisation, should absorb the carried state. That is a change to the evaluation harness
+rather than to Setting V1, but Phase 13 is closing and it needs its own validation — a batch
+ordering permutation with and without the warm-up — rather than being slipped in beside a
+result it would change.
+
+**Date.** 2026-09-03

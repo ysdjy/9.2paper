@@ -22,10 +22,11 @@ from pathlib import Path
 
 from probe_drawer.dataset import DatasetStore, SplitCfg, split_samples
 from probe_drawer.dataset.audit import audit_dataset
-from probe_drawer.utils import project_root
+from probe_drawer.utils import enable_unbuffered_stdout, project_root
 
 
 def main() -> None:
+    enable_unbuffered_stdout()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", type=str, required=True, help="Dataset directory.")
     parser.add_argument("--split-level", type=str, default="xi_id", help="Group level to split on.")

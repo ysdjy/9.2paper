@@ -58,7 +58,8 @@ from probe_drawer.training import (
     train_student,
     train_teacher,
 )
-from probe_drawer.utils import git_commit, project_root
+from probe_drawer.analysis.probe_features import rank_correlation
+from probe_drawer.utils import enable_unbuffered_stdout, git_commit, project_root
 
 #: Probe summary features baselines B and C may use.
 #:
@@ -101,6 +102,41 @@ ABLATIONS = {
         "tcp_pull_axis_acceleration",
     ),
 }
+
+
+def strongest_single_feature(samples: list, targets: dict[str, float]) -> tuple[str, float]:
+    """The summary feature that best predicts the required force, chosen on **train** only.
+
+    Baseline A is "what one scalar can do", so it has to be given the *best* scalar for the
+    probe in use, not the best scalar for a probe the project has retired. Phase 10 measured
+    ``displacement_per_newton`` against the response-terminated ramp; under the fixed-budget
+    probe of Setting V1 the ranking is different (``final_velocity`` leads at |rho| = 0.969
+    against its 0.947), and hard-coding the old winner would understate the baseline and
+    flatter everything compared against it.
+
+    Constant features are skipped rather than scored: the fixed-budget probe makes ``duration``
+    and ``final_commanded_force`` identical for every probe by construction, and a rank
+    correlation against a constant is undefined.
+
+    Selected on the training split, so the choice cannot see the test set. It does use the
+    training labels -- that is the baseline's own fitting procedure, not leakage.
+    """
+    per_probe: dict[str, dict] = {}
+    for sample in samples:
+        per_probe.setdefault(sample.probe_id, sample.probe_summary)
+    probes = [probe for probe in per_probe if probe in targets]
+    target = [targets[probe] for probe in probes]
+
+    ranked: list[tuple[float, str]] = []
+    for name in SUMMARY_FEATURES:
+        values = [per_probe[probe][name] for probe in probes]
+        if len(set(values)) <= 1:
+            continue
+        ranked.append((abs(rank_correlation(values, target)), name))
+    if not ranked:
+        raise ValueError("no non-constant summary feature; baseline A cannot be fitted.")
+    best_rho, best_name = max(ranked)
+    return best_name, best_rho
 
 
 def _label(sample, name: str) -> float:
@@ -235,6 +271,7 @@ def _predict_force(model, dataset: SampleDataset, features: tuple[str, ...] | No
 
 
 def main() -> None:
+    enable_unbuffered_stdout()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--seeds", type=int, nargs="+", default=(0, 1, 2))
@@ -315,8 +352,13 @@ def main() -> None:
     print(f"[train] fixed force baseline: {fixed.force:.2f} N")
 
     # 2 -- closed-form baselines, which have no seed.
+    strongest, strongest_rho = strongest_single_feature(subsets["train"].samples, targets["train"])
+    print(
+        f"[train] baseline A uses '{strongest}' (|rho| = {strongest_rho:.3f} on train"
+        + (f"; Phase 10's '{STRONGEST_FEATURE}' was the ramp probe's)" if strongest != STRONGEST_FEATURE else ")")
+    )
     for label, features, alpha in (
-        ("A linear (1 feature)", (STRONGEST_FEATURE,), 0.0),
+        ("A linear (1 feature)", (strongest,), 0.0),
         ("B ridge (summary)", SUMMARY_FEATURES, 10.0),
     ):
         model = FeatureRegression(features=features, alpha=alpha).fit(
@@ -411,6 +453,8 @@ def main() -> None:
     payload = {
         "dataset": store.describe(),
         "dataset_version": store.manifest.get("dataset_version"),
+        "strongest_feature": strongest,
+        "strongest_feature_rho": strongest_rho,
         "git_commit": git_commit(),
         "created_at": datetime.now(UTC).isoformat(),
         "split": {**split_payload["cfg"], "counts": split.counts()},

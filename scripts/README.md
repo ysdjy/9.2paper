@@ -21,7 +21,7 @@ These run the paper's experiment. They are the ones that must keep working.
 | `audit_dataset.py` | nine gates plus the distributions; exits non-zero on failure | no |
 | `train_models.py` | baselines, privileged teacher, ACE + PSP, ablations | no |
 | `evaluate_closed_loop.py` | deploy on unseen hidden states, back in physics | yes |
-| `plot_phase11.py` | dataset and training figures | no |
+| `plot_phase11.py` | dataset and training figures, into `outputs/plots/<version>/` | no |
 
 ## Setting-defining evidence
 

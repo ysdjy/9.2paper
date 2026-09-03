@@ -43,8 +43,15 @@ __all__ = [
 ]
 
 #: The feature Phase 10 found strongest against the sequential Oracle: Spearman -0.910.
-#: Baseline A uses this one alone, so "a single scalar" is a concrete claim rather than a
+#: Baseline A uses one feature alone, so "a single scalar" is a concrete claim rather than a
 #: hand-wave (``docs/ORACLE_LANDSCAPE.md``).
+#:
+#: This is the **default and the Phase 10 record**, not a fixed choice: the strongest feature
+#: depends on the probe. Under Setting V1's fixed-budget probe the ranking differs -- this one
+#: scores |rho| = 0.947 while ``final_velocity`` leads at 0.969 -- so
+#: ``scripts/train_models.py`` selects the strongest on its own training split and records it
+#: in the run. Hard-coding the retired probe's winner would understate the baseline and
+#: flatter everything measured against it.
 STRONGEST_FEATURE = "displacement_per_newton"
 
 

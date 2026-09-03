@@ -4,6 +4,89 @@ One entry per work session. Newest first.
 
 ---
 
+## 2026-09-03 — `agent/phase13-freeze-v1` — Phase 13 Gate 4: Full Dataset v1 and the main experiment
+
+**Agent / task.** Claude Opus 5 — Gate 3 approved by the user with Setting V1 explicitly frozen.
+Generate the full dataset, train three seeds, deploy back into physics, report. No changes to
+the probe, the task, or the metrics; no cross-goal, VLM or SPC.
+
+### Dataset v1
+
+512 hidden states × 3 probes × 32 label-independent forces = **49 152 rows**, 35.1 MB, 1 930 s.
+**All nine audit gates passed.** `reach_success` 5.95 %, strict `success` 0.00 % (expected —
+D046), invalid 10.12 %. Branch/force decorrelation **0.49σ** against a 3σ gate. Split on `xi_id`:
+359 / 65 / 88 states, positive fractions 5.94 / 5.85 / 6.10 %. Required force over the 1 519
+solvable probes spans **0.64–5.51 N, median 2.91 — an 8.7× range**.
+
+**Every one of the 1 536 probes ran exactly 18 steps.** The fixed-budget probe's central promise,
+now measured at scale rather than argued.
+
+Invalidity is higher than v0's 0.88 % because the candidate range reaches 6.5 N; it is entirely
+concentrated above 4 N (51 % in the 6.0–6.5 N bin) and costs only 12 of 580 in-tolerance rows.
+The 6.0–6.5 N bin yields no positives at all, so about a twelfth of the candidate budget is spent
+where nothing succeeds — recorded, not acted on, because trimming the range is re-tuning.
+
+### The main experiment
+
+Three seeds, then all three deployed in **one** Isaac Sim session on 88 unseen hidden states.
+
+| method | physical reach | ± sd | per-seed | offline |
+|---|---|---|---|---|
+| teacher (privileged) | **98.1 %** | 0.5 | 97.7–98.9 | 93.8 % |
+| **ACE + PSP** | **91.3 %** | 1.4 | 89.8–93.2 | 83.3 % |
+| D GRU (history) | 81.4 % | 5.1 | 75.0–87.5 | 71.0 % |
+| B ridge (summary) | 59.1 % | — | — | 62.1 % |
+| A linear (1 feature) | 54.5 % | — | — | 56.1 % |
+| fixed force | 8.0 % | — | — | 9.1 % |
+
+Zero safety aborts in 1 320 physical episodes; invalidity ~1 % for every method including the
+fixed force, so it is the rig rather than any policy. `stable_success` 0.0 % for everything, the
+teacher included — the clearest possible evidence that this is the task and not the models.
+
+**The three gaps.** +32.2 pp over the best scalar baseline; 6.8 pp short of the privileged
+teacher; +9.9 pp over an identical encoder regressing a force, with the ordering **strict across
+seeds** (worst ACE 89.8 % > best GRU 87.5 %) and 3.6× less variance. A single seed would have put
+that last gap anywhere between 2.3 and 18.2 pp.
+
+### Two things found and fixed before reporting
+
+**Baseline A was using the wrong feature.** `STRONGEST_FEATURE` was hard-coded to Phase 10's
+`displacement_per_newton`, measured against the *ramp* probe. Under the fixed-budget probe
+`final_velocity` leads (|ρ| 0.969 vs 0.947), and two features are now constant by construction.
+Running the baseline on the retired probe's winner scored it 41.3 %; the right one scores 56.1 %
+— the hard-coded choice understated the baseline by **15 points** and flattered everything
+compared against it. `train_models.py` now selects it on its own training split and records it;
+the closed loop and figure I read that choice back. Training and deployment were re-run.
+
+**Closed-loop absolute numbers carry session history (D047).** Re-running after that fix moved
+results by up to 5.7 pp, including on deterministic baselines. It is not GPU non-determinism —
+identical code is bit-reproducible to the digit. It is cross-batch state leakage: batch 1 is
+exact (32/32 identical probe displacements), batches 2–3 are not, because `system.reset()` does
+not clear everything PhysX carries, so how many executions ran earlier changes the *next* batch's
+probe. Within a run every method shares one probe per batch and one snapshot, so the comparison
+is unaffected and all reported numbers come from a single run measuring all six methods. The fix
+— a discarded warm-up episode per batch — is specified in D047 and deliberately not applied
+beside a result it would change.
+
+Also fixed: `plot_phase11.py` read `sample.success`, which is 0 everywhere under Setting V1, so
+figures C and D would have been flat zeros; its `SUCCESS_BAND_WIDTH` was pinned to Phase 10's
+0.20 N where V1's band is 0.30 N; and figures now write to `outputs/plots/<version>/` instead of
+overwriting the v0 set. The non-simulator scripts now set line-buffered stdout — a redirected
+hour-long run previously showed nothing until a 4 KB buffer filled, making it indistinguishable
+from a hang.
+
+### Git state
+
+`agent/phase13-freeze-v1`. No history rewritten, Isaac Lab untouched, `baselines/rma2/` untouched.
+
+### Next
+
+Open, and not started: full Dataset v1 is done, so the natural next steps are the D047 harness
+warm-up, and then whatever the paper needs — cross-goal generalisation would finally exercise the
+`(d_goal, T_goal)` inputs that are currently constant and therefore untested.
+
+---
+
 ## 2026-09-03 — `agent/phase13-freeze-v1` — Phase 13: cleanup, then freeze Setting V1
 
 **Agent / task.** Claude Opus 5 — tidy the Phase 8–12 code and docs, then formally freeze the

@@ -33,7 +33,17 @@ from isaaclab.app import AppLauncher
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--run", type=str, required=True, help="Training run directory.")
 parser.add_argument("--dataset", type=str, required=True, help="Dataset the models were trained on.")
-parser.add_argument("--seed", type=int, default=0, help="Which trained seed to deploy.")
+parser.add_argument(
+    "--seeds",
+    type=int,
+    nargs="+",
+    default=(0,),
+    help=(
+        "Which trained seeds to deploy. All of them run inside one Isaac Sim session and from "
+        "the same probe snapshots, so a difference between seeds is the seed rather than the "
+        "drawer -- and three separate launches would cost three times as much for nothing."
+    ),
+)
 parser.add_argument("--num-xi", type=int, default=64, help="Test hidden states to evaluate (0 = all).")
 parser.add_argument("--num_envs", type=int, default=32, help="Drawers in parallel.")
 parser.add_argument(
@@ -58,6 +68,8 @@ simulation_app = app_launcher.app
 import json  # noqa: E402
 import time  # noqa: E402
 from pathlib import Path  # noqa: E402
+
+from collections import Counter  # noqa: E402
 
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
@@ -181,18 +193,25 @@ def main() -> None:
     print(f"[deploy] run     : {run_root}")
     print(f"[deploy] dataset : {dataset_root} ({store.manifest.get('dataset_version')})")
     print(f"[deploy] test xi : {len(test_ids)} hidden states, never seen in any split")
+    print(f"[deploy] seeds   : {list(args_cli.seeds)}")
 
-    # --- the models, loaded from the run ---
-    student = build_student(len(channels), psp)
-    student.load_state_dict(
-        torch.load(run_root / f"student_seed{args_cli.seed}" / "best.pt", weights_only=True)["state_dict"]
-    )
-    student.eval()
-    teacher = build_teacher(psp)
-    teacher.load_state_dict(
-        torch.load(run_root / f"teacher_seed{args_cli.seed}" / "best.pt", weights_only=True)["state_dict"]
-    )
-    teacher.eval()
+    # --- the models, one set per seed ---
+    def load(build, name: str, seed: int):
+        path = run_root / f"{name}_seed{seed}" / "best.pt"
+        if not path.is_file():
+            # Named explicitly: a bare FileNotFoundError from torch.load after Isaac Sim has
+            # already launched is an expensive way to learn that a seed was not trained.
+            raise FileNotFoundError(
+                f"no {name} checkpoint for seed {seed} at {path}. Train it first, or pass "
+                f"--seeds without {seed}."
+            )
+        model = build()
+        model.load_state_dict(torch.load(path, weights_only=True)["state_dict"])
+        return model.eval()
+
+    seeds = tuple(args_cli.seeds)
+    students = {seed: load(lambda: build_student(len(channels), psp), "student", seed) for seed in seeds}
+    teachers = {seed: load(lambda: build_teacher(psp), "teacher", seed) for seed in seeds}
 
     # The two closed-form baselines are refitted here rather than checkpointed: they are a
     # handful of coefficients over the training split, so refitting is exact and cheaper than
@@ -200,22 +219,25 @@ def main() -> None:
     train_samples = split.train
     targets = reference_force_per_probe(train_samples)
     training_targets = [targets[sample.probe_id] for sample in train_samples]
-    linear = FeatureRegression(features=(STRONGEST_FEATURE,)).fit(train_samples, training_targets)
+    # The single feature the *run* selected on its training split, not Phase 10's hard-coded
+    # one: the fixed-budget probe has a different strongest feature, and deploying the wrong
+    # one here would make the closed loop disagree with the offline table it is compared to.
+    strongest = comparison.get("strongest_feature", STRONGEST_FEATURE)
+    linear = FeatureRegression(features=(strongest,)).fit(train_samples, training_targets)
     # The ridge on all nine summary features is the *strongest* scalar-feature baseline
     # offline (48.2 % against the linear fit's 31.5 %), so leaving it out of the closed loop
     # would compare the learned model against the weakest available alternative.
-    summary_features = tuple(comparison.get("summary_features") or (STRONGEST_FEATURE,))
+    summary_features = tuple(comparison.get("summary_features") or (strongest,))
     ridge = FeatureRegression(features=summary_features, alpha=10.0).fit(train_samples, training_targets)
     fixed_force = float(
         next(row for row in comparison["results"]["fixed force"] if row["split"] == "test")["force"]
     )
 
-    gru = GruForceRegressor(len(channels), psp)
-    gru_path = run_root / f"gru_seed{args_cli.seed}" / "best.pt"
-    has_gru = gru_path.exists()
-    if has_gru:
-        gru.load_state_dict(torch.load(gru_path, weights_only=True)["state_dict"])
-        gru.eval()
+    grus = {
+        seed: load(lambda: GruForceRegressor(len(channels), psp), "gru", seed)
+        for seed in seeds
+        if (run_root / f"gru_seed{seed}" / "best.pt").exists()
+    }
 
     manifest = store.manifest
     task = task_from_manifest(manifest)
@@ -273,42 +295,57 @@ def main() -> None:
             )
             features = [extract_features(probe, index).as_dict() for index in range(num_envs)]
 
-            choices = {
-                "fixed force": np.full(num_envs, fixed_force),
-                "A linear (1 feature)": select_nearest(
-                    [float(linear.predict([_FeatureRow(row)])[0]) for row in features], selection_cfg
-                ).force,
-                "B ridge (summary)": select_nearest(
-                    [float(ridge.predict([_FeatureRow(row)])[0]) for row in features], selection_cfg
-                ).force,
-                "teacher (privileged)": _landscape_choice(
-                    teacher,
-                    xi_tensor,
-                    post_probe,
-                    task_condition.expand(num_envs, -1),
-                    scaler,
-                    num_envs,
-                    selection_cfg,
-                    privileged=True,
-                ),
-                "ACE + PSP": _landscape_choice(
-                    student,
-                    (history, lengths),
-                    post_probe,
-                    task_condition.expand(num_envs, -1),
-                    scaler,
-                    num_envs,
-                    selection_cfg,
-                ),
-            }
-            if has_gru:
-                with torch.no_grad():
-                    predicted = gru(
-                        _Batch(history, lengths, post_probe, task_condition.expand(num_envs, -1))
-                    ).numpy()
-                choices["D GRU (history)"] = select_nearest(predicted, selection_cfg).force
+            condition = task_condition.expand(num_envs, -1)
 
-            for method, forces in choices.items():
+            # Seed-independent methods: a fixed force, and two closed-form fits over the
+            # training split. Deployed once and recorded with ``seed: None`` rather than three
+            # times, which would only add identical rows.
+            choices: list[tuple[str, int | None, np.ndarray]] = [
+                ("fixed force", None, np.full(num_envs, fixed_force)),
+                (
+                    "A linear (1 feature)",
+                    None,
+                    select_nearest(
+                        [float(linear.predict([_FeatureRow(row)])[0]) for row in features], selection_cfg
+                    ).force,
+                ),
+                (
+                    "B ridge (summary)",
+                    None,
+                    select_nearest(
+                        [float(ridge.predict([_FeatureRow(row)])[0]) for row in features], selection_cfg
+                    ).force,
+                ),
+            ]
+            for seed in seeds:
+                choices.append(
+                    (
+                        "teacher (privileged)",
+                        seed,
+                        _landscape_choice(
+                            teachers[seed], xi_tensor, post_probe, condition, scaler, num_envs,
+                            selection_cfg, privileged=True,
+                        ),
+                    )
+                )
+                choices.append(
+                    (
+                        "ACE + PSP",
+                        seed,
+                        _landscape_choice(
+                            students[seed], (history, lengths), post_probe, condition, scaler,
+                            num_envs, selection_cfg,
+                        ),
+                    )
+                )
+                if seed in grus:
+                    with torch.no_grad():
+                        predicted = grus[seed](_Batch(history, lengths, post_probe, condition)).numpy()
+                    choices.append(
+                        ("D GRU (history)", seed, select_nearest(predicted, selection_cfg).force)
+                    )
+
+            for method, seed, forces in choices:
                 restore_snapshot(system, snapshot)
                 result = system.execution.run(peak_force=[float(f) for f in forces], duration=task.duration)
                 evaluation = evaluate_execution(
@@ -319,6 +356,7 @@ def main() -> None:
                     rows.append(
                         {
                             "method": method,
+                            "seed": seed,
                             "xi_id": state_id,
                             "xi": xi_by_id[state_id],
                             "chosen_force": float(forces[index]),
@@ -344,7 +382,7 @@ def main() -> None:
         {
             "run": str(run_root),
             "dataset": str(dataset_root),
-            "seed": args_cli.seed,
+            "seeds": list(seeds),
             "selection": {"grid_step": selection_cfg.step, "range": list(selection_cfg.force_range)},
             "task": task.as_dict(),
             "setting": manifest.get("setting", "v0"),
@@ -396,47 +434,93 @@ def _landscape_choice(
     return select_forces(score, num_envs, cfg).force
 
 
+def _method_metrics(selected: list[dict], goal: float) -> dict:
+    """Every number the physical closed loop is judged on, for one method's rows."""
+    valid = [row for row in selected if row["valid"]]
+    aborted = [row for row in selected if "safety_abort" in row["invalid_reasons"]]
+    errors = [abs(row["total_displacement"] - goal) for row in selected]
+    velocities = [abs(row["final_velocity"]) for row in selected]
+    forces = [row["chosen_force"] for row in selected]
+    return {
+        "episodes": len(selected),
+        # reach_success is the primary metric (D046); stable_success is reported beside it and
+        # is expected to be near zero at this operating point, which is a property of the task
+        # rather than of any method.
+        "reach_success_rate": float(np.mean([row["reach_success"] for row in selected])),
+        "stable_success_rate": float(np.mean([row["stable_success"] for row in selected])),
+        "invalid_rate": 1.0 - len(valid) / len(selected),
+        "safety_abort_rate": len(aborted) / len(selected),
+        "median_position_error_mm": float(np.median(errors)) * 1000,
+        "mean_position_error_mm": float(np.mean(errors)) * 1000,
+        "p90_position_error_mm": float(np.percentile(errors, 90)) * 1000,
+        "median_terminal_velocity": float(np.median(velocities)),
+        "p90_terminal_velocity": float(np.percentile(velocities, 90)),
+        "mean_chosen_force": float(np.mean(forces)),
+        "chosen_force_spread": [float(np.min(forces)), float(np.max(forces))],
+        "invalid_reasons": dict(
+            Counter(reason for row in selected for reason in row["invalid_reasons"])
+        ),
+    }
+
+
 def _summarise(rows: list[dict], num_states: int, goal: float) -> dict:
-    methods = sorted({row["method"] for row in rows})
+    """Per method: pooled over seeds, and the across-seed spread of the primary metric.
+
+    Both are reported because they answer different questions. The pooled number is the
+    method's performance; the spread says whether a gap between two methods survives the
+    variation between training runs, which a single seed cannot tell you.
+    """
     summary = {}
-    for method in methods:
+    for method in sorted({row["method"] for row in rows}):
         selected = [row for row in rows if row["method"] == method]
-        valid = [row for row in selected if row["valid"]]
+        seeds = sorted({row["seed"] for row in selected if row["seed"] is not None})
+        per_seed = {
+            seed: _method_metrics([row for row in selected if row["seed"] == seed], goal)
+            for seed in seeds
+        }
+        rates = [values["reach_success_rate"] for values in per_seed.values()]
         summary[method] = {
-            "drawers": len(selected),
-            "success_rate": float(np.mean([row["success"] for row in selected])),
-            "reach_success_rate": float(np.mean([row["reach_success"] for row in selected])),
-            "stable_success_rate": float(np.mean([row["stable_success"] for row in selected])),
-            "success_rate_valid_only": float(np.mean([row["success"] for row in valid])) if valid else float("nan"),
-            "invalid_rate": 1.0 - len(valid) / len(selected),
-            "median_displacement_error_mm": float(
-                np.median([abs(row["total_displacement"] - goal) for row in selected]) * 1000
+            **_method_metrics(selected, goal),
+            "seeds": seeds,
+            "per_seed": per_seed,
+            # Population sd over the seeds actually run, not an inference about a wider
+            # population: with three seeds an unbiased estimate would be noise either way, and
+            # what is wanted here is "how much did these runs differ".
+            "reach_success_sd_across_seeds": float(np.std(rates)) if len(rates) > 1 else 0.0,
+            "reach_success_range_across_seeds": (
+                [float(min(rates)), float(max(rates))] if rates else None
             ),
-            "median_terminal_velocity": float(np.median([abs(row["final_velocity"]) for row in selected])),
-            "mean_chosen_force": float(np.mean([row["chosen_force"] for row in selected])),
-            "chosen_force_spread": [
-                float(np.min([row["chosen_force"] for row in selected])),
-                float(np.max([row["chosen_force"] for row in selected])),
-            ],
         }
     return {"num_test_states": num_states, "methods": summary}
 
 
 def _print(report: dict, output: Path) -> None:
-    """Ranked by ``reach``, the primary metric, with ``stable`` printed beside it (D046)."""
+    """Ranked by ``reach``, the primary metric, with the across-seed spread beside it (D046)."""
     print("[deploy]")
     print(
-        f"[deploy] {'method':>22} {'reach':>8} {'stable':>8} {'invalid':>8} "
-        f"{'|d-goal| med':>13} {'|v(T)| med':>11} {'F range':>14}"
+        f"[deploy] {'method':>22} {'reach':>8} {'+-sd':>7} {'stable':>8} {'invalid':>8} "
+        f"{'abort':>7} {'|d-goal| med':>13} {'|v(T)| med':>11} {'F range':>14}"
     )
     for method, values in sorted(report["methods"].items(), key=lambda item: -item[1]["reach_success_rate"]):
         low, high = values["chosen_force_spread"]
         print(
             f"[deploy] {method:>22} {values['reach_success_rate'] * 100:7.1f}% "
+            f"{values['reach_success_sd_across_seeds'] * 100:6.1f} "
             f"{values['stable_success_rate'] * 100:7.1f}% {values['invalid_rate'] * 100:7.1f}% "
-            f"{values['median_displacement_error_mm']:12.2f}mm "
+            f"{values['safety_abort_rate'] * 100:6.1f}% "
+            f"{values['median_position_error_mm']:12.2f}mm "
             f"{values['median_terminal_velocity']:10.3f} {low:6.2f}-{high:5.2f} N"
         )
+    seeded = {name: v for name, v in report["methods"].items() if v["seeds"]}
+    if seeded:
+        print("[deploy]")
+        print("[deploy] per-seed reach success:")
+        for method, values in sorted(seeded.items(), key=lambda item: -item[1]["reach_success_rate"]):
+            rates = ", ".join(
+                f"seed {seed} {per['reach_success_rate'] * 100:.1f}%"
+                for seed, per in sorted(values["per_seed"].items())
+            )
+            print(f"[deploy] {method:>22}  {rates}")
     print("[deploy]")
     print(f"[deploy] report written: {output}")
     print("=" * 78 + "\n")

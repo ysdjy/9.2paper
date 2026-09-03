@@ -1,0 +1,135 @@
+{
+  "dataset_version": "v1",
+  "schema_version": "1.1",
+  "setting": "v1",
+  "probe_mode": "fixed_budget",
+  "created_at": "2026-09-03T02:52:13.272484+00:00",
+  "git_commit": "7103dcc25300edefa329d7485391d134a4852e50",
+  "protocol": "sequential: reset -> probe -> inference gap -> branched executions",
+  "counterfactual_labels": "post-probe snapshot restored before each candidate",
+  "seed": 20260902,
+  "sampling": {
+    "num_hidden_states": 512,
+    "probe_repeats": 3,
+    "candidates_per_probe": 32,
+    "num_probes": 1536,
+    "num_candidates": 49152,
+    "xi_sampler": {
+      "method": "scrambled Sobol",
+      "num_states": 512,
+      "seed": 20260902,
+      "parameterisation": [
+        "mass",
+        "static_friction",
+        "dynamic_friction_ratio",
+        "damping"
+      ],
+      "mass": [
+        4.0,
+        12.0
+      ],
+      "static_friction": [
+        0.5,
+        3.0
+      ],
+      "dynamic_friction_ratio": [
+        0.3,
+        1.0
+      ],
+      "damping": [
+        2.0,
+        10.0
+      ]
+    },
+    "force_sampler": {
+      "method": "label-independent stratified with per-hidden-state jitter",
+      "count": 32,
+      "force_range": [
+        0.5,
+        6.5
+      ],
+      "jitter": 0.4,
+      "seed": 20260902,
+      "reads_labels": false
+    }
+  },
+  "probe_task": {
+    "peak_force": 3.5,
+    "duration": 0.3
+  },
+  "probe_cfg": {
+    "ramp_duration": 1.0,
+    "ramp_shape": "linear",
+    "hold_after_max_force": 0.0,
+    "max_probe_duration": 1.5,
+    "settle_steps": 30,
+    "fixed_rise_fraction": 0.1,
+    "fixed_fall_fraction": 0.35,
+    "fixed_shape": "smoothstep"
+  },
+  "execution_cfg": {
+    "rise_fraction": 0.1,
+    "fall_fraction": 0.35,
+    "shape": "smoothstep",
+    "settle_steps": 0,
+    "zero_force_cleanup_steps": 2,
+    "post_execution_settle_steps": 0
+  },
+  "sequential_transition_steps": 8,
+  "main_task": {
+    "duration": 1.5,
+    "goal_displacement": 0.1,
+    "displacement_tolerance": 0.0075,
+    "velocity_tolerance": 0.03,
+    "peak_force_range": [
+      0.5,
+      6.5
+    ]
+  },
+  "operating_region": {
+    "mechanical_margin_fraction": 0.8,
+    "max_displacement": 0.32000000000000006,
+    "drawer_travel_limit": 0.4,
+    "max_peak_velocity": 0.25,
+    "max_lateral_drift": 0.005,
+    "max_orientation_drift_deg": 5.0,
+    "min_displacement": 0.001
+  },
+  "history_channels": [
+    "commanded_force",
+    "drawer_position",
+    "drawer_velocity",
+    "drawer_acceleration",
+    "tcp_pull_axis_position",
+    "tcp_pull_axis_velocity",
+    "tcp_pull_axis_acceleration"
+  ],
+  "diagnostic_channels": [
+    "time",
+    "measured_force",
+    "drawer_velocity_raw",
+    "drawer_acceleration_raw",
+    "tcp_lateral_error",
+    "tcp_orientation_error"
+  ],
+  "num_envs": 32,
+  "environment": {
+    "os": "Linux 5.15.0-1097-realtime",
+    "python": "3.11.15",
+    "python_executable": "/home/zbh/anaconda3/envs/env_isaaclab/bin/python",
+    "torch": "2.7.1+cu128",
+    "cuda": "12.8",
+    "gpu": "NVIDIA GeForce RTX 5080",
+    "isaacsim": "5.1.0.0",
+    "isaaclab": "0.49.0",
+    "isaaclab_root": "/home/zbh/Downloads/IsaacLab",
+    "project_root": "/home/zbh/Downloads/IsaacLab/9.2paper",
+    "project_git_commit": "7103dcc25300edefa329d7485391d134a4852e50",
+    "registered_drawer_envs": {}
+  },
+  "counts": {
+    "hidden_states": 512,
+    "probes": 1536,
+    "candidates": 49152
+  }
+}

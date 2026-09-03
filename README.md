@@ -62,7 +62,8 @@ RL policy；RMA² baseline 由 `baselines/rma2/` 独立负责，主方法不依�
 [x] Phase 13B  Setting V1 frozen: fixed-budget probe 3.5 N / 0.3 s, d_goal 100 mm, T_goal 1.5 s
 [x] Phase 13C  reach_success / stable_success split; Dataset v1 schema; task-conditioned PSP
 [x] Phase 13D  Dataset v1 pilot (96 xi x 3 probes x 32 candidates), nine-gate audit passed
-[ ] Phase 13E  Full Dataset v1 -- deliberately NOT started; gated on review of the pilot
+[x] Phase 13E  Full Dataset v1: 512 xi x 3 probes x 32 candidates = 49,152 rows, 9 gates passed
+[x] Phase 13F  3-seed main experiment + physical closed loop on 88 unseen drawers
 [ ]            SPC
 [ ]            VLM
 ```
@@ -85,10 +86,25 @@ they are **24/24 and 0/24** -- reaching 100 mm inside 1.5 s leaves the drawer mo
 0.05-0.08 m/s where `eps_v` is 0.03. Setting V1 therefore poses a *reaching* task, not a
 *placement* task; that is reported as a limitation rather than tuned away.
 
-On the Dataset v1 pilot (96 hidden states, 9,216 rows, all nine audit gates passed), one seed
-of the full chain gives **ACE + PSP 77.8 %** selection success on held-out drawers against a
-privileged teacher's **86.7 %**, the best scalar baseline's **73.3 %**, and a single fixed
-force's **13.3 %**.
+**The main experiment is done.** Dataset v1 is 512 hidden states x 3 probes x 32 forces =
+**49,152 rows**, all nine audit gates passed, with every one of the 1,536 probes exactly 18
+steps long. Three seeds, then deployed back into physics on **88 hidden states no split ever
+saw**:
+
+| method | physical reach success | +- sd over 3 seeds | median \|d-goal\| | safety aborts |
+|---|---|---|---|---|
+| teacher (privileged `xi`) | **98.1 %** | 0.5 | 1.83 mm | 0 |
+| **ACE + PSP** | **91.3 %** | 1.4 | 2.28 mm | 0 |
+| D GRU (history -> force) | 81.4 % | 5.1 | 4.58 mm | 0 |
+| B ridge (9 summary features) | 59.1 % | -- | 6.57 mm | 0 |
+| A linear (best single feature) | 54.5 % | -- | 7.30 mm | 0 |
+| fixed force | 8.0 % | -- | 32.60 mm | 0 |
+
+Zero safety aborts in 1,320 physical episodes. The three gaps that matter: **+32.2 pp** over the
+best scalar baseline, **6.8 pp** short of a teacher that is told the hidden state exactly, and
+**+9.9 pp** over an identical encoder that regresses a force instead of a success landscape --
+the last with the ordering strict across every seed and 3.6x less variance. Details:
+[docs/TRAINING_V1.md](docs/TRAINING_V1.md), [docs/DATASET_V1.md](docs/DATASET_V1.md).
 
 Phase 10 replaced that reset with the real thing — probe, a fixed inference gap, then the
 execution, with nothing reset or written in between — and re-selected the task against it. The

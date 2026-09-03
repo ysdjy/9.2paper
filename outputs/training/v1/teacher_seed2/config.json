@@ -1,0 +1,33 @@
+{
+  "train": {
+    "epochs": 60,
+    "batch_size": 256,
+    "learning_rate": 0.003,
+    "weight_decay": 0.0001,
+    "patience": 12,
+    "pos_weight": null,
+    "distillation_weight": 0.0,
+    "distillation_temperature": 2.0,
+    "latent_weight": 0.0,
+    "label": "reach_success",
+    "auxiliary_weight": 0.2,
+    "seed": 2,
+    "device": "cuda",
+    "monitor": "selected_success_rate_feasible_only"
+  },
+  "psp": {
+    "z_dim": 16,
+    "hidden": 96,
+    "gru_hidden": 64,
+    "gru_layers": 1,
+    "dropout": 0.1,
+    "condition_dim": 5,
+    "condition_fields": [
+      "candidate_peak_force",
+      "post_probe_displacement",
+      "post_probe_velocity",
+      "goal_displacement",
+      "duration"
+    ]
+  }
+}
